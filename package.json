@@ -1,0 +1,18 @@
+{
+  "name": "forgeai-agentic-init",
+  "version": "0.1.0",
+  "description": "MVP AI project initialization kit for agentic coding workflows.",
+  "type": "module",
+  "bin": {
+    "forgeai-init": "./bin/forgeai-init.js"
+  },
+  "files": [
+    "bin",
+    "templates",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "license": "MIT"
+}
