@@ -4,15 +4,37 @@
   "description": "AI project initialization kit for agentic coding workflows.",
   "type": "module",
   "bin": {
-    "forgeai-init": "./bin/forgeai-init.js"
+    "forgeai-init": "bin/forgeai-init.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "prepublishOnly": "npm test"
   },
   "files": [
     "bin",
     "templates",
     "README.md"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daithanh-quan/forgeai-agentic.git"
+  },
+  "bugs": {
+    "url": "https://github.com/daithanh-quan/forgeai-agentic/issues"
+  },
+  "homepage": "https://github.com/daithanh-quan/forgeai-agentic#readme",
+  "keywords": [
+    "ai",
+    "agentic",
+    "cli",
+    "coding-agents",
+    "project-template"
+  ],
   "engines": {
     "node": ">=18.18.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
 }

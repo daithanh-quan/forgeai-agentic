@@ -5,6 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="20ddf617-4185-4a0e-af54-4403565d1dc2" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -32,7 +33,7 @@
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
     "ai.playground.ignore.import.keys.banner.in.settings": "true",
     "git-widget-placeholder": "main",
-    "last_opened_file_path": "/Users/admin/Documents/Learn/forgeai-agentic-mvp",
+    "last_opened_file_path": "/Users/admin/Documents/Learn/forgeai-agentic",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
@@ -58,6 +59,7 @@
       <updated>1781356233626</updated>
       <workItem from="1781356234915" duration="6774000" />
       <workItem from="1781485778654" duration="1260000" />
+      <workItem from="1781505684904" duration="866000" />
     </task>
     <servers />
   </component>

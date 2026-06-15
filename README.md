@@ -6,12 +6,19 @@ The goal is simple: every new project should start with the same AI-readable con
 
 ## Install in a new project
 
-This package is not yet published to npm, so install it by running the CLI
-directly from this repository:
+Run the CLI directly with npm:
 
 ```bash
-node ./bin/forgeai-init.js --dry-run
-node ./bin/forgeai-init.js
+npx forgeai-agentic-init@0.1.0 --dry-run
+npx forgeai-agentic-init@0.1.0
+```
+
+Or install it globally:
+
+```bash
+npm install --global forgeai-agentic-init@0.1.0
+forgeai-init --dry-run
+forgeai-init
 ```
 
 ## What gets installed
