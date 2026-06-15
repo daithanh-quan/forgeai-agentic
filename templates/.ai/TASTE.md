@@ -7,12 +7,12 @@ This file stores style and preference guidance so AI agents produce output that 
 - Be direct, practical, and avoid unnecessary theory.
 - Prefer runnable code examples.
 - When there are multiple options, recommend the best option first, then explain trade-offs.
-- For large tasks, split work into MVP phase and production-ready phase.
+- For large tasks, split work into an initial minimal phase and a production-ready phase.
 
 ## Engineering taste
 
 - Prefer maintainable structure over clever code.
-- Do not over-engineer the MVP.
+- Do not over-engineer the initial implementation.
 - Move business logic out of UI when the logic becomes complex.
 - Use clear names instead of abbreviations.
 - Follow the current repository conventions over the agent's personal preferences.

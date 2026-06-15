@@ -1,4 +1,4 @@
-# ForgeAI Agentic Init MVP
+# ForgeAI Agentic Init
 
 A minimal CLI for installing a markdown-based project harness for AI coding agents.
 
@@ -6,13 +6,8 @@ The goal is simple: every new project should start with the same AI-readable con
 
 ## Install in a new project
 
-After this package is published to npm:
-
-```bash
-npx forgeai-agentic-init@latest
-```
-
-Local MVP test:
+This package is not yet published to npm, so install it by running the CLI
+directly from this repository:
 
 ```bash
 node ./bin/forgeai-init.js --dry-run
@@ -109,7 +104,7 @@ different tools without duplicating instructions:
 - `.claude/skills/*` — Claude Code-specific skill entry points that point
   back to `.ai/skills/*` for the full content.
 
-## MVP principles
+## Design principles
 
 - Keep the first version small and usable.
 - Use markdown as the source of truth before adding databases or complex orchestration.

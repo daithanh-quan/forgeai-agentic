@@ -35,22 +35,22 @@ Write the product goal in one short paragraph:
 
 > This project helps [target users] solve [problem] by [core solution].
 
-## Current MVP scope
+## Current scope
 
 <!--
 Derive from existing features/routes/modules if this is an established
 codebase. For a brand-new project, leave these as TODO until the human
-defines the MVP scope — do not invent scope items.
+defines the scope — do not invent scope items.
 -->
 
-The MVP should focus on:
+The initial version should focus on:
 
 1. TODO: Core user flow
 2. TODO: Critical data model
 3. TODO: Minimal UI/API integration
 4. TODO: Validation and error handling
 
-Out of scope for MVP:
+Out of scope for now:
 
 - TODO: Advanced automation
 - TODO: Multi-tenant complexity

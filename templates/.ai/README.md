@@ -16,12 +16,6 @@ tell the agent:
 > before planning or editing code. If `.ai/PROJECT.md` still has `TODO`
 > placeholders, follow `.ai/BOOTSTRAP.md` first.
 
-For the local MVP:
-
-```bash
-npx forgeai-agentic-init@latest
-```
-
 ## Recommended read order for agents
 
 1. `PROJECT.md` — what the project is, its stack, constraints, and boundaries.
@@ -56,7 +50,7 @@ npx forgeai-agentic-init@latest
   invoke them directly; each one points back to the canonical doc in
   `.ai/skills/` to avoid duplication.
 
-## MVP principles
+## Core principles
 
 - Do not automate too much too early.
 - Every task must have intent, scope, acceptance criteria, and validation.

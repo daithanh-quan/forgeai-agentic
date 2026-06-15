@@ -2,7 +2,7 @@
 
 This file guides any AI coding agent (Claude Code, Codex, Gemini CLI, Cline,
 RooCode, Aider, or other) through first-run setup of a project that was just
-initialized with `npx forgeai-agentic-init`.
+initialized with the ForgeAI agentic-init harness.
 
 ## 1. Files to Read First
 

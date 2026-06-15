@@ -37,7 +37,7 @@ If information is missing, the agent should not stop immediately. The agent writ
 ## Assumptions
 - Assumption 1
 
-## Safe MVP scope
+## Safe minimal scope
 - Smallest implementation that satisfies the task
 
 ## Out of scope
