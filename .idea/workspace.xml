@@ -5,47 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="20ddf617-4185-4a0e-af54-4403565d1dc2" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/bin/forgeai-init.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/superpowers/plans/2026-06-13-forgeai-multi-agent-harness.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/AGENT_REGISTRY.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/BOOTSTRAP.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/MEMORY.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/PROJECT.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/RULES.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/TASTE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/WORKFLOW.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/agents/architect.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/agents/backend.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/agents/frontend.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/agents/orchestrator.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/agents/planner.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/agents/pr-writer.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/agents/reviewer.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/agents/tester.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/skills/backend-implementation/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/skills/code-review/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/skills/frontend-implementation/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/skills/spec-planning/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/skills/testing/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/state/CURRENT.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.ai/workflows/task-intake.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.claude/skills/backend/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.claude/skills/frontend/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.claude/skills/reviewer/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/.claude/skills/testing/SKILL.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/AGENTS.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/CLAUDE.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/openspec/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/openspec/changes/_template/design.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/openspec/changes/_template/proposal.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/openspec/changes/_template/specs/capability.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/openspec/changes/_template/tasks.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/openspec/project.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -55,9 +15,9 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 8
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 8
+}</component>
   <component name="ProjectId" id="3F5DrGpXKI8rX6mabYRkAqsBSP1" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -68,9 +28,10 @@
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
     "ai.playground.ignore.import.keys.banner.in.settings": "true",
-    "git-widget-placeholder": "master",
+    "git-widget-placeholder": "main",
     "last_opened_file_path": "/Users/admin/Documents/Learn/forgeai-agentic-mvp",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
@@ -95,7 +56,8 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1781356233626</updated>
-      <workItem from="1781356234915" duration="5765000" />
+      <workItem from="1781356234915" duration="6774000" />
+      <workItem from="1781485778654" duration="1260000" />
     </task>
     <servers />
   </component>
