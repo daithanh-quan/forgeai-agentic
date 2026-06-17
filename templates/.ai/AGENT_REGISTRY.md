@@ -77,6 +77,12 @@ Recommended skills:
 
 ## Model routing strategy
 
+The active routing configuration lives in `.ai/model-routing.yaml`. Local CLI
+commands live in `.ai/cli-adapters.json`. Claude is the default
+lead/orchestrator and follows `.ai/MODEL_ROUTING.md` to score each subtask
+from 0-10, choose a model tier, invoke a configured adapter when available,
+minimize delegated context, and review all returned work.
+
 | Task type | Recommended model class | Reason |
 | --- | --- | --- |
 | Task classification | Fast/cheap model | Low risk, repeatable |
@@ -86,6 +92,9 @@ Recommended skills:
 | Complex debugging | Strong model | Requires multi-step reasoning |
 | Large refactor | Strong model + human review | High blast radius |
 | Documentation cleanup | Fast model | Low risk |
+
+The table is guidance only. The score and minimum-tier rules in
+`.ai/model-routing.yaml` decide the actual route.
 
 ## Human review gate
 

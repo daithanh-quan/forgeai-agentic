@@ -23,12 +23,15 @@ tell the agent:
 3. `MEMORY.md` — durable decisions, conventions, and lessons learned.
 4. `TASTE.md` — owner/team preferences and style.
 5. `AGENT_REGISTRY.md` — agent roles, sub-agents, and routing strategy.
-6. `WORKFLOW.md` — flow from task intake to human review.
-7. `state/CURRENT.md` — current project state and active focus.
-8. `agents/*.md` — per-role templates (responsibilities, inputs, outputs,
+6. `MODEL_ROUTING.md`, `model-routing.yaml`, `cli-adapters.json`, and
+   `router/run-model.js` — scoring, model tiers, CLI adapters, token
+   budgets, delegation, and fallbacks.
+7. `WORKFLOW.md` — flow from task intake to human review.
+8. `state/CURRENT.md` — current project state and active focus.
+9. `agents/*.md` — per-role templates (responsibilities, inputs, outputs,
    completion checklists).
-9. Relevant `skills/*/SKILL.md` — task-specific operating instructions.
-10. Relevant `openspec/changes/*` — spec-driven change artifacts.
+10. Relevant `skills/*/SKILL.md` — task-specific operating instructions.
+11. Relevant `openspec/changes/*` — spec-driven change artifacts.
 
 ## Naming: root `AGENTS.md` vs. `.ai/AGENT_REGISTRY.md`
 

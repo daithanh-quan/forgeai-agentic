@@ -34,6 +34,14 @@ test('initialization copies the template files', () => {
 
     assert.equal(fs.existsSync(path.join(target, 'AGENTS.md')), true);
     assert.equal(fs.existsSync(path.join(target, '.ai', 'README.md')), true);
+    assert.equal(fs.existsSync(path.join(target, '.ai', 'MODEL_ROUTING.md')), true);
+    assert.equal(fs.existsSync(path.join(target, '.ai', 'model-routing.yaml')), true);
+    assert.equal(fs.existsSync(path.join(target, '.ai', 'cli-adapters.json')), true);
+    assert.equal(fs.existsSync(path.join(target, '.ai', 'router', 'run-model.js')), true);
+    assert.equal(
+      fs.existsSync(path.join(target, '.ai', 'workflows', 'delegated-assignment.md')),
+      true
+    );
     assert.equal(fs.existsSync(path.join(target, 'openspec', 'project.md')), true);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });

@@ -38,3 +38,9 @@ Paste requirement here.
 - [ ] Lint
 - [ ] Unit/integration test
 - [ ] Manual test steps
+
+## Routing Plan
+
+| Subtask | Agent | C | R | A | X | Total | Model tier | Token budget |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: |
+| ... | ... | 0 | 0 | 0 | 0 | 0 | fast | 4000 |

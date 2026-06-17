@@ -34,9 +34,14 @@ AGENTS.md
   TASTE.md
   MEMORY.md
   AGENT_REGISTRY.md
+  MODEL_ROUTING.md
+  model-routing.yaml
+  cli-adapters.json
+  router/run-model.js
   WORKFLOW.md
   state/CURRENT.md
   workflows/task-intake.md
+  workflows/delegated-assignment.md
   agents/
     orchestrator.md
     planner.md
@@ -118,10 +123,39 @@ different tools without duplicating instructions:
 - Make the harness model-agnostic: Claude, Codex, Cursor, local models, or custom agents can all read the same files.
 - Prefer explicit task intake, spec, implementation, validation, and human review.
 
+## Model routing
+
+ForgeAI uses Claude as the default lead model. For each subtask, the lead
+scores complexity, risk, ambiguity, and required context, then routes bounded
+work to a configured `fast`, `standard`, `strong`, or `lead` model tier.
+
+Configure provider/model names and token budgets after initialization:
+
+```text
+.ai/model-routing.yaml
+```
+
+Configure local CLI commands separately:
+
+```text
+.ai/cli-adapters.json
+```
+
+When delegation is available through local CLIs, invoke a tier with:
+
+```bash
+node .ai/router/run-model.js --tier standard --assignment .ai/state/assignments/TASK-01.md
+```
+
+The full scoring, handoff, fallback, and review protocol is documented in
+`.ai/MODEL_ROUTING.md`. ForgeAI does not store provider credentials or install
+model integrations; the host tool must expose models through a CLI, API, MCP,
+or sub-agent capability.
+
 ## Future roadmap
 
 - Add `--profile nextjs`, `--profile node-api`, `--profile tauri`, and `--profile monorepo`.
 - Add Jira/GitHub/Bitbucket connector templates.
-- Add model routing configuration.
+- Add optional provider adapters for model routing.
 - Add local model execution notes.
 - Add OpenSpec validation commands.
