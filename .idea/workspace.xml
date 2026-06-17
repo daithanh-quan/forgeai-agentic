@@ -5,8 +5,17 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="20ddf617-4185-4a0e-af54-4403565d1dc2" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/AGENT_REGISTRY.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/AGENT_REGISTRY.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/WORKFLOW.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/WORKFLOW.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/agents/orchestrator.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/agents/orchestrator.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/workflows/task-intake.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/workflows/task-intake.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/AGENTS.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/AGENTS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/CLAUDE.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test/cli.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/test/cli.test.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -24,24 +33,24 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
-    "ai.playground.ignore.import.keys.banner.in.settings": "true",
-    "git-widget-placeholder": "main",
-    "last_opened_file_path": "/Users/admin/Documents/Learn/forgeai-agentic",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
+    &quot;ai.playground.ignore.import.keys.banner.in.settings&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/admin/Documents/Learn/forgeai-agentic&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -60,6 +69,8 @@
       <workItem from="1781356234915" duration="6774000" />
       <workItem from="1781485778654" duration="1260000" />
       <workItem from="1781505684904" duration="866000" />
+      <workItem from="1781529805113" duration="6174000" />
+      <workItem from="1781620004940" duration="2665000" />
     </task>
     <servers />
   </component>

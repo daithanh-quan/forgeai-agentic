@@ -1,0 +1,114 @@
+version: 1
+enabled: true
+
+lead:
+  role: orchestrator
+  model: claude
+  responsibilities:
+    - score tasks
+    - split work into bounded subtasks
+    - approve architecture and security decisions
+    - review delegated outputs
+    - deliver the final response
+
+# Replace provider/model values with models available in your tools.
+tiers:
+  fast:
+    provider: codex
+    model: gpt-5.5
+    score_range: [0, 2]
+    token_budget: 4000
+    use_for:
+      - repository search
+      - documentation cleanup
+      - formatting
+      - simple test generation
+
+  standard:
+    provider: configure-me
+    model: configure-me
+    score_range: [3, 5]
+    token_budget: 8000
+    use_for:
+      - localized bug fixes
+      - small UI changes
+      - API wiring
+      - focused test implementation
+
+  strong:
+    provider: configure-me
+    model: configure-me
+    score_range: [6, 8]
+    token_budget: 16000
+    use_for:
+      - multi-file implementation
+      - complex debugging
+      - contract changes
+      - code review
+
+  lead:
+    provider: anthropic
+    model: claude
+    score_range: [9, 10]
+    token_budget: 24000
+    use_for:
+      - task decomposition
+      - architecture
+      - security-sensitive work
+      - final review and synthesis
+
+scoring:
+  complexity:
+    range: [0, 3]
+    guidance:
+      0: mechanical or single obvious edit
+      1: localized change using existing patterns
+      2: multi-file logic or non-trivial debugging
+      3: architecture, concurrency, or cross-system behavior
+
+  risk:
+    range: [0, 3]
+    guidance:
+      0: docs, formatting, or isolated tests
+      1: reversible product behavior
+      2: public API, persistent data, or broad regression risk
+      3: auth, security, payments, destructive actions, or production infra
+
+  ambiguity:
+    range: [0, 2]
+    guidance:
+      0: explicit requirement and acceptance criteria
+      1: assumptions needed but bounded
+      2: unclear behavior or conflicting requirements
+
+  context:
+    range: [0, 2]
+    guidance:
+      0: one or two known files
+      1: several files in one subsystem
+      2: broad repository or multiple systems
+
+rules:
+  minimum_tier:
+    architecture: lead
+    auth_or_security: lead
+    payments: lead
+    destructive_migration: lead
+    public_api_change: strong
+    final_review: lead
+  delegate_only_bounded_tasks: true
+  require_acceptance_criteria: true
+  require_validation_command: true
+  send_only_required_context: true
+  parallelize_only_independent_tasks: true
+  lead_must_review_outputs: true
+
+fallback:
+  unavailable_model: next_higher_tier
+  delegation_not_supported: lead_executes_locally
+  failed_validation: return_to_lead
+
+# CLI connection details are intentionally separate from routing policy.
+# Configure executable commands in .ai/cli-adapters.json and use
+# .ai/router/run-model.js to invoke a selected tier when your environment
+# supports delegation through local CLIs.

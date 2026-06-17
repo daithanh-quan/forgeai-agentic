@@ -9,10 +9,17 @@ Before making any code changes, read these files in order:
 3. `.ai/RULES.md` — mandatory engineering and safety rules
 4. `.ai/MEMORY.md` — durable decisions, conventions, known pitfalls
 5. `.ai/TASTE.md` — style and communication preferences
-6. `.ai/WORKFLOW.md` — task intake to human review flow
+6. `.ai/MODEL_ROUTING.md` and `.ai/model-routing.yaml` — lead-model routing,
+   task scoring, token budgets, and delegation protocol
+7. `.ai/WORKFLOW.md` — task intake to human review flow
 
 For agent roles and routing, see `.ai/AGENT_REGISTRY.md` and the per-role
 templates in `.ai/agents/`.
+
+Claude is the default lead model. For non-trivial tasks, split work into
+bounded subtasks, score each subtask using `.ai/model-routing.yaml`, delegate
+when the selected model is available, and review all delegated output before
+final delivery. Never place provider credentials in repository files.
 
 If `.ai/PROJECT.md` still contains `TODO` placeholders, follow
 `.ai/BOOTSTRAP.md` before starting implementation work.

@@ -9,6 +9,7 @@ Task intake
   -> Clarify scope
   -> Decide if spec is needed
   -> Plan subtasks
+  -> Score and route subtasks
   -> Route to agent/skill
   -> Implement
   -> Validate
@@ -75,7 +76,19 @@ The plan should be short and executable:
 - [ ] Prepare review summary
 ```
 
-## 5. Implementation
+## 5. Score and route subtasks
+
+Follow `.ai/MODEL_ROUTING.md` and `.ai/model-routing.yaml`.
+
+- Score complexity, risk, ambiguity, and context for each subtask.
+- Apply minimum-tier overrides for architecture and sensitive work.
+- Give delegated models bounded assignments and only required context.
+- Keep final review and synthesis with the lead model.
+
+If the environment cannot invoke the selected model, use the configured
+fallback instead of blocking the task.
+
+## 6. Implementation
 
 Agents should work in small steps. Each step should have a checkpoint:
 
@@ -83,7 +96,7 @@ Agents should work in small steps. Each step should have a checkpoint:
 - Why was it needed?
 - What should be tested?
 
-## 6. Validation
+## 7. Validation
 
 Prefer commands already defined in `package.json`.
 
@@ -93,7 +106,7 @@ If validation cannot run, document:
 - Main error.
 - Why the agent did not continue fixing it in this task scope.
 
-## 7. Review
+## 8. Review
 
 The review agent checks:
 
@@ -104,7 +117,7 @@ The review agent checks:
 - Security concerns.
 - Migration/API risks.
 
-## 8. Human approval
+## 9. Human approval
 
 The final result should be easy for a human to review:
 

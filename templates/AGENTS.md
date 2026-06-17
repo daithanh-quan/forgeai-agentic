@@ -9,7 +9,9 @@ Before making any code changes, read these files in order:
 3. `.ai/RULES.md` — mandatory engineering and safety rules
 4. `.ai/MEMORY.md` — durable decisions, conventions, known pitfalls
 5. `.ai/TASTE.md` — style and communication preferences
-6. `.ai/WORKFLOW.md` — task intake to human review flow
+6. `.ai/MODEL_ROUTING.md` and `.ai/model-routing.yaml` — model tiers,
+   task scoring, token budgets, and delegation protocol
+7. `.ai/WORKFLOW.md` — task intake to human review flow
 
 ## Naming note
 
