@@ -100,9 +100,31 @@ Agents should work in small steps. Each step should have a checkpoint:
 - Why was it needed?
 - What should be tested?
 
+## 6a. Token-efficient shell usage
+
+When `rtk` is installed, prefer RTK wrappers for high-output shell commands so
+large command output is filtered before it enters model context:
+
+```bash
+rtk git status
+rtk git diff
+rtk grep "pattern" .
+rtk read path/to/file
+rtk test npm test
+```
+
+If `rtk` is not installed, run the original command. Token optimization must
+not block implementation, validation, or review.
+
 ## 7. Validation
 
 Prefer commands already defined in `package.json`.
+
+When validation output is large and `rtk` is available, prefer:
+
+```bash
+rtk test <validation command>
+```
 
 If validation cannot run, document:
 

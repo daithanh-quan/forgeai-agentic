@@ -8,6 +8,11 @@ Model routing reduces token usage only when subtasks are small, independent,
 and receive limited context. Delegating a vague task with the full repository
 usually increases cost.
 
+RTK can further reduce token usage by filtering noisy shell command output
+before it reaches the model context. RTK is optional and sits below model
+routing: it optimizes command output, while this document decides which model
+should perform the work.
+
 ## Lead model
 
 Claude is the default lead/orchestrator unless the human says otherwise. The
@@ -158,6 +163,24 @@ the same task boundaries and execute the assignment locally.
 
 Never place API keys or access tokens in `model-routing.yaml` or any committed
 file.
+
+## RTK token optimization
+
+When RTK is installed, agents should prefer compact command wrappers for
+high-output diagnostics:
+
+```bash
+rtk git status
+rtk git diff
+rtk grep "pattern" .
+rtk read path/to/file
+rtk test npm test
+```
+
+If RTK is missing, use the original command. If RTK output is too compact to
+review correctness, rerun the original command for the specific file, failure,
+or test case. RTK must never replace the Claude reviewer gate or model-routing
+fallback behavior.
 
 ## Reviewer smoke test
 

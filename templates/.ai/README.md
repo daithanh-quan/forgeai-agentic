@@ -42,6 +42,13 @@ For the reviewer check, ask Claude Code to use the reviewer sub-agent/skill to
 review the smoke-test assignment. It should return `Request changes` because
 the simulated delegated result omits required validation evidence.
 
+## Optional token optimization
+
+RTK can be used as a token-saving shell proxy for noisy commands. If available,
+prefer `rtk git status`, `rtk git diff`, `rtk grep`, `rtk read`, and
+`rtk test <command>`. If RTK is not installed or the compact output omits
+needed evidence, use the original command.
+
 ## Naming: root `AGENTS.md` vs. `.ai/AGENT_REGISTRY.md`
 
 - Root `AGENTS.md` follows the **Codex convention**: a short, repo-level

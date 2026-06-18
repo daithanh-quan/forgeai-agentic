@@ -47,6 +47,17 @@ Only add a new package when:
 - Do not create branches unless the workflow requires it.
 - Every PR/task should include summary and test evidence.
 
+## Token-output rules
+
+- Prefer compact shell output when it preserves enough evidence to make a
+  correct engineering decision.
+- If `rtk` is installed, use it for noisy commands such as `git status`,
+  `git diff`, repository search, file reads through shell, and test runners.
+- If `rtk` is missing or its output is too compact for the task, use the
+  original command and document the relevant result.
+- Never let token optimization hide failing tests, security issues, migration
+  risk, or reviewer findings.
+
 ## Validation order
 
 Agents should prefer running commands in this order:
@@ -59,6 +70,8 @@ npm run build
 ```
 
 If the project uses pnpm/yarn/bun, use the package manager that matches the lockfile.
+If `rtk` is available and output is expected to be large, wrap validation with
+`rtk test <command>`.
 
 ## Required final response format
 
