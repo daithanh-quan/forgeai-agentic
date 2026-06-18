@@ -108,11 +108,11 @@ function fallback(reason, detail, context) {
     status: 'fallback',
     reason,
     detail,
-    behavior: context.fallback?.behavior ?? 'lead_executes_locally',
+    behavior: context.fallback?.behavior ?? 'current_model_executes_locally',
     provider: context.provider,
     model: context.model,
     message:
-      'Delegated CLI could not run. The lead/current model should execute this bounded assignment locally or escalate according to .ai/model-routing.yaml.'
+      'Delegated CLI could not run. The current model should execute this bounded assignment locally or escalate according to .ai/model-routing.yaml.'
   };
   process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
   return 0;

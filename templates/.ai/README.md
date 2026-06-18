@@ -33,6 +33,15 @@ tell the agent:
 10. Relevant `skills/*/SKILL.md` — task-specific operating instructions.
 11. Relevant `openspec/changes/*` — spec-driven change artifacts.
 
+## Smoke tests
+
+- Delegation CLI check: `.ai/state/assignments/TASK-CODEX-TEST.md`
+- Claude reviewer check: `.ai/state/assignments/TASK-REVIEWER-SMOKE.md`
+
+For the reviewer check, ask Claude Code to use the reviewer sub-agent/skill to
+review the smoke-test assignment. It should return `Request changes` because
+the simulated delegated result omits required validation evidence.
+
 ## Naming: root `AGENTS.md` vs. `.ai/AGENT_REGISTRY.md`
 
 - Root `AGENTS.md` follows the **Codex convention**: a short, repo-level

@@ -79,22 +79,29 @@ Recommended skills:
 
 The active routing configuration lives in `.ai/model-routing.yaml`. Local CLI
 commands live in `.ai/cli-adapters.json`. Claude is the default
-lead/orchestrator and follows `.ai/MODEL_ROUTING.md` to score each subtask
-from 0-10, choose a model tier, invoke a configured adapter when available,
-minimize delegated context, and review all returned work.
+lead/orchestrator unless the human says otherwise. It follows
+`.ai/MODEL_ROUTING.md` to score each subtask from 0-10, route scores `0-2` to
+Gemini, route scores `3-5` to Codex, route scores `6-10` to Claude, invoke a
+configured adapter when available, minimize delegated context, and send
+returned work to a Claude reviewer sub-agent before final delivery.
 
 | Task type | Recommended model class | Reason |
 | --- | --- | --- |
-| Task classification | Fast/cheap model | Low risk, repeatable |
-| Simple UI change | Fast/medium model | Mostly pattern matching |
-| API wiring | Medium model | Needs type and contract awareness |
-| Architecture/design | Strong model | High reasoning requirement |
-| Complex debugging | Strong model | Requires multi-step reasoning |
-| Large refactor | Strong model + human review | High blast radius |
-| Documentation cleanup | Fast model | Low risk |
+| Task classification | Gemini fast tier | Low risk, repeatable |
+| Simple UI change | Gemini or Codex by score | Mostly pattern matching |
+| API wiring | Codex | Needs type and contract awareness |
+| Architecture/design | Claude | High reasoning requirement |
+| Complex debugging | Claude | Requires multi-step reasoning |
+| Large refactor | Claude + human review | High blast radius |
+| Documentation cleanup | Gemini fast tier | Low risk |
 
 The table is guidance only. The score and minimum-tier rules in
 `.ai/model-routing.yaml` decide the actual route.
+
+If the selected Gemini, Codex, or Claude CLI is not installed, the current
+model should execute the bounded assignment locally. After implementation, the
+Claude reviewer sub-agent reviews the output; any failed review goes back to
+the implementing model once before the current model takes over or escalates.
 
 ## Human review gate
 

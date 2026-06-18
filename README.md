@@ -125,9 +125,16 @@ different tools without duplicating instructions:
 
 ## Model routing
 
-ForgeAI uses Claude as the default lead model. For each subtask, the lead
-scores complexity, risk, ambiguity, and required context, then routes bounded
-work to a configured `fast`, `standard`, `strong`, or `lead` model tier.
+ForgeAI uses Claude as the lead/orchestrator by default. For each subtask, the
+lead scores complexity, risk, ambiguity, and required context, then routes
+scores `0-2` to Gemini, scores `3-5` to Codex, and scores `6-10` to Claude by
+default. If the selected CLI is not installed, the current model executes the
+bounded assignment locally instead of blocking on the router.
+
+After delegated work finishes, a Claude reviewer sub-agent checks the result.
+If the review fails, the findings go back to the implementing model once; if
+that still fails or the model is unavailable, the current model fixes locally
+or escalates the remaining decision.
 
 Configure provider/model names and token budgets after initialization:
 
