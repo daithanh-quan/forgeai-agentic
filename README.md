@@ -33,17 +33,21 @@ agents fall back to the original command.
 Run the CLI directly with npm:
 
 ```bash
-npx forgeai-agentic-init@0.2.0 --dry-run
-npx forgeai-agentic-init@0.2.0
+npx forgeai-agentic-init@0.2.1 --dry-run
+npx forgeai-agentic-init@0.2.1
 ```
 
 Or install it globally:
 
 ```bash
-npm install --global forgeai-agentic-init@0.2.0
+npm install --global forgeai-agentic-init@0.2.1
 forgeai-init --dry-run
 forgeai-init
 ```
+
+`0.2.1` is the patch release that republishes the updated README and workflow
+documentation. npm package versions are immutable, so the already-published
+`0.2.0` tarball cannot be overwritten with a new README.
 
 ## Optional RTK Setup
 
