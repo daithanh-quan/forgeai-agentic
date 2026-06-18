@@ -1,12 +1,13 @@
 {
   "version": 1,
   "fallback": {
-    "behavior": "lead_executes_locally",
+    "behavior": "current_model_executes_locally",
     "on": [
       "missing_adapter",
       "missing_command",
       "failed_healthcheck",
-      "quota_or_rate_limit"
+      "quota_or_rate_limit",
+      "command_failed"
     ]
   },
   "adapters": {

@@ -3,19 +3,29 @@ enabled: true
 
 lead:
   role: orchestrator
+  provider: claude
   model: claude
   responsibilities:
     - score tasks
     - split work into bounded subtasks
     - approve architecture and security decisions
-    - review delegated outputs
+    - request Claude reviewer checks for delegated outputs
     - deliver the final response
+
+reviewer:
+  provider: claude
+  model: claude
+  role: reviewer
+  responsibilities:
+    - review every delegated implementation before final delivery
+    - return failed work to the implementing model with concrete findings
+    - approve only when acceptance criteria and validation evidence are met
 
 # Replace provider/model values with models available in your tools.
 tiers:
   fast:
-    provider: codex
-    model: gpt-5.5
+    provider: gemini
+    model: gemini-2.5-flash
     score_range: [0, 2]
     token_budget: 4000
     use_for:
@@ -25,8 +35,8 @@ tiers:
       - simple test generation
 
   standard:
-    provider: configure-me
-    model: configure-me
+    provider: codex
+    model: gpt-5.5
     score_range: [3, 5]
     token_budget: 8000
     use_for:
@@ -36,8 +46,8 @@ tiers:
       - focused test implementation
 
   strong:
-    provider: configure-me
-    model: configure-me
+    provider: claude
+    model: claude
     score_range: [6, 8]
     token_budget: 16000
     use_for:
@@ -47,7 +57,7 @@ tiers:
       - code review
 
   lead:
-    provider: anthropic
+    provider: claude
     model: claude
     score_range: [9, 10]
     token_budget: 24000
@@ -101,12 +111,14 @@ rules:
   require_validation_command: true
   send_only_required_context: true
   parallelize_only_independent_tasks: true
-  lead_must_review_outputs: true
+  claude_reviewer_must_review_outputs: true
+  return_failed_review_to_implementing_model: true
 
 fallback:
-  unavailable_model: next_higher_tier
-  delegation_not_supported: lead_executes_locally
-  failed_validation: return_to_lead
+  unavailable_model: current_model_executes_locally
+  delegation_not_supported: current_model_executes_locally
+  failed_validation: retry_implementing_model_once_then_current_model
+  failed_claude_review: retry_implementing_model_once_then_current_model
 
 # CLI connection details are intentionally separate from routing policy.
 # Configure executable commands in .ai/cli-adapters.json and use

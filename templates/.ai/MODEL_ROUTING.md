@@ -10,12 +10,14 @@ usually increases cost.
 
 ## Lead model
 
-Claude is the default lead. The lead owns:
+Claude is the default lead/orchestrator unless the human says otherwise. The
+lead owns:
 
 - Task intake and decomposition.
 - Scoring every proposed subtask.
 - Architecture, security, and destructive decisions.
-- Reviewing delegated output and validation evidence.
+- Requesting Claude reviewer checks for delegated output and validation
+  evidence.
 - Final synthesis for the human.
 
 The lead may delegate implementation or analysis, but never delegates
@@ -30,15 +32,17 @@ score = complexity + risk + ambiguity + context
 ```
 
 The maximum score is 10. Route by the configured score range, then apply
-`rules.minimum_tier` overrides. A security task with a low numeric score still
-routes to the lead tier.
+`rules.minimum_tier` overrides. By default, scores `0-2` route to Gemini as
+the cheap/fast tier, scores `3-5` route to Codex, and scores `6-10` route to
+Claude. A security task with a low numeric score still routes to the
+configured minimum tier.
 
 Record the decision:
 
 ```markdown
 | Subtask | C | R | A | X | Total | Tier | Reason |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
-| Add parser unit tests | 1 | 0 | 0 | 0 | 1 | fast | Isolated test work |
+| Add parser unit tests | 1 | 0 | 0 | 0 | 1 | fast / Gemini | Isolated test work |
 ```
 
 Use `X` for context size so it is not confused with complexity.
@@ -84,16 +88,23 @@ the relevant role/skill, and only the context needed to complete it.
 
 ## Delegation loop
 
-1. Claude reads the task and repository context.
-2. Claude creates independent, bounded subtasks.
-3. Claude scores each subtask and applies minimum-tier rules.
-4. Claude invokes the configured model through the available CLI, API, MCP,
+1. The Claude lead model reads the task and repository context.
+2. The lead creates independent, bounded subtasks.
+3. The lead scores each subtask and applies minimum-tier rules.
+4. The lead invokes the configured model through the available CLI, API, MCP,
    or sub-agent tool.
-5. The delegated model returns changes or a structured recommendation.
-6. Claude inspects the output and validation evidence.
-7. Failed or incomplete work is retried once with corrected context, escalated
-   to a stronger tier, or completed by Claude.
-8. Claude runs the combined review and prepares the final response.
+5. If the selected provider CLI is missing or fails healthcheck, the current
+   model executes the bounded assignment locally instead of blocking on the
+   router.
+6. The delegated model returns changes or a structured recommendation.
+7. A Claude reviewer sub-agent reviews the diff, acceptance criteria, and
+   validation evidence.
+8. If the Claude reviewer requests changes, return the findings to the same
+   implementing model once with corrected context. If the retry still fails or
+   the model is unavailable, the current model completes the fix locally or
+   escalates to the human for a decision.
+9. The lead prepares the final response after review passes or remaining risk
+   is explicitly documented.
 
 ## CLI adapters
 
@@ -117,6 +128,8 @@ The router:
 - Sends the assignment to the CLI through stdin or argv, depending on the
   adapter.
 - Detects common quota/rate-limit/billing failures from CLI output.
+- Treats non-zero delegated CLI exits as fallback events unless the adapter
+  policy has been intentionally changed.
 - Returns a structured fallback message when delegation cannot run.
 
 Example fallback response:
@@ -125,12 +138,12 @@ Example fallback response:
 {
   "status": "fallback",
   "reason": "quota_or_rate_limit",
-  "behavior": "lead_executes_locally",
+  "behavior": "current_model_executes_locally",
   "message": "Delegated CLI could not run..."
 }
 ```
 
-When fallback behavior is `lead_executes_locally`, the current lead model
+When fallback behavior is `current_model_executes_locally`, the current model
 should complete the bounded assignment itself using the same acceptance
 criteria. A shell script cannot directly force the current chat model to run;
 it can only report that delegation failed and hand control back to the lead.
@@ -138,9 +151,24 @@ it can only report that delegation failed and hand control back to the lead.
 ## Tool limitation
 
 This harness defines routing policy; it does not install or authenticate model
-providers. Claude can invoke another model only when the current environment
-exposes that model through a sub-agent, CLI, API, or MCP tool. Otherwise,
-Claude should keep the same task boundaries and execute the assignment locally.
+providers. The current model can invoke Gemini, Codex, Claude, Claude reviewer,
+or any other model only when the current environment exposes that model through
+a sub-agent, CLI, API, or MCP tool. Otherwise, the current model should keep
+the same task boundaries and execute the assignment locally.
 
 Never place API keys or access tokens in `model-routing.yaml` or any committed
 file.
+
+## Reviewer smoke test
+
+To check whether the Claude reviewer sub-agent is actually reviewing delegated
+work in your environment, run the included smoke test:
+
+```text
+Use the reviewer sub-agent/skill to review .ai/state/assignments/TASK-REVIEWER-SMOKE.md
+```
+
+The expected result is `Request changes` with a `blocker` or `major` finding
+about missing validation evidence. If the reviewer approves that assignment,
+the reviewer sub-agent is not following `.ai/agents/reviewer.md` and
+`.ai/skills/code-review/SKILL.md`.

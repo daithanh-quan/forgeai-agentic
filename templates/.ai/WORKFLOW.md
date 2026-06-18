@@ -83,10 +83,14 @@ Follow `.ai/MODEL_ROUTING.md` and `.ai/model-routing.yaml`.
 - Score complexity, risk, ambiguity, and context for each subtask.
 - Apply minimum-tier overrides for architecture and sensitive work.
 - Give delegated models bounded assignments and only required context.
-- Keep final review and synthesis with the lead model.
+- Route scores `0-2` to Gemini, scores `3-5` to Codex, and scores `6-10` to
+  Claude unless `.ai/model-routing.yaml` has been intentionally changed.
+- Send delegated output to the Claude reviewer sub-agent before final
+  delivery.
 
 If the environment cannot invoke the selected model, use the configured
-fallback instead of blocking the task.
+fallback instead of blocking the task. The default fallback is for the current
+model to execute the bounded assignment locally.
 
 ## 6. Implementation
 
@@ -116,6 +120,11 @@ The review agent checks:
 - Test coverage or manual validation.
 - Security concerns.
 - Migration/API risks.
+
+If the Claude reviewer returns `Request changes`, send the concrete findings
+back to the implementing model once. If the second attempt still fails, the
+current model fixes the issue locally or escalates the remaining decision to
+the human.
 
 ## 9. Human approval
 

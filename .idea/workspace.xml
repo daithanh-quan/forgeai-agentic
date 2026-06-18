@@ -7,13 +7,13 @@
     <list default="true" id="20ddf617-4185-4a0e-af54-4403565d1dc2" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/templates/.ai/AGENT_REGISTRY.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/AGENT_REGISTRY.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/templates/.ai/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/MODEL_ROUTING.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/MODEL_ROUTING.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/templates/.ai/WORKFLOW.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/WORKFLOW.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/templates/.ai/agents/orchestrator.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/agents/orchestrator.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/templates/.ai/workflows/task-intake.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/workflows/task-intake.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/templates/AGENTS.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/AGENTS.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/cli-adapters.json" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/cli-adapters.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/model-routing.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/model-routing.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/router/run-model.js" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/router/run-model.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/workflows/delegated-assignment.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/workflows/delegated-assignment.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/templates/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/CLAUDE.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/test/cli.test.js" beforeDir="false" afterPath="$PROJECT_DIR$/test/cli.test.js" afterDir="false" />
     </list>
@@ -41,7 +41,7 @@
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
     &quot;ai.playground.ignore.import.keys.banner.in.settings&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;feat/routing-model&quot;,
     &quot;last_opened_file_path&quot;: &quot;/Users/admin/Documents/Learn/forgeai-agentic&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
     &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
@@ -71,6 +71,8 @@
       <workItem from="1781505684904" duration="866000" />
       <workItem from="1781529805113" duration="6174000" />
       <workItem from="1781620004940" duration="2665000" />
+      <workItem from="1781707270731" duration="6032000" />
+      <workItem from="1781792782121" duration="1729000" />
     </task>
     <servers />
   </component>

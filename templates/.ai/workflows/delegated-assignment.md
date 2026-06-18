@@ -6,7 +6,8 @@
 - Parent task: `...`
 - Role: `planner | architect | frontend | backend | tester | reviewer`
 - Objective: `One measurable outcome`
-- Model tier: `fast | standard | strong`
+- Model tier: `fast | standard | strong | lead`
+- Provider route: `Gemini for score 0-2, Codex for score 3-5, Claude for score 6-10`
 - Score: `C0 + R0 + A0 + X0 = 0`
 - Token budget: `...`
 
@@ -38,4 +39,5 @@
 - Files changed.
 - Concise summary.
 - Validation command and result.
+- Claude reviewer result: `Approve | Request changes | Needs human decision`.
 - Risks, assumptions, or unresolved questions.
