@@ -33,20 +33,20 @@ agents fall back to the original command.
 Run the CLI directly with npm:
 
 ```bash
-npx forgeai-agentic-init@0.1.2 --dry-run
-npx forgeai-agentic-init@0.1.2
+npx forgeai-agentic-init@0.2.3 --dry-run
+npx forgeai-agentic-init@0.2.3
 ```
 
 Or install it globally:
 
 ```bash
-npm install --global forgeai-agentic-init@0.1.2
+npm install --global forgeai-agentic-init@0.2.3
 forgeai-init --dry-run
 forgeai-init
 ```
 
-`0.1.2` is a patch release for the `0.1.x` line. npm package versions are
-immutable, so publish this only if `forgeai-agentic-init@0.1.2` has not
+`0.2.3` is a patch release for the `0.2.x` line. npm package versions are
+immutable, so publish this only if `forgeai-agentic-init@0.2.3` has not
 already been published.
 
 ## Optional RTK Setup
