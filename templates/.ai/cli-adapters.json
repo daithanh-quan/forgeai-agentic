@@ -47,9 +47,9 @@
         "billing"
       ]
     },
-    "gemini": {
-      "command": "gemini",
-      "args": ["-m", "{model}"],
+    "agy": {
+      "command": "agy",
+      "args": ["--model", "{model}", "--print"],
       "healthcheck": {
         "args": ["--version"],
         "timeout_ms": 5000

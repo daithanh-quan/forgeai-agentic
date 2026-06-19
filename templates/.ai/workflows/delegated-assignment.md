@@ -7,7 +7,7 @@
 - Role: `planner | architect | frontend | backend | tester | reviewer`
 - Objective: `One measurable outcome`
 - Model tier: `fast | standard | strong | lead`
-- Provider route: `Gemini for score 0-2, Codex for score 3-5, Claude for score 6-10`
+- Provider route: `AGY for score 0-2, Codex for score 3-5, Claude for score 6-10`
 - Score: `C0 + R0 + A0 + X0 = 0`
 - Token budget: `...`
 

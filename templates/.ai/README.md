@@ -9,7 +9,7 @@ starts.
 
 Root-level `CLAUDE.md` (Claude Code) and `AGENTS.md` (Codex) are pointer
 files that are auto-discovered by those tools and tell the agent to read
-this directory first. For other tools (Gemini CLI, Cline, RooCode, Aider),
+this directory first. For other tools (AGY CLI, Cline, RooCode, Aider),
 tell the agent:
 
 > Read `.ai/README.md` first. Then read the files in the recommended order
@@ -62,7 +62,7 @@ needed evidence, use the original command.
 ## Skills: model-agnostic vs. Claude-native
 
 - `.ai/skills/*/SKILL.md` — **model-agnostic** guidance. Any agent (Claude
-  Code, Codex, Gemini CLI, Cline, RooCode, Aider) should read these as plain
+  Code, Codex, AGY CLI, Cline, RooCode, Aider) should read these as plain
   documentation before doing related work.
 - `.claude/skills/*/SKILL.md` — **Claude Code native skills**. These are
   thin wrappers with valid Skill frontmatter so Claude Code can discover and

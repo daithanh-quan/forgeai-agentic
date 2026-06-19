@@ -83,7 +83,7 @@ Follow `.ai/MODEL_ROUTING.md` and `.ai/model-routing.yaml`.
 - Score complexity, risk, ambiguity, and context for each subtask.
 - Apply minimum-tier overrides for architecture and sensitive work.
 - Give delegated models bounded assignments and only required context.
-- Route scores `0-2` to Gemini, scores `3-5` to Codex, and scores `6-10` to
+- Route scores `0-2` to AGY, scores `3-5` to Codex, and scores `6-10` to
   Claude unless `.ai/model-routing.yaml` has been intentionally changed.
 - Send delegated output to the Claude reviewer sub-agent before final
   delivery.
