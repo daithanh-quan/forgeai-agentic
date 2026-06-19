@@ -78,30 +78,31 @@ Recommended skills:
 ## Model routing strategy
 
 The active routing configuration lives in `.ai/model-routing.yaml`. Local CLI
-commands live in `.ai/cli-adapters.json`. Claude is the default
-lead/orchestrator unless the human says otherwise. It follows
-`.ai/MODEL_ROUTING.md` to score each subtask from 0-10, route scores `0-2` to
-AGY, route scores `3-5` to Codex, route scores `6-10` to Claude, invoke a
-configured adapter when available, minimize delegated context, and send
-returned work to a Claude reviewer sub-agent before final delivery.
+commands live in `.ai/cli-adapters.json`. The current model is the
+orchestrator by default unless the human explicitly chooses another model. It
+follows `.ai/MODEL_ROUTING.md` to score each subtask from 0-10, route by the
+configured tiers, invoke a configured adapter when useful and available,
+minimize delegated context, and send returned work to the configured reviewer
+before final delivery.
 
 | Task type | Recommended model class | Reason |
 | --- | --- | --- |
 | Task classification | AGY fast tier | Low risk, repeatable |
 | Simple UI change | AGY or Codex by score | Mostly pattern matching |
 | API wiring | Codex | Needs type and contract awareness |
-| Architecture/design | Claude | High reasoning requirement |
-| Complex debugging | Claude | Requires multi-step reasoning |
-| Large refactor | Claude + human review | High blast radius |
+| Architecture/design | Current orchestrator or configured strong tier | High reasoning requirement |
+| Complex debugging | Current orchestrator or configured strong tier | Requires multi-step reasoning |
+| Large refactor | Current orchestrator + human review | High blast radius |
 | Documentation cleanup | AGY fast tier | Low risk |
 
 The table is guidance only. The score and minimum-tier rules in
 `.ai/model-routing.yaml` decide the actual route.
 
-If the selected AGY, Codex, or Claude CLI is not installed, the current
-model should execute the bounded assignment locally. After implementation, the
-Claude reviewer sub-agent reviews the output; any failed review goes back to
-the implementing model once before the current model takes over or escalates.
+If the selected AGY, Codex, Claude, local, or custom model CLI is not
+installed, the current model should execute the bounded assignment locally.
+After implementation, the configured reviewer reviews the output; any failed
+review goes back to the implementing model once before the current model takes
+over or escalates.
 
 ## Human review gate
 

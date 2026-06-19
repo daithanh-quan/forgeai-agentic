@@ -12,10 +12,10 @@ host environment should provide these tools:
 
 | Capability | Required for full workflow | CLI/plugin expected |
 | --- | --- | --- |
-| Lead orchestration and strong tasks | Claude handles score `6-10`, architecture, sensitive work, and final synthesis | `claude` CLI or Claude Code |
-| Claude reviewer sub-agent | Reviews every delegated result before final delivery | Claude Code reviewer skill from `.claude/skills/reviewer/SKILL.md` |
+| Orchestration | The current model handles task intake, decomposition, scoring, final synthesis, and any work that cannot be delegated | Any AI coding tool that can read the harness: Claude Code, Codex CLI, AGY CLI, Cline, RooCode, Aider, local models, or custom agents |
+| Reviewer | Reviews delegated results before final delivery | Configured reviewer model/agent, Claude Code reviewer skill from `.claude/skills/reviewer/SKILL.md`, or the current model applying `.ai/skills/code-review/SKILL.md` |
 | Cheap/fast delegation | AGY handles score `0-2` tasks | `agy` CLI |
-| Standard delegation | Codex handles score `3-5` tasks | `codex` CLI |
+| Standard/strong delegation | Codex handles score `3-8` tasks by default, but tiers are configurable | `codex` CLI or any configured adapter |
 | Token-output compression | RTK filters noisy shell output before it reaches the model context | `rtk` CLI and tool hook/plugin |
 | Project initialization | Runs this installer and tests | Node.js `>=18.18.0` |
 
@@ -33,20 +33,21 @@ agents fall back to the original command.
 Run the CLI directly with npm:
 
 ```bash
-npx forgeai-agentic-init@0.2.3 --dry-run
-npx forgeai-agentic-init@0.2.3
+npx forgeai-agentic-init@0.2.4 --dry-run
+npx forgeai-agentic-init@0.2.4
 ```
 
 Or install it globally:
 
 ```bash
-npm install --global forgeai-agentic-init@0.2.3
+npm install --global forgeai-agentic-init@0.2.4
 forgeai-init --dry-run
 forgeai-init
 ```
 
-`0.2.3` is a patch release for the `0.2.x` line. npm package versions are
-immutable, so publish this only if `forgeai-agentic-init@0.2.3` has not
+`0.2.4` adds dynamic orchestration: the current model can act as orchestrator
+instead of requiring Claude. npm package versions are immutable, so publish
+this only if `forgeai-agentic-init@0.2.4` has not
 already been published.
 
 ## Optional RTK Setup
@@ -182,16 +183,22 @@ different tools without duplicating instructions:
 
 ## Model routing
 
-ForgeAI uses Claude as the lead/orchestrator by default. For each subtask, the
-lead scores complexity, risk, ambiguity, and required context, then routes
-scores `0-2` to AGY, scores `3-5` to Codex, and scores `6-10` to Claude by
-default. If the selected CLI is not installed, the current model executes the
-bounded assignment locally instead of blocking on the router.
+ForgeAI uses the current model as the orchestrator by default unless the human
+explicitly chooses another model. Claude Code, Codex, AGY, Cline, RooCode,
+Aider, local models, or custom agents can all act as orchestrator when they can
+read the harness. For each subtask, the orchestrator scores complexity, risk,
+ambiguity, and required context, then routes by `.ai/model-routing.yaml`.
+Defaults route scores `0-2` to AGY, scores `3-5` to Codex, scores `6-8` to the
+configured strong tier, and scores `9-10` stay with the current orchestrator.
+If the selected CLI is not installed, the current model executes the bounded
+assignment locally instead of blocking on the router.
 
-After delegated work finishes, a Claude reviewer sub-agent checks the result.
-If the review fails, the findings go back to the implementing model once; if
-that still fails or the model is unavailable, the current model fixes locally
-or escalates the remaining decision.
+After delegated work finishes, the configured reviewer checks the result. In
+Claude Code this can be the Claude reviewer sub-agent; in other tools it can be
+the current model applying `.ai/agents/reviewer.md` and
+`.ai/skills/code-review/SKILL.md`. If the review fails, the findings go back to
+the implementing model once; if that still fails or the model is unavailable,
+the current model fixes locally or escalates the remaining decision.
 
 Configure provider/model names and token budgets after initialization:
 
@@ -224,7 +231,8 @@ After initialization, run these checks in a real AI tool environment:
 node .ai/router/run-model.js --tier standard --assignment .ai/state/assignments/TASK-CODEX-TEST.md
 ```
 
-In Claude Code, ask:
+Ask your configured reviewer to review the smoke assignment. In Claude Code,
+ask:
 
 ```text
 Use the reviewer sub-agent/skill to review .ai/state/assignments/TASK-REVIEWER-SMOKE.md

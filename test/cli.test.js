@@ -55,7 +55,8 @@ test('initialization copies the template files', () => {
     assert.match(routing, /score_range: \[3, 5\]/);
     assert.match(routing, /score_range: \[6, 8\]/);
     assert.match(routing, /score_range: \[9, 10\]/);
-    assert.match(routing, /provider: claude/);
+    assert.match(routing, /provider: current/);
+    assert.match(routing, /route_behavior: keep_with_orchestrator/);
     assert.match(routing, /current_model_executes_locally/);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });

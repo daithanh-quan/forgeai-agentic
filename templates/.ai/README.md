@@ -36,11 +36,14 @@ tell the agent:
 ## Smoke tests
 
 - Delegation CLI check: `.ai/state/assignments/TASK-CODEX-TEST.md`
-- Claude reviewer check: `.ai/state/assignments/TASK-REVIEWER-SMOKE.md`
+- Reviewer check: `.ai/state/assignments/TASK-REVIEWER-SMOKE.md`
 
-For the reviewer check, ask Claude Code to use the reviewer sub-agent/skill to
-review the smoke-test assignment. It should return `Request changes` because
-the simulated delegated result omits required validation evidence.
+For the reviewer check, ask your configured reviewer to review the smoke-test
+assignment. In Claude Code, use the reviewer sub-agent/skill. In Codex, AGY,
+Cline, RooCode, Aider, or a local model, ask the current orchestrator to apply
+`.ai/agents/reviewer.md` and `.ai/skills/code-review/SKILL.md`. It should
+return `Request changes` because the simulated delegated result omits
+required validation evidence.
 
 ## Optional token optimization
 

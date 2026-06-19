@@ -1,25 +1,33 @@
 version: 1
 enabled: true
 
-lead:
+orchestrator:
   role: orchestrator
-  provider: claude
-  model: claude
+  mode: current_model_by_default
+  provider: current
+  model: current
   responsibilities:
     - score tasks
     - split work into bounded subtasks
     - approve architecture and security decisions
-    - request Claude reviewer checks for delegated outputs
+    - request configured reviewer checks for delegated outputs
     - deliver the final response
+  notes:
+    - The orchestrator is the model currently operating in the user's tool unless the human explicitly chooses another model.
+    - Claude, Codex, AGY, Aider, local models, or a custom agent can all be the orchestrator when they can read this harness.
+    - Do not block orchestration just because a specific provider CLI is unavailable.
 
 reviewer:
-  provider: claude
-  model: claude
+  provider: current
+  model: current
   role: reviewer
   responsibilities:
     - review every delegated implementation before final delivery
     - return failed work to the implementing model with concrete findings
     - approve only when acceptance criteria and validation evidence are met
+  notes:
+    - Replace provider/model with a dedicated reviewer if your environment exposes one.
+    - If no dedicated reviewer is available, the orchestrator performs the reviewer checklist locally using .ai/skills/code-review/SKILL.md.
 
 # Replace provider/model values with models available in your tools.
 tiers:
@@ -46,8 +54,8 @@ tiers:
       - focused test implementation
 
   strong:
-    provider: claude
-    model: claude
+    provider: codex
+    model: gpt-5.5
     score_range: [6, 8]
     token_budget: 16000
     use_for:
@@ -57,10 +65,11 @@ tiers:
       - code review
 
   lead:
-    provider: claude
-    model: claude
+    provider: current
+    model: current
     score_range: [9, 10]
     token_budget: 24000
+    route_behavior: keep_with_orchestrator
     use_for:
       - task decomposition
       - architecture
@@ -111,14 +120,14 @@ rules:
   require_validation_command: true
   send_only_required_context: true
   parallelize_only_independent_tasks: true
-  claude_reviewer_must_review_outputs: true
+  configured_reviewer_must_review_outputs: true
   return_failed_review_to_implementing_model: true
 
 fallback:
   unavailable_model: current_model_executes_locally
   delegation_not_supported: current_model_executes_locally
   failed_validation: retry_implementing_model_once_then_current_model
-  failed_claude_review: retry_implementing_model_once_then_current_model
+  failed_review: retry_implementing_model_once_then_current_model
 
 # CLI connection details are intentionally separate from routing policy.
 # Configure executable commands in .ai/cli-adapters.json and use
