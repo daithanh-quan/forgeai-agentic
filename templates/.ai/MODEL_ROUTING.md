@@ -37,7 +37,7 @@ score = complexity + risk + ambiguity + context
 ```
 
 The maximum score is 10. Route by the configured score range, then apply
-`rules.minimum_tier` overrides. By default, scores `0-2` route to Gemini as
+`rules.minimum_tier` overrides. By default, scores `0-2` route to AGY as
 the cheap/fast tier, scores `3-5` route to Codex, and scores `6-10` route to
 Claude. A security task with a low numeric score still routes to the
 configured minimum tier.
@@ -47,7 +47,7 @@ Record the decision:
 ```markdown
 | Subtask | C | R | A | X | Total | Tier | Reason |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
-| Add parser unit tests | 1 | 0 | 0 | 0 | 1 | fast / Gemini | Isolated test work |
+| Add parser unit tests | 1 | 0 | 0 | 0 | 1 | fast / AGY | Isolated test work |
 ```
 
 Use `X` for context size so it is not confused with complexity.
@@ -156,7 +156,7 @@ it can only report that delegation failed and hand control back to the lead.
 ## Tool limitation
 
 This harness defines routing policy; it does not install or authenticate model
-providers. The current model can invoke Gemini, Codex, Claude, Claude reviewer,
+providers. The current model can invoke AGY, Codex, Claude, Claude reviewer,
 or any other model only when the current environment exposes that model through
 a sub-agent, CLI, API, or MCP tool. Otherwise, the current model should keep
 the same task boundaries and execute the assignment locally.

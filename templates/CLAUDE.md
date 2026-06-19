@@ -18,7 +18,7 @@ templates in `.ai/agents/`.
 
 Claude is the lead/orchestrator by default. For non-trivial tasks, split work
 into bounded subtasks, score each subtask using `.ai/model-routing.yaml`,
-delegate scores `0-2` to Gemini, scores `3-5` to Codex, and scores `6-10` to
+delegate scores `0-2` to AGY, scores `3-5` to Codex, and scores `6-10` to
 Claude when the selected CLI is available, then use the Claude reviewer
 sub-agent before final delivery. If the selected CLI is not installed, the
 current model executes the bounded assignment locally. Never place provider

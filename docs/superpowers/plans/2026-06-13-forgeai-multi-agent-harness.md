@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the ForgeAI markdown harness work out-of-the-box with Claude Code, Codex, Gemini CLI, Cline, RooCode, and Aider, while staying model-agnostic and backward compatible with the existing `npx forgeai-agentic-init` CLI.
+**Goal:** Make the ForgeAI markdown harness work out-of-the-box with Claude Code, Codex, AGY CLI, Cline, RooCode, and Aider, while staying model-agnostic and backward compatible with the existing `npx forgeai-agentic-init` CLI.
 
 **Architecture:** All new/changed content lives under `templates/`, which the existing `bin/forgeai-init.js` copies verbatim (recursively, preserving directory structure) into the target project root. No CLI code changes are needed — adding `templates/CLAUDE.md`, `templates/AGENTS.md`, `templates/.ai/agents/*`, and `templates/.claude/skills/*` automatically makes the installer emit those paths. The plan: (1) add root pointer files (`CLAUDE.md`, `AGENTS.md`) that any tool can auto-discover, (2) rename `.ai/AGENTS.md` → `.ai/AGENT_REGISTRY.md` to remove the naming collision with Codex's root `AGENTS.md`, (3) add 8 reusable agent role templates under `.ai/agents/`, (4) split skills into model-agnostic (`.ai/skills/`) vs. Claude-native (`.claude/skills/`) with thin Claude wrappers pointing back to the canonical docs, (5) add `.ai/BOOTSTRAP.md` for first-run context population, (6) annotate `.ai/PROJECT.md` placeholders with discovery instructions, (7) update both READMEs to document the new layout and bootstrap flow.
 
@@ -78,7 +78,7 @@ New:
 > roles, routing, and model strategy. Read the root file first to learn
 > where to start, then read this file to learn which role to play.
 
-This file describes agent roles and task routing. It is model-agnostic and can be used with Claude Code, Codex, Gemini CLI, Cline, RooCode, Aider, or custom orchestration.
+This file describes agent roles and task routing. It is model-agnostic and can be used with Claude Code, Codex, AGY CLI, Cline, RooCode, Aider, or custom orchestration.
 
 For detailed per-role templates (responsibilities, required inputs/outputs,
 completion checklists), see `.ai/agents/*.md`.
@@ -213,7 +213,7 @@ git commit -m "add root AGENTS.md pointer for Codex auto-discovery"
 ```markdown
 # Bootstrap Instructions
 
-This file guides any AI coding agent (Claude Code, Codex, Gemini CLI, Cline,
+This file guides any AI coding agent (Claude Code, Codex, AGY CLI, Cline,
 RooCode, Aider, or other) through first-run setup of a project that was just
 initialized with `npx forgeai-agentic-init`.
 
@@ -1126,7 +1126,7 @@ starts.
 
 Root-level `CLAUDE.md` (Claude Code) and `AGENTS.md` (Codex) are pointer
 files that are auto-discovered by those tools and tell the agent to read
-this directory first. For other tools (Gemini CLI, Cline, RooCode, Aider),
+this directory first. For other tools (AGY CLI, Cline, RooCode, Aider),
 tell the agent:
 
 > Read `.ai/README.md` first. Then read the files in the recommended order
@@ -1166,7 +1166,7 @@ npx forgeai-agentic-init@latest
 ## Skills: model-agnostic vs. Claude-native
 
 - `.ai/skills/*/SKILL.md` — **model-agnostic** guidance. Any agent (Claude
-  Code, Codex, Gemini CLI, Cline, RooCode, Aider) should read these as plain
+  Code, Codex, AGY CLI, Cline, RooCode, Aider) should read these as plain
   documentation before doing related work.
 - `.claude/skills/*/SKILL.md` — **Claude Code native skills**. These are
   thin wrappers with valid Skill frontmatter so Claude Code can discover and
@@ -1460,7 +1460,7 @@ Insert a new section after "## What gets installed" and before
 Once the files are installed, populate the project-specific context before
 relying on an agent for real tasks:
 
-1. Open the project in your AI coding tool (Claude Code, Codex CLI, Gemini
+1. Open the project in your AI coding tool (Claude Code, Codex CLI, AGY
    CLI, Cline, RooCode, Aider, ...).
 2. Ask it to bootstrap the harness from the real repository, for example:
 
@@ -1480,7 +1480,7 @@ relying on an agent for real tasks:
 - **Codex** auto-reads `AGENTS.md` at the project root, following the same
   pointer pattern. ForgeAI's own agent-role registry lives separately at
   `.ai/AGENT_REGISTRY.md` to avoid colliding with this convention.
-- **Gemini CLI, Cline, RooCode, Aider** (and other tools) do not auto-load
+- **AGY CLI, Cline, RooCode, Aider** (and other tools) do not auto-load
   either file today — tell the agent to read `.ai/README.md` first, as
   shown in step 2 above.
 

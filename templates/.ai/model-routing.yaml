@@ -24,8 +24,8 @@ reviewer:
 # Replace provider/model values with models available in your tools.
 tiers:
   fast:
-    provider: gemini
-    model: gemini-2.5-flash
+    provider: agy
+    model: "Gemini 3.5 Flash (Low)"
     score_range: [0, 2]
     token_budget: 4000
     use_for:

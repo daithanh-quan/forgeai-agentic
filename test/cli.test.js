@@ -49,7 +49,7 @@ test('initialization copies the template files', () => {
     assert.equal(fs.existsSync(path.join(target, 'openspec', 'project.md')), true);
 
     const routing = fs.readFileSync(path.join(target, '.ai', 'model-routing.yaml'), 'utf8');
-    assert.match(routing, /provider: gemini/);
+    assert.match(routing, /provider: agy/);
     assert.match(routing, /score_range: \[0, 2\]/);
     assert.match(routing, /provider: codex/);
     assert.match(routing, /score_range: \[3, 5\]/);
@@ -138,6 +138,33 @@ test('router falls back to the current model when selected CLI is missing', () =
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }
+});
+
+test('router dry-run uses the AGY fast-tier adapter', () => {
+  const output = execFileSync(
+    process.execPath,
+    [
+      path.join(projectRoot, 'templates', '.ai', 'router', 'run-model.js'),
+      '--tier',
+      'fast',
+      '--routing',
+      path.join(projectRoot, 'templates', '.ai', 'model-routing.yaml'),
+      '--adapters',
+      path.join(projectRoot, 'templates', '.ai', 'cli-adapters.json'),
+      '--assignment',
+      path.join(projectRoot, 'templates', '.ai', 'state', 'assignments', 'TASK-CODEX-TEST.md'),
+      '--dry-run'
+    ],
+    {
+      cwd: projectRoot,
+      encoding: 'utf8'
+    }
+  );
+  const payload = JSON.parse(output);
+
+  assert.equal(payload.command, 'agy');
+  assert.deepEqual(payload.args, ['--model', 'Gemini 3.5 Flash (Low)', '--print']);
+  assert.equal(payload.input, 'stdin');
 });
 
 test('router falls back to the current model when delegated CLI command fails', () => {

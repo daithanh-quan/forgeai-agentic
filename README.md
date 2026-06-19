@@ -14,7 +14,7 @@ host environment should provide these tools:
 | --- | --- | --- |
 | Lead orchestration and strong tasks | Claude handles score `6-10`, architecture, sensitive work, and final synthesis | `claude` CLI or Claude Code |
 | Claude reviewer sub-agent | Reviews every delegated result before final delivery | Claude Code reviewer skill from `.claude/skills/reviewer/SKILL.md` |
-| Cheap/fast delegation | Gemini handles score `0-2` tasks | `gemini` CLI |
+| Cheap/fast delegation | AGY handles score `0-2` tasks | `agy` CLI |
 | Standard delegation | Codex handles score `3-5` tasks | `codex` CLI |
 | Token-output compression | RTK filters noisy shell output before it reaches the model context | `rtk` CLI and tool hook/plugin |
 | Project initialization | Runs this installer and tests | Node.js `>=18.18.0` |
@@ -56,7 +56,7 @@ RTK can be initialized for the tools you use:
 ```bash
 rtk init -g
 rtk init -g --codex
-rtk init -g --gemini
+rtk init -g --agy
 ```
 
 After setup, restart the AI tool and run a simple command such as
@@ -122,7 +122,7 @@ openspec/
 Once the files are installed, populate the project-specific context before
 relying on an agent for real tasks:
 
-1. Open the project in your AI coding tool (Claude Code, Codex CLI, Gemini
+1. Open the project in your AI coding tool (Claude Code, Codex CLI, AGY
    CLI, Cline, RooCode, Aider, ...).
 2. Ask it to bootstrap the harness from the real repository, for example:
 
@@ -140,7 +140,7 @@ relying on an agent for real tasks:
    ```bash
    claude --version
    codex --version
-   gemini --version
+   agy --version
    rtk --version
    ```
 
@@ -155,7 +155,7 @@ relying on an agent for real tasks:
 - **Codex** auto-reads `AGENTS.md` at the project root, following the same
   pointer pattern. ForgeAI's own agent-role registry lives separately at
   `.ai/AGENT_REGISTRY.md` to avoid colliding with this convention.
-- **Gemini CLI, Cline, RooCode, Aider** (and other tools) do not auto-load
+- **AGY CLI, Cline, RooCode, Aider** (and other tools) do not auto-load
   either file today — tell the agent to read `.ai/README.md` first, as
   shown in step 2 above.
 
@@ -184,7 +184,7 @@ different tools without duplicating instructions:
 
 ForgeAI uses Claude as the lead/orchestrator by default. For each subtask, the
 lead scores complexity, risk, ambiguity, and required context, then routes
-scores `0-2` to Gemini, scores `3-5` to Codex, and scores `6-10` to Claude by
+scores `0-2` to AGY, scores `3-5` to Codex, and scores `6-10` to Claude by
 default. If the selected CLI is not installed, the current model executes the
 bounded assignment locally instead of blocking on the router.
 
