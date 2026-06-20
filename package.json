@@ -1,19 +1,21 @@
 {
   "name": "forgeai-agentic-init",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "AI project initialization kit for agentic coding workflows.",
   "type": "module",
   "bin": {
     "forgeai-init": "bin/forgeai-init.js"
   },
   "scripts": {
-    "test": "node --test",
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/cli.test.js",
     "prepublishOnly": "npm test"
   },
   "files": [
     "bin",
     "templates",
-    "README.md"
+    "README.md",
+    "tsconfig.json"
   ],
   "repository": {
     "type": "git",
@@ -36,5 +38,9 @@
   "license": "MIT",
   "publishConfig": {
     "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "typescript": "^6.0.3"
   }
 }

@@ -33,25 +33,24 @@ agents fall back to the original command.
 Run the CLI directly with npm:
 
 ```bash
-npx forgeai-agentic-init@1.0.0 --dry-run
-npx forgeai-agentic-init@1.0.0
-npx forgeai-agentic-init@1.0.0 --check
+npx forgeai-agentic-init@1.1.0 --dry-run
+npx forgeai-agentic-init@1.1.0
+npx forgeai-agentic-init@1.1.0 --check
 ```
 
 Or install it globally:
 
 ```bash
-npm install --global forgeai-agentic-init@1.0.0
+npm install --global forgeai-agentic-init@1.1.0
 forgeai-init --dry-run
 forgeai-init
 forgeai-init --check
 ```
 
-`1.0.0` adds dynamic orchestration and `forgeai-init --check`: the current
-model can act as orchestrator instead of requiring Claude, and the checker
-reports whether the project is in single-agent or multi-agent mode. npm
+`1.1.0` keeps dynamic orchestration and `forgeai-init --check`, and moves the
+CLI/router source to TypeScript while publishing runnable JavaScript. npm
 package versions are immutable, so publish this only if
-`forgeai-agentic-init@1.0.0` has not
+`forgeai-agentic-init@1.1.0` has not
 already been published.
 
 ## Optional RTK Setup
