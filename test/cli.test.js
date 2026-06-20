@@ -63,6 +63,77 @@ test('initialization copies the template files', () => {
   }
 });
 
+test('check reports an incomplete harness when required files are missing', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-check-missing-'));
+
+  try {
+    assert.throws(
+      () =>
+        execFileSync(process.execPath, [cli, '--check'], {
+          cwd: target,
+          encoding: 'utf8',
+          env: { ...process.env, PATH: '' }
+        }),
+      (error) => {
+        assert.match(error.stdout, /ForgeAI harness check/);
+        assert.match(error.stdout, /missing\s+CLAUDE\.md/);
+        assert.match(error.stdout, /Result: harness incomplete/);
+        return true;
+      }
+    );
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check reports single-agent mode when no adapter CLIs are available', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-check-single-'));
+
+  try {
+    execFileSync(process.execPath, [cli], { cwd: target });
+
+    const output = execFileSync(process.execPath, [cli, '--check'], {
+      cwd: target,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: '' }
+    });
+
+    assert.match(output, /single-agent\s+current model must orchestrate, implement, review, and validate locally/);
+    assert.match(output, /Result: harness installed, but project context still needs bootstrap\./);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check reports multi-agent mode when multiple adapter CLIs are available', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-check-multi-'));
+  const fakeBin = path.join(target, 'bin');
+
+  try {
+    execFileSync(process.execPath, [cli], { cwd: target });
+    fs.mkdirSync(fakeBin);
+
+    for (const command of ['agy', 'codex']) {
+      const commandPath = path.join(fakeBin, command);
+      fs.writeFileSync(commandPath, '#!/bin/sh\nexit 0\n');
+      fs.chmodSync(commandPath, 0o755);
+    }
+
+    const output = execFileSync(process.execPath, [cli, '--check'], {
+      cwd: target,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: fakeBin }
+    });
+
+    assert.match(output, /optional ok\s+codex \(codex\)/);
+    assert.match(output, /optional ok\s+agy \(agy\)/);
+    assert.match(output, /multi-agent\s+orchestrator can be current model or:/);
+    assert.match(output, /human chooses orchestrator/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('router falls back to the current model when selected CLI is missing', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-router-'));
   const aiDir = path.join(target, '.ai');

@@ -33,21 +33,25 @@ agents fall back to the original command.
 Run the CLI directly with npm:
 
 ```bash
-npx forgeai-agentic-init@0.2.4 --dry-run
-npx forgeai-agentic-init@0.2.4
+npx forgeai-agentic-init@1.0.0 --dry-run
+npx forgeai-agentic-init@1.0.0
+npx forgeai-agentic-init@1.0.0 --check
 ```
 
 Or install it globally:
 
 ```bash
-npm install --global forgeai-agentic-init@0.2.4
+npm install --global forgeai-agentic-init@1.0.0
 forgeai-init --dry-run
 forgeai-init
+forgeai-init --check
 ```
 
-`0.2.4` adds dynamic orchestration: the current model can act as orchestrator
-instead of requiring Claude. npm package versions are immutable, so publish
-this only if `forgeai-agentic-init@0.2.4` has not
+`1.0.0` adds dynamic orchestration and `forgeai-init --check`: the current
+model can act as orchestrator instead of requiring Claude, and the checker
+reports whether the project is in single-agent or multi-agent mode. npm
+package versions are immutable, so publish this only if
+`forgeai-agentic-init@1.0.0` has not
 already been published.
 
 ## Optional RTK Setup
@@ -136,7 +140,18 @@ relying on an agent for real tasks:
    (package.json, lockfiles, config files), and how to handle unknown
    information (leave `TODO`, never guess).
 
-4. Verify optional integrations:
+4. Check the installed harness:
+
+   ```bash
+   forgeai-init --check
+   ```
+
+   If no extra model CLIs are available, the checker reports single-agent
+   mode: the current model must orchestrate, implement, review, and validate
+   locally. If multiple model CLIs are available, it reports multi-agent mode:
+   the human can choose which available model acts as orchestrator.
+
+5. Verify optional integrations:
 
    ```bash
    claude --version
