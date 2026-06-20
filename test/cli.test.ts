@@ -6,8 +6,26 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+type RouterPayload = {
+  status?: string;
+  reason?: string;
+  behavior?: string;
+  provider?: string;
+  command?: string;
+  args?: string[];
+  input?: string;
+};
+
+type ExecError = Error & {
+  stdout?: string | Buffer;
+};
+
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const cli = path.join(projectRoot, 'bin/forgeai-init.js');
+
+function parseRouterPayload(output: string): RouterPayload {
+  return JSON.parse(output) as RouterPayload;
+}
 
 test('dry run lists files without writing them', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-dry-run-'));
@@ -74,10 +92,12 @@ test('check reports an incomplete harness when required files are missing', () =
           encoding: 'utf8',
           env: { ...process.env, PATH: '' }
         }),
-      (error) => {
-        assert.match(error.stdout, /ForgeAI harness check/);
-        assert.match(error.stdout, /missing\s+CLAUDE\.md/);
-        assert.match(error.stdout, /Result: harness incomplete/);
+      (error: unknown) => {
+        const execError = error as ExecError;
+        const stdout = String(execError.stdout ?? '');
+        assert.match(stdout, /ForgeAI harness check/);
+        assert.match(stdout, /missing\s+CLAUDE\.md/);
+        assert.match(stdout, /Result: harness incomplete/);
         return true;
       }
     );
@@ -201,7 +221,7 @@ test('router falls back to the current model when selected CLI is missing', () =
         encoding: 'utf8'
       }
     );
-    const payload = JSON.parse(output);
+    const payload = parseRouterPayload(output);
 
     assert.equal(payload.status, 'fallback');
     assert.equal(payload.reason, 'missing_command');
@@ -232,7 +252,7 @@ test('router dry-run uses the AGY fast-tier adapter', () => {
       encoding: 'utf8'
     }
   );
-  const payload = JSON.parse(output);
+  const payload = parseRouterPayload(output);
 
   assert.equal(payload.command, 'agy');
   assert.deepEqual(payload.args, ['--model', 'Gemini 3.5 Flash (Low)', '--print']);
@@ -306,7 +326,7 @@ test('router falls back to the current model when delegated CLI command fails', 
         encoding: 'utf8'
       }
     );
-    const payload = JSON.parse(output);
+    const payload = parseRouterPayload(output);
 
     assert.equal(payload.status, 'fallback');
     assert.equal(payload.reason, 'command_failed');
