@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env -S tsx
 import fs, { constants } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,7 +34,7 @@ const requiredHarnessFiles = [
   '.ai/MODEL_ROUTING.md',
   '.ai/model-routing.yaml',
   '.ai/cli-adapters.json',
-  '.ai/router/run-model.js',
+  '.ai/router/run-model.ts',
   '.ai/WORKFLOW.md',
   '.ai/agents/orchestrator.md',
   '.ai/agents/reviewer.md',

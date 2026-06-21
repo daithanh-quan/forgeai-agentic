@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 
 type RouterPayload = {
   status?: string;
@@ -21,20 +22,25 @@ type ExecError = Error & {
 };
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const cli = path.join(projectRoot, 'bin/forgeai-init.js');
+const tsxLoader = pathToFileURL(path.join(projectRoot, 'node_modules', 'tsx', 'dist', 'loader.mjs')).href;
+const cli = path.join(projectRoot, 'bin/forgeai-init.ts');
 
 function parseRouterPayload(output: string): RouterPayload {
   return JSON.parse(output) as RouterPayload;
+}
+
+function runTs(file: string, args: string[], options: Parameters<typeof execFileSync>[2] = {}): string {
+  return execFileSync(process.execPath, ['--import', tsxLoader, file, ...args], {
+    ...options,
+    encoding: 'utf8'
+  }) as string;
 }
 
 test('dry run lists files without writing them', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-dry-run-'));
 
   try {
-    const output = execFileSync(process.execPath, [cli, '--dry-run'], {
-      cwd: target,
-      encoding: 'utf8'
-    });
+    const output = runTs(cli, ['--dry-run'], { cwd: target });
 
     assert.match(output, /would create AGENTS\.md/);
     assert.match(output, /Dry run complete\./);
@@ -48,14 +54,14 @@ test('initialization copies the template files', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-init-'));
 
   try {
-    execFileSync(process.execPath, [cli], { cwd: target });
+    runTs(cli, [], { cwd: target });
 
     assert.equal(fs.existsSync(path.join(target, 'AGENTS.md')), true);
     assert.equal(fs.existsSync(path.join(target, '.ai', 'README.md')), true);
     assert.equal(fs.existsSync(path.join(target, '.ai', 'MODEL_ROUTING.md')), true);
     assert.equal(fs.existsSync(path.join(target, '.ai', 'model-routing.yaml')), true);
     assert.equal(fs.existsSync(path.join(target, '.ai', 'cli-adapters.json')), true);
-    assert.equal(fs.existsSync(path.join(target, '.ai', 'router', 'run-model.js')), true);
+    assert.equal(fs.existsSync(path.join(target, '.ai', 'router', 'run-model.ts')), true);
     assert.equal(
       fs.existsSync(path.join(target, '.ai', 'state', 'assignments', 'TASK-REVIEWER-SMOKE.md')),
       true
@@ -87,9 +93,8 @@ test('check reports an incomplete harness when required files are missing', () =
   try {
     assert.throws(
       () =>
-        execFileSync(process.execPath, [cli, '--check'], {
+        runTs(cli, ['--check'], {
           cwd: target,
-          encoding: 'utf8',
           env: { ...process.env, PATH: '' }
         }),
       (error: unknown) => {
@@ -110,11 +115,10 @@ test('check reports single-agent mode when no adapter CLIs are available', () =>
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-check-single-'));
 
   try {
-    execFileSync(process.execPath, [cli], { cwd: target });
+    runTs(cli, [], { cwd: target });
 
-    const output = execFileSync(process.execPath, [cli, '--check'], {
+    const output = runTs(cli, ['--check'], {
       cwd: target,
-      encoding: 'utf8',
       env: { ...process.env, PATH: '' }
     });
 
@@ -130,7 +134,7 @@ test('check reports multi-agent mode when multiple adapter CLIs are available', 
   const fakeBin = path.join(target, 'bin');
 
   try {
-    execFileSync(process.execPath, [cli], { cwd: target });
+    runTs(cli, [], { cwd: target });
     fs.mkdirSync(fakeBin);
 
     for (const command of ['agy', 'codex']) {
@@ -139,9 +143,8 @@ test('check reports multi-agent mode when multiple adapter CLIs are available', 
       fs.chmodSync(commandPath, 0o755);
     }
 
-    const output = execFileSync(process.execPath, [cli, '--check'], {
+    const output = runTs(cli, ['--check'], {
       cwd: target,
-      encoding: 'utf8',
       env: { ...process.env, PATH: fakeBin }
     });
 
@@ -160,7 +163,7 @@ test('router falls back to the current model when selected CLI is missing', () =
   const assignmentPath = path.join(target, 'assignment.md');
   const routingPath = path.join(aiDir, 'model-routing.yaml');
   const adaptersPath = path.join(aiDir, 'cli-adapters.json');
-  const router = path.join(projectRoot, 'templates', '.ai', 'router', 'run-model.js');
+  const router = path.join(projectRoot, 'templates', '.ai', 'router', 'run-model.ts');
 
   try {
     fs.mkdirSync(aiDir, { recursive: true });
@@ -203,10 +206,9 @@ test('router falls back to the current model when selected CLI is missing', () =
     );
     fs.writeFileSync(assignmentPath, '# Assignment\n');
 
-    const output = execFileSync(
-      process.execPath,
+    const output = runTs(
+      router,
       [
-        router,
         '--tier',
         'fast',
         '--routing',
@@ -216,10 +218,7 @@ test('router falls back to the current model when selected CLI is missing', () =
         '--assignment',
         assignmentPath
       ],
-      {
-        cwd: target,
-        encoding: 'utf8'
-      }
+      { cwd: target }
     );
     const payload = parseRouterPayload(output);
 
@@ -233,10 +232,9 @@ test('router falls back to the current model when selected CLI is missing', () =
 });
 
 test('router dry-run uses the AGY fast-tier adapter', () => {
-  const output = execFileSync(
-    process.execPath,
+  const output = runTs(
+    path.join(projectRoot, 'templates', '.ai', 'router', 'run-model.ts'),
     [
-      path.join(projectRoot, 'templates', '.ai', 'router', 'run-model.js'),
       '--tier',
       'fast',
       '--routing',
@@ -247,10 +245,7 @@ test('router dry-run uses the AGY fast-tier adapter', () => {
       path.join(projectRoot, 'templates', '.ai', 'state', 'assignments', 'TASK-CODEX-TEST.md'),
       '--dry-run'
     ],
-    {
-      cwd: projectRoot,
-      encoding: 'utf8'
-    }
+    { cwd: projectRoot }
   );
   const payload = parseRouterPayload(output);
 
@@ -265,7 +260,7 @@ test('router falls back to the current model when delegated CLI command fails', 
   const assignmentPath = path.join(target, 'assignment.md');
   const routingPath = path.join(aiDir, 'model-routing.yaml');
   const adaptersPath = path.join(aiDir, 'cli-adapters.json');
-  const router = path.join(projectRoot, 'templates', '.ai', 'router', 'run-model.js');
+  const router = path.join(projectRoot, 'templates', '.ai', 'router', 'run-model.ts');
 
   try {
     fs.mkdirSync(aiDir, { recursive: true });
@@ -308,10 +303,9 @@ test('router falls back to the current model when delegated CLI command fails', 
     );
     fs.writeFileSync(assignmentPath, '# Assignment\n');
 
-    const output = execFileSync(
-      process.execPath,
+    const output = runTs(
+      router,
       [
-        router,
         '--tier',
         'standard',
         '--routing',
@@ -321,10 +315,7 @@ test('router falls back to the current model when delegated CLI command fails', 
         '--assignment',
         assignmentPath
       ],
-      {
-        cwd: target,
-        encoding: 'utf8'
-      }
+      { cwd: target }
     );
     const payload = parseRouterPayload(output);
 
