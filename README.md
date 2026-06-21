@@ -33,24 +33,24 @@ agents fall back to the original command.
 Run the CLI directly with npm:
 
 ```bash
-npx forgeai-agentic-init@1.1.0 --dry-run
-npx forgeai-agentic-init@1.1.0
-npx forgeai-agentic-init@1.1.0 --check
+npx forgeai-agentic-init@1.2.0 --dry-run
+npx forgeai-agentic-init@1.2.0
+npx forgeai-agentic-init@1.2.0 --check
 ```
 
 Or install it globally:
 
 ```bash
-npm install --global forgeai-agentic-init@1.1.0
+npm install --global forgeai-agentic-init@1.2.0
 forgeai-init --dry-run
 forgeai-init
 forgeai-init --check
 ```
 
-`1.1.0` keeps dynamic orchestration and `forgeai-init --check`, and moves the
-CLI/router source to TypeScript while publishing runnable JavaScript. npm
-package versions are immutable, so publish this only if
-`forgeai-agentic-init@1.1.0` has not
+`1.2.0` keeps dynamic orchestration and `forgeai-init --check`, uses
+TypeScript source while publishing runnable JavaScript, and adds stronger
+Git branch, worktree, and pre-commit hook rules. npm package versions are
+immutable, so publish this only if `forgeai-agentic-init@1.2.0` has not
 already been published.
 
 ## Optional RTK Setup
@@ -83,7 +83,7 @@ AGENTS.md
   MODEL_ROUTING.md
   model-routing.yaml
   cli-adapters.json
-  router/run-model.js
+  router/run-model.ts
   WORKFLOW.md
   state/CURRENT.md
   state/assignments/TASK-CODEX-TEST.md
@@ -229,7 +229,7 @@ Configure local CLI commands separately:
 When delegation is available through local CLIs, invoke a tier with:
 
 ```bash
-node .ai/router/run-model.js --tier standard --assignment .ai/state/assignments/TASK-01.md
+npx tsx .ai/router/run-model.ts --tier standard --assignment .ai/state/assignments/TASK-01.md
 ```
 
 The full scoring, handoff, fallback, and review protocol is documented in
@@ -242,7 +242,7 @@ or sub-agent capability.
 After initialization, run these checks in a real AI tool environment:
 
 ```bash
-node .ai/router/run-model.js --tier standard --assignment .ai/state/assignments/TASK-CODEX-TEST.md
+npx tsx .ai/router/run-model.ts --tier standard --assignment .ai/state/assignments/TASK-CODEX-TEST.md
 ```
 
 Ask your configured reviewer to review the smoke assignment. In Claude Code,
