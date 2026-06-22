@@ -33,24 +33,26 @@ agents fall back to the original command.
 Run the CLI directly with npm:
 
 ```bash
-npx forgeai-agentic-init@1.2.0 --dry-run
-npx forgeai-agentic-init@1.2.0
-npx forgeai-agentic-init@1.2.0 --check
+npx forgeai-agentic-init@1.3.0 --dry-run
+npx forgeai-agentic-init@1.3.0
+npx forgeai-agentic-init@1.3.0 --check
+npx forgeai-agentic-init@1.3.0 --check-git
 ```
 
 Or install it globally:
 
 ```bash
-npm install --global forgeai-agentic-init@1.2.0
+npm install --global forgeai-agentic-init@1.3.0
 forgeai-init --dry-run
 forgeai-init
 forgeai-init --check
+forgeai-init --check-git
 ```
 
-`1.2.0` keeps dynamic orchestration and `forgeai-init --check`, uses
-TypeScript source while publishing runnable JavaScript, and adds stronger
+`1.3.0` keeps dynamic orchestration, uses TypeScript-only source, adds
+`forgeai-init --check` and `forgeai-init --check-git`, and includes stronger
 Git branch, worktree, and pre-commit hook rules. npm package versions are
-immutable, so publish this only if `forgeai-agentic-init@1.2.0` has not
+immutable, so publish this only if `forgeai-agentic-init@1.3.0` has not
 already been published.
 
 ## Optional RTK Setup
@@ -143,12 +145,21 @@ relying on an agent for real tasks:
 
    ```bash
    forgeai-init --check
+   forgeai-init --check-git
    ```
 
    If no extra model CLIs are available, the checker reports single-agent
    mode: the current model must orchestrate, implement, review, and validate
    locally. If multiple model CLIs are available, it reports multi-agent mode:
    the human can choose which available model acts as orchestrator.
+
+   The git checker reports repository provider, remote, base branch, current
+   branch, semantic branch naming, dirty worktree state, local merge-conflict
+   risk, hook detection, and provider PR/MR tooling. If no GitHub, GitLab,
+   Bitbucket, or other remote is connected, it recommends local-only work:
+   create a semantic branch such as `feat/<short-slug>` or `fix/<short-slug>`,
+   validate locally, and do not push or create a PR/MR until a remote is
+   configured.
 
 5. Verify optional integrations:
 
