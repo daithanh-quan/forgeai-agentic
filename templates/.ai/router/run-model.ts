@@ -74,8 +74,8 @@ function getStringArg(args: CliArgs, key: string): string | undefined {
 
 function usage(): string {
   return `Usage:
-  node .ai/router/run-model.js --tier <fast|standard|strong|lead> --assignment <file>
-  node .ai/router/run-model.js --provider <name> --model <name> --assignment <file>
+  npx tsx .ai/router/run-model.ts --tier <fast|standard|strong|lead> --assignment <file>
+  npx tsx .ai/router/run-model.ts --provider <name> --model <name> --assignment <file>
 
 Options:
   --routing <file>     Defaults to .ai/model-routing.yaml

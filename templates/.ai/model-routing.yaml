@@ -131,5 +131,5 @@ fallback:
 
 # CLI connection details are intentionally separate from routing policy.
 # Configure executable commands in .ai/cli-adapters.json and use
-# .ai/router/run-model.js to invoke a selected tier when your environment
+# .ai/router/run-model.ts to invoke a selected tier when your environment
 # supports delegation through local CLIs.

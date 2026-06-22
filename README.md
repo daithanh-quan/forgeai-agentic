@@ -33,26 +33,30 @@ agents fall back to the original command.
 Run the CLI directly with npm:
 
 ```bash
-npx forgeai-agentic-init@1.3.0 --dry-run
-npx forgeai-agentic-init@1.3.0
-npx forgeai-agentic-init@1.3.0 --check
-npx forgeai-agentic-init@1.3.0 --check-git
+npx forgeai-agentic-init@1.3.1 --dry-run
+npx forgeai-agentic-init@1.3.1
+npx forgeai-agentic-init@1.3.1 --check
+npx forgeai-agentic-init@1.3.1 --check-git
+npx forgeai-agentic-init@1.3.1 --help
+npx forgeai-agentic-init@1.3.1 --version
 ```
 
 Or install it globally:
 
 ```bash
-npm install --global forgeai-agentic-init@1.3.0
+npm install --global forgeai-agentic-init@1.3.1
 forgeai-init --dry-run
 forgeai-init
 forgeai-init --check
 forgeai-init --check-git
+forgeai-init --help
+forgeai-init --version
 ```
 
-`1.3.0` keeps dynamic orchestration, uses TypeScript-only source, adds
-`forgeai-init --check` and `forgeai-init --check-git`, and includes stronger
-Git branch, worktree, and pre-commit hook rules. npm package versions are
-immutable, so publish this only if `forgeai-agentic-init@1.3.0` has not
+`1.3.1` keeps dynamic orchestration, uses TypeScript-only source, adds
+`forgeai-init --check`, `forgeai-init --check-git`, `--help`, and `--version`,
+and includes stronger Git branch, worktree, and pre-commit hook rules. npm package versions are
+immutable, so publish this only if `forgeai-agentic-init@1.3.1` has not
 already been published.
 
 ## Optional RTK Setup
