@@ -16,37 +16,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const root = path.resolve(process.cwd());
 const templateDir = path.resolve(__dirname, '../templates');
+const packageJsonPath = path.resolve(__dirname, '../package.json');
 
 const args = new Set(process.argv.slice(2));
+const help = args.has('--help') || args.has('-h');
+const version = args.has('--version') || args.has('-v');
 const force = args.has('--force');
 const dryRun = args.has('--dry-run');
 const check = args.has('--check');
 const checkGit = args.has('--check-git');
 
-const requiredHarnessFiles = [
-  'CLAUDE.md',
-  'AGENTS.md',
-  '.ai/README.md',
-  '.ai/BOOTSTRAP.md',
-  '.ai/PROJECT.md',
-  '.ai/RULES.md',
-  '.ai/TASTE.md',
-  '.ai/MEMORY.md',
-  '.ai/AGENT_REGISTRY.md',
-  '.ai/MODEL_ROUTING.md',
-  '.ai/model-routing.yaml',
-  '.ai/cli-adapters.json',
-  '.ai/router/run-model.ts',
-  '.ai/WORKFLOW.md',
-  '.ai/agents/orchestrator.md',
-  '.ai/agents/reviewer.md',
-  '.ai/skills/code-review/SKILL.md',
-  '.ai/state/CURRENT.md',
-  '.ai/state/assignments/TASK-CODEX-TEST.md',
-  '.ai/state/assignments/TASK-REVIEWER-SMOKE.md',
-  'openspec/README.md',
-  'openspec/project.md'
-];
+const requiredHarnessFiles = listFilesRecursive(templateDir);
 
 const bootstrapFiles = ['.ai/PROJECT.md', '.ai/MEMORY.md', '.ai/AGENT_REGISTRY.md'];
 
@@ -101,6 +81,51 @@ function countTodos(relativePath: string): number {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function listFilesRecursive(directory: string, baseDirectory = directory): string[] {
+  const files: string[] = [];
+
+  for (const item of fs.readdirSync(directory)) {
+    const absolutePath = path.join(directory, item);
+    const stat = fs.statSync(absolutePath);
+
+    if (stat.isDirectory()) {
+      files.push(...listFilesRecursive(absolutePath, baseDirectory));
+      continue;
+    }
+
+    files.push(path.relative(baseDirectory, absolutePath).split(path.sep).join('/'));
+  }
+
+  return files.sort();
+}
+
+function getPackageVersion(): string {
+  try {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as { version?: string };
+    return packageJson.version ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+function usage(): string {
+  return `Usage:
+  forgeai-init [--dry-run] [--force]
+  forgeai-init --check
+  forgeai-init --check-git
+  forgeai-init --version
+  forgeai-init --help
+
+Options:
+  --dry-run     Print files that would be created without writing them.
+  --force       Overwrite existing harness files during initialization.
+  --check       Validate installed ForgeAI harness files and model adapters.
+  --check-git   Validate git branch, worktree, remote, hooks, and PR/MR tooling.
+  --version     Print the package version.
+  --help        Print this help text.
+`;
 }
 
 function runCommand(command: string, commandArgs: string[], cwd = root): { status: number | null; stdout: string; stderr: string } {
@@ -394,7 +419,9 @@ function copyRecursive(src: string, dest: string): void {
   }
 }
 
-if (checkGit) runCheckGit();
+if (help) console.log(usage());
+else if (version) console.log(getPackageVersion());
+else if (checkGit) runCheckGit();
 else if (check) runCheck();
 else {
   copyRecursive(templateDir, root);

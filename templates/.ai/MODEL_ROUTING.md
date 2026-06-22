@@ -127,7 +127,7 @@ Use the router when the current environment exposes delegated models through
 local CLI tools:
 
 ```bash
-node .ai/router/run-model.js --tier standard --assignment .ai/state/assignments/TASK-01.md
+npx tsx .ai/router/run-model.ts --tier standard --assignment .ai/state/assignments/TASK-01.md
 ```
 
 The router:

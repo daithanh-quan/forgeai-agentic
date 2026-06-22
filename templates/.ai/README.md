@@ -24,7 +24,7 @@ tell the agent:
 4. `TASTE.md` — owner/team preferences and style.
 5. `AGENT_REGISTRY.md` — agent roles, sub-agents, and routing strategy.
 6. `MODEL_ROUTING.md`, `model-routing.yaml`, `cli-adapters.json`, and
-   `router/run-model.js` — scoring, model tiers, CLI adapters, token
+   `router/run-model.ts` — scoring, model tiers, CLI adapters, token
    budgets, delegation, and fallbacks.
 7. `WORKFLOW.md` — flow from task intake to human review.
 8. `state/CURRENT.md` — current project state and active focus.

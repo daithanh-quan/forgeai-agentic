@@ -87,6 +87,36 @@ test('initialization copies the template files', () => {
   }
 });
 
+test('help and version report CLI metadata', () => {
+  const helpOutput = runTs(cli, ['--help']);
+  const versionOutput = runTs(cli, ['--version']);
+
+  assert.match(helpOutput, /Usage:/);
+  assert.match(helpOutput, /forgeai-init --check-git/);
+  assert.match(helpOutput, /--version\s+Print the package version/);
+  assert.equal(versionOutput.trim(), '1.3.1');
+});
+
+test('check validates a freshly initialized harness', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-check-ready-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const output = runTs(cli, ['--check'], {
+      cwd: target,
+      env: { ...process.env, PATH: '' }
+    });
+
+    assert.match(output, /ok\s+\.ai\/skills\/frontend-implementation\/SKILL\.md/);
+    assert.match(output, /ok\s+\.claude\/skills\/reviewer\/SKILL\.md/);
+    assert.match(output, /ok\s+openspec\/changes\/_template\/tasks\.md/);
+    assert.match(output, /Result: harness installed, but project context still needs bootstrap\./);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('check reports an incomplete harness when required files are missing', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-check-missing-'));
 
