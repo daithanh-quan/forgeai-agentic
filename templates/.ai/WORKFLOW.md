@@ -150,6 +150,11 @@ docs: document dynamic orchestration
 
 ## 6. Implementation
 
+Before implementation, check whether `.ai/profiles/<profile>.md` or a
+profile-specific skill exists for the detected stack. Profile guidance is
+additive: apply it together with the shared role and skill files unless the
+profile explicitly states that it replaces a shared skill.
+
 Agents should work in small steps. Each step should have a checkpoint:
 
 - What changed?

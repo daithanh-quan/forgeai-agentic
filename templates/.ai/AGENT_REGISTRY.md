@@ -19,7 +19,9 @@ completion checklists), see `.ai/agents/*.md`.
 
 - Read `.ai/PROJECT.md`, `.ai/RULES.md`, and `.ai/MEMORY.md` before working.
 - Create a short task plan.
-- Choose the correct agent or skill.
+- Choose the correct agent and shared skill, then add any profile-specific
+  skill from `.ai/profiles/<profile>.md` or `.ai/skills/*/SKILL.md` when it
+  matches the project stack.
 - Check the final result against the definition of done.
 
 ## Frontend agent

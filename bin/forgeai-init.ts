@@ -12,23 +12,52 @@ type AdapterConfig = {
   adapters?: Record<string, Adapter>;
 };
 
+type HarnessManifest = {
+  version: number;
+  package: string;
+  package_version: string;
+  profile: string;
+  initialized_at: string;
+};
+
+type PackageJson = {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  workspaces?: unknown;
+};
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const root = path.resolve(process.cwd());
 const templateDir = path.resolve(__dirname, '../templates');
+const profilesDir = path.resolve(__dirname, '../profiles');
 const packageJsonPath = path.resolve(__dirname, '../package.json');
 
-const args = new Set(process.argv.slice(2));
+const rawArgs = process.argv.slice(2);
+const args = new Set(rawArgs);
 const help = args.has('--help') || args.has('-h');
 const version = args.has('--version') || args.has('-v');
 const force = args.has('--force');
 const dryRun = args.has('--dry-run');
 const check = args.has('--check');
 const checkGit = args.has('--check-git');
+const checkProfile = args.has('--check-profile');
+const listProfiles = args.has('--list-profiles');
+const requestedProfile = getArgValue('--profile') ?? 'base';
 
 const requiredHarnessFiles = listFilesRecursive(templateDir);
 
 const bootstrapFiles = ['.ai/PROJECT.md', '.ai/MEMORY.md', '.ai/AGENT_REGISTRY.md'];
+
+function getArgValue(name: string): string | null {
+  for (let index = 0; index < rawArgs.length; index += 1) {
+    const arg = rawArgs[index];
+    if (arg === name) return rawArgs[index + 1] ?? null;
+    if (arg.startsWith(`${name}=`)) return arg.slice(name.length + 1);
+  }
+
+  return null;
+}
 
 function formatStatus(status: string, label: string): string {
   return `${status.padEnd(16)} ${label}`;
@@ -72,6 +101,11 @@ function readJsonIfPresent<T>(relativePath: string): T | null {
   return JSON.parse(fs.readFileSync(absolutePath, 'utf8')) as T;
 }
 
+function readJsonFileIfPresent<T>(absolutePath: string): T | null {
+  if (!fs.existsSync(absolutePath)) return null;
+  return JSON.parse(fs.readFileSync(absolutePath, 'utf8')) as T;
+}
+
 function countTodos(relativePath: string): number {
   const absolutePath = path.join(root, relativePath);
   if (!fs.existsSync(absolutePath)) return 0;
@@ -84,6 +118,8 @@ function getErrorMessage(error: unknown): string {
 }
 
 function listFilesRecursive(directory: string, baseDirectory = directory): string[] {
+  if (!fs.existsSync(directory)) return [];
+
   const files: string[] = [];
 
   for (const item of fs.readdirSync(directory)) {
@@ -110,19 +146,130 @@ function getPackageVersion(): string {
   }
 }
 
+function getAvailableProfiles(): string[] {
+  if (!fs.existsSync(profilesDir)) return [];
+  return fs
+    .readdirSync(profilesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+}
+
+function profilePath(profile: string): string {
+  return path.join(profilesDir, profile);
+}
+
+function normalizeProfile(profile: string): string {
+  return profile.trim().toLowerCase();
+}
+
+function getProjectPackageJson(): PackageJson | null {
+  return readJsonIfPresent<PackageJson>('package.json');
+}
+
+function hasDependency(packageJson: PackageJson | null, names: string[]): boolean {
+  const dependencies = {
+    ...(packageJson?.dependencies ?? {}),
+    ...(packageJson?.devDependencies ?? {})
+  };
+
+  return names.some((name) => dependencies[name] !== undefined);
+}
+
+function fileExists(relativePath: string): boolean {
+  return fs.existsSync(path.join(root, relativePath));
+}
+
+function detectProjectProfile(): string | null {
+  const packageJson = getProjectPackageJson();
+
+  if (fileExists('src-tauri') || fileExists('tauri.conf.json') || fileExists('tauri.conf.json5')) return 'tauri';
+  if (fileExists('pnpm-workspace.yaml') || fileExists('turbo.json') || fileExists('nx.json') || fileExists('lerna.json') || packageJson?.workspaces) return 'monorepo';
+  if (hasDependency(packageJson, ['next']) || fileExists('next.config.js') || fileExists('next.config.mjs') || fileExists('next.config.ts')) return 'nextjs';
+  if (hasDependency(packageJson, ['express', 'fastify', '@nestjs/core', 'hono', 'koa'])) return 'node-api';
+  if (fileExists('pyproject.toml') || fileExists('requirements.txt') || fileExists('uv.lock') || fileExists('poetry.lock') || fileExists('Pipfile')) return 'python-api';
+  if (hasDependency(packageJson, ['react-native', 'expo']) || fileExists('pubspec.yaml') || fileExists('ios') || fileExists('android')) return 'mobile';
+
+  return null;
+}
+
+function resolveProfile(profile: string): { status: 'ok' | 'none' | 'invalid' | 'unknown'; profile: string; detail: string } {
+  const normalized = normalizeProfile(profile);
+  if (normalized === 'base' || normalized === 'none') {
+    return { status: 'none', profile: 'base', detail: 'base harness only' };
+  }
+
+  const resolvedProfile = normalized === 'auto' ? detectProjectProfile() : normalized;
+  if (!resolvedProfile) {
+    return { status: 'unknown', profile: 'base', detail: 'auto profile could not detect a supported stack' };
+  }
+
+  const availableProfiles = getAvailableProfiles();
+  if (!availableProfiles.includes(resolvedProfile)) {
+    return {
+      status: 'invalid',
+      profile: resolvedProfile,
+      detail: `unknown profile "${resolvedProfile}". Available profiles: ${availableProfiles.join(', ') || 'none'}`
+    };
+  }
+
+  return { status: 'ok', profile: resolvedProfile, detail: normalized === 'auto' ? `auto detected ${resolvedProfile}` : resolvedProfile };
+}
+
+function createManifest(profile: string): HarnessManifest {
+  return {
+    version: 1,
+    package: 'forgeai-agentic-init',
+    package_version: getPackageVersion(),
+    profile,
+    initialized_at: new Date().toISOString()
+  };
+}
+
+function writeManifest(profile: string): void {
+  const relativePath = '.ai/manifest.json';
+  const destination = path.join(root, relativePath);
+  const content = `${JSON.stringify(createManifest(profile), null, 2)}\n`;
+
+  if (dryRun) {
+    console.log(`would create ${relativePath}`);
+    return;
+  }
+
+  if (fs.existsSync(destination) && !force) {
+    console.log(`skip ${relativePath} already exists. Use --force to overwrite.`);
+    return;
+  }
+
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.writeFileSync(destination, content);
+  console.log(`created ${relativePath}`);
+}
+
+function readManifest(): HarnessManifest | null {
+  return readJsonFileIfPresent<HarnessManifest>(path.join(root, '.ai', 'manifest.json'));
+}
+
 function usage(): string {
   return `Usage:
-  forgeai-init [--dry-run] [--force]
+  forgeai-init [--dry-run] [--force] [--profile <name|auto>]
   forgeai-init --check
   forgeai-init --check-git
+  forgeai-init --check-profile
+  forgeai-init --list-profiles
   forgeai-init --version
   forgeai-init --help
 
 Options:
   --dry-run     Print files that would be created without writing them.
   --force       Overwrite existing harness files during initialization.
+  --profile     Apply an optional stack profile: auto, nextjs, node-api, tauri, monorepo, python-api, or mobile.
   --check       Validate installed ForgeAI harness files and model adapters.
   --check-git   Validate git branch, worktree, remote, hooks, and PR/MR tooling.
+  --check-profile
+                Validate the installed profile against detected project signals.
+  --list-profiles
+                Print supported profile names.
   --version     Print the package version.
   --help        Print this help text.
 `;
@@ -400,6 +547,67 @@ function runCheck(): void {
   console.log('Result: harness installed and ready.');
 }
 
+function runCheckProfile(): void {
+  console.log('ForgeAI profile check');
+  console.log('');
+
+  const manifest = readManifest();
+  const installedProfile = manifest?.profile ?? 'base';
+  const detectedProfile = detectProjectProfile();
+  const availableProfiles = getAvailableProfiles();
+
+  console.log(formatStatus(manifest ? 'ok' : 'missing', manifest ? `.ai/manifest.json profile: ${installedProfile}` : '.ai/manifest.json'));
+  console.log(formatStatus(detectedProfile ? 'detected' : 'unknown', detectedProfile ?? 'no supported stack profile detected'));
+  console.log(formatStatus('available', availableProfiles.join(', ') || 'none'));
+
+  if (!manifest) {
+    console.log('');
+    console.log('Result: profile unknown. Re-run forgeai-init with --profile <name> or --profile auto to create a manifest.');
+    process.exitCode = 1;
+    return;
+  }
+
+  if (installedProfile === 'base') {
+    console.log('');
+    console.log('Result: base harness installed. Run forgeai-init --profile <name> to add stack-specific guidance if needed.');
+    return;
+  }
+
+  const installedProfilePath = profilePath(installedProfile);
+  if (!fs.existsSync(installedProfilePath)) {
+    console.log(formatStatus('invalid', `installed profile ${installedProfile} is not supported by this package version`));
+    console.log('');
+    console.log('Result: installed profile is not recognized.');
+    process.exitCode = 1;
+    return;
+  }
+
+  const requiredProfileFiles = listFilesRecursive(installedProfilePath);
+  let missingProfileFiles = 0;
+  for (const relativePath of requiredProfileFiles) {
+    const exists = fs.existsSync(path.join(root, relativePath));
+    if (!exists) missingProfileFiles += 1;
+    console.log(formatStatus(exists ? 'ok' : 'missing', relativePath));
+  }
+
+  if (detectedProfile && detectedProfile !== installedProfile) {
+    console.log('');
+    console.log(`Result: profile mismatch. Installed ${installedProfile}, but project signals look like ${detectedProfile}.`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (missingProfileFiles > 0) {
+    console.log('');
+    console.log('Result: profile files are incomplete. Re-run forgeai-init --profile with the same profile.');
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log('');
+  console.log('Result: profile installed and consistent.');
+}
+
 function copyRecursive(src: string, dest: string): void {
   const stat = fs.statSync(src);
   if (stat.isDirectory()) {
@@ -421,9 +629,23 @@ function copyRecursive(src: string, dest: string): void {
 
 if (help) console.log(usage());
 else if (version) console.log(getPackageVersion());
+else if (listProfiles) console.log(['base', ...getAvailableProfiles()].join('\n'));
 else if (checkGit) runCheckGit();
+else if (checkProfile) runCheckProfile();
 else if (check) runCheck();
 else {
-  copyRecursive(templateDir, root);
-  console.log(dryRun ? 'Dry run complete.' : 'ForgeAI agentic markdown kit initialized.');
+  const profile = resolveProfile(requestedProfile);
+  if (profile.status === 'invalid') {
+    console.error(profile.detail);
+    process.exitCode = 1;
+  } else {
+    copyRecursive(templateDir, root);
+    if (profile.status === 'ok') {
+      copyRecursive(profilePath(profile.profile), root);
+    } else if (requestedProfile === 'auto' && profile.status === 'unknown') {
+      console.log(`profile auto skipped: ${profile.detail}`);
+    }
+    writeManifest(profile.profile);
+    console.log(dryRun ? 'Dry run complete.' : 'ForgeAI agentic markdown kit initialized.');
+  }
 }

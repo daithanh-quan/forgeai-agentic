@@ -27,11 +27,15 @@ tell the agent:
    `router/run-model.ts` — scoring, model tiers, CLI adapters, token
    budgets, delegation, and fallbacks.
 7. `WORKFLOW.md` — flow from task intake to human review.
-8. `state/CURRENT.md` — current project state and active focus.
-9. `agents/*.md` — per-role templates (responsibilities, inputs, outputs,
+8. If `.ai/profiles/<profile>.md` exists, read it after `WORKFLOW.md` and
+   before choosing task-specific skills.
+9. `state/CURRENT.md` — current project state and active focus.
+10. `agents/*.md` — per-role templates (responsibilities, inputs, outputs,
    completion checklists).
-10. Relevant `skills/*/SKILL.md` — task-specific operating instructions.
-11. Relevant `openspec/changes/*` — spec-driven change artifacts.
+11. Relevant `skills/*/SKILL.md` — task-specific operating instructions.
+    Profile-specific skills are additive guidance on top of the shared skills
+    unless they explicitly say they replace a shared skill.
+12. Relevant `openspec/changes/*` — spec-driven change artifacts.
 
 ## Smoke tests
 
@@ -67,6 +71,10 @@ needed evidence, use the original command.
 - `.ai/skills/*/SKILL.md` — **model-agnostic** guidance. Any agent (Claude
   Code, Codex, AGY CLI, Cline, RooCode, Aider) should read these as plain
   documentation before doing related work.
+- `.ai/profiles/<profile>.md` and profile-specific `.ai/skills/*/SKILL.md`
+  — **stack-specific additions**. Read them when present, after the shared
+  workflow and before implementation. They should add project-stack rules on
+  top of shared skills rather than duplicate the whole workflow.
 - `.claude/skills/*/SKILL.md` — **Claude Code native skills**. These are
   thin wrappers with valid Skill frontmatter so Claude Code can discover and
   invoke them directly; each one points back to the canonical doc in
