@@ -33,31 +33,64 @@ agents fall back to the original command.
 Run the CLI directly with npm:
 
 ```bash
-npx forgeai-agentic-init@1.3.1 --dry-run
-npx forgeai-agentic-init@1.3.1
-npx forgeai-agentic-init@1.3.1 --check
-npx forgeai-agentic-init@1.3.1 --check-git
-npx forgeai-agentic-init@1.3.1 --help
-npx forgeai-agentic-init@1.3.1 --version
+npx forgeai-agentic-init@1.4.0 --dry-run
+npx forgeai-agentic-init@1.4.0
+npx forgeai-agentic-init@1.4.0 --profile nextjs
+npx forgeai-agentic-init@1.4.0 --profile auto
+npx forgeai-agentic-init@1.4.0 --check
+npx forgeai-agentic-init@1.4.0 --check-profile
+npx forgeai-agentic-init@1.4.0 --check-git
+npx forgeai-agentic-init@1.4.0 --list-profiles
+npx forgeai-agentic-init@1.4.0 --help
+npx forgeai-agentic-init@1.4.0 --version
 ```
 
 Or install it globally:
 
 ```bash
-npm install --global forgeai-agentic-init@1.3.1
+npm install --global forgeai-agentic-init@1.4.0
 forgeai-init --dry-run
 forgeai-init
+forgeai-init --profile nextjs
+forgeai-init --profile auto
 forgeai-init --check
+forgeai-init --check-profile
 forgeai-init --check-git
+forgeai-init --list-profiles
 forgeai-init --help
 forgeai-init --version
 ```
 
-`1.3.1` keeps dynamic orchestration, uses TypeScript-only source, adds
-`forgeai-init --check`, `forgeai-init --check-git`, `--help`, and `--version`,
-and includes stronger Git branch, worktree, and pre-commit hook rules. npm package versions are
-immutable, so publish this only if `forgeai-agentic-init@1.3.1` has not
+`1.4.0` adds optional stack profiles (`nextjs`, `node-api`, `tauri`,
+`monorepo`, `python-api`, and `mobile`), `--profile auto`,
+`.ai/manifest.json`, `--check-profile`, and `--list-profiles`. npm package versions are
+immutable, so publish this only if `forgeai-agentic-init@1.4.0` has not
 already been published.
+
+### Optional stack profiles
+
+The base harness works for any project. Profiles add stack-specific guidance
+without replacing the shared `.ai/` workflow:
+
+```bash
+npx forgeai-agentic-init@1.4.0 --profile nextjs
+npx forgeai-agentic-init@1.4.0 --profile node-api
+npx forgeai-agentic-init@1.4.0 --profile tauri
+npx forgeai-agentic-init@1.4.0 --profile monorepo
+npx forgeai-agentic-init@1.4.0 --profile python-api
+npx forgeai-agentic-init@1.4.0 --profile mobile
+```
+
+Use `--profile auto` to detect a supported stack from project files such as
+`package.json`, `next.config.*`, `pnpm-workspace.yaml`, `src-tauri/`,
+`pyproject.toml`, or mobile framework files. After initialization,
+`.ai/manifest.json` records the package version and selected profile.
+
+Check the installed profile:
+
+```bash
+forgeai-init --check-profile
+```
 
 ## Optional RTK Setup
 
@@ -79,6 +112,7 @@ token-saving layer only; it is not part of model routing.
 CLAUDE.md
 AGENTS.md
 .ai/
+  manifest.json
   README.md
   BOOTSTRAP.md
   PROJECT.md
@@ -96,6 +130,8 @@ AGENTS.md
   state/assignments/TASK-REVIEWER-SMOKE.md
   workflows/task-intake.md
   workflows/delegated-assignment.md
+  profiles/<profile>.md
+  workflows/<profile-specific-workflow>.md
   agents/
     orchestrator.md
     planner.md
@@ -111,6 +147,7 @@ AGENTS.md
     code-review/SKILL.md
     spec-planning/SKILL.md
     testing/SKILL.md
+    <profile-specific-skill>/SKILL.md
 .claude/
   skills/
     frontend/SKILL.md
@@ -126,6 +163,11 @@ openspec/
     tasks.md
     specs/capability.md
 ```
+
+`profiles/<profile>.md`, profile-specific skills, and profile-specific
+workflows are installed only when `--profile <name>` or a successful
+`--profile auto` is used. Profile-specific skills are additive guidance on
+top of the shared skills unless a profile explicitly says it replaces one.
 
 ## After Initialization
 
@@ -269,11 +311,3 @@ Use the reviewer sub-agent/skill to review .ai/state/assignments/TASK-REVIEWER-S
 
 The reviewer smoke test should return `Request changes` because the simulated
 delegated result is intentionally missing validation evidence.
-
-## Future roadmap
-
-- Add `--profile nextjs`, `--profile node-api`, `--profile tauri`, and `--profile monorepo`.
-- Add Jira/GitHub/Bitbucket connector templates.
-- Add optional provider adapters for model routing.
-- Add local model execution notes.
-- Add OpenSpec validation commands.
