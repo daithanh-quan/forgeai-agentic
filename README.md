@@ -54,11 +54,12 @@ Pin a version only when you need a reproducible setup:
 npx forgeai-agentic-init@1.4.1
 ```
 
-`1.4.1` adds optional stack profiles (`nextjs`, `node-api`, `tauri`,
-`monorepo`, `python-api`, and `mobile`), `--profile auto`,
-`.ai/manifest.json`, `--check-profile`, and `--list-profiles`. npm package
-versions are immutable, so publish this only if
-`forgeai-agentic-init@1.4.1` has not already been published.
+`1.4.1` adds update preflight checks and `--upgrade`. Optional stack
+profiles (`nextjs`, `node-api`, `tauri`, `monorepo`, `python-api`, and
+`mobile`), `--profile auto`, `.ai/manifest.json`, `--check-profile`, and
+`--list-profiles` were added in `1.4.0`. npm package versions are immutable,
+so publish this only if `forgeai-agentic-init@1.4.1` has not already been
+published.
 
 ### Common commands
 
