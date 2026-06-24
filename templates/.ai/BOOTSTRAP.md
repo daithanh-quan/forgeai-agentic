@@ -6,6 +6,17 @@ initialized with the ForgeAI agentic-init harness.
 
 ## 1. Files to Read First
 
+Before reading or editing project context, run a ForgeAI version preflight:
+
+```bash
+npx forgeai-agentic-init@latest --check-updates --check
+```
+
+If the installed harness is outdated, ask the human whether to skip for now
+or update to the latest version. If the human chooses update, run
+`npx forgeai-agentic-init@latest --upgrade`. Do not modify source code while
+this decision is pending.
+
 Read in this order before doing anything else:
 
 1. `.ai/README.md`

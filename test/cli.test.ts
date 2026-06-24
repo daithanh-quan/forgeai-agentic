@@ -147,6 +147,43 @@ test('profile initialization installs stack-specific files and manifest', () => 
   }
 });
 
+test('upgrade overwrites harness files and preserves installed profile', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-'));
+
+  try {
+    runTs(cli, ['--profile', 'nextjs'], { cwd: target });
+    fs.writeFileSync(path.join(target, '.ai', 'README.md'), '# Old harness\n');
+    fs.writeFileSync(
+      path.join(target, '.ai', 'manifest.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          package: 'forgeai-agentic-init',
+          package_version: '1.3.0',
+          profile: 'nextjs',
+          initialized_at: '2026-06-01T00:00:00.000Z'
+        },
+        null,
+        2
+      )
+    );
+
+    runTs(cli, ['--upgrade', '--skip-update-check'], { cwd: target });
+
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')
+    ) as HarnessManifest;
+    const readme = fs.readFileSync(path.join(target, '.ai', 'README.md'), 'utf8');
+
+    assert.equal(manifest.package_version, '1.4.0');
+    assert.equal(manifest.profile, 'nextjs');
+    assert.match(readme, /# AI Project Harness/);
+    assert.equal(fs.existsSync(path.join(target, '.ai', 'profiles', 'nextjs.md')), true);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('auto profile detects Next.js project signals', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-profile-auto-'));
 
@@ -224,6 +261,74 @@ test('check validates a freshly initialized harness', () => {
     assert.match(output, /ok\s+\.claude\/skills\/reviewer\/SKILL\.md/);
     assert.match(output, /ok\s+openspec\/changes\/_template\/tasks\.md/);
     assert.match(output, /Result: harness installed, but project context still needs bootstrap\./);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check suggests updating when installed harness is behind latest version', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-check-outdated-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.writeFileSync(
+      path.join(target, '.ai', 'manifest.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          package: 'forgeai-agentic-init',
+          package_version: '1.3.0',
+          profile: 'base',
+          initialized_at: '2026-06-01T00:00:00.000Z'
+        },
+        null,
+        2
+      )
+    );
+
+    const output = runTs(cli, ['--check'], {
+      cwd: target,
+      env: { ...process.env, PATH: '', FORGEAI_TEST_LATEST_VERSION: '1.4.0' }
+    });
+
+    assert.match(output, /ForgeAI update check/);
+    assert.match(output, /outdated\s+installed harness: 1\.3\.0/);
+    assert.match(output, /ok\s+current CLI: 1\.4\.0/);
+    assert.match(output, /latest\s+forgeai-agentic-init@1\.4\.0/);
+    assert.match(output, /Recommendation: ask the human to run npx forgeai-agentic-init@latest --upgrade/);
+    assert.match(output, /ForgeAI harness check/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('skip-update-check suppresses version preflight', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-check-skip-update-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.writeFileSync(
+      path.join(target, '.ai', 'manifest.json'),
+      JSON.stringify(
+        {
+          version: 1,
+          package: 'forgeai-agentic-init',
+          package_version: '1.3.0',
+          profile: 'base',
+          initialized_at: '2026-06-01T00:00:00.000Z'
+        },
+        null,
+        2
+      )
+    );
+
+    const output = runTs(cli, ['--check', '--skip-update-check'], {
+      cwd: target,
+      env: { ...process.env, PATH: '', FORGEAI_TEST_LATEST_VERSION: '1.4.0' }
+    });
+
+    assert.doesNotMatch(output, /ForgeAI update check/);
+    assert.match(output, /ForgeAI harness check/);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }

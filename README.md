@@ -30,42 +30,74 @@ agents fall back to the original command.
 
 ## Install in a new project
 
-Run the CLI directly with npm:
+Use the latest published CLI directly with npm:
 
 ```bash
-npx forgeai-agentic-init@1.4.0 --dry-run
-npx forgeai-agentic-init@1.4.0
-npx forgeai-agentic-init@1.4.0 --profile nextjs
-npx forgeai-agentic-init@1.4.0 --profile auto
-npx forgeai-agentic-init@1.4.0 --check
-npx forgeai-agentic-init@1.4.0 --check-profile
-npx forgeai-agentic-init@1.4.0 --check-git
-npx forgeai-agentic-init@1.4.0 --list-profiles
-npx forgeai-agentic-init@1.4.0 --help
-npx forgeai-agentic-init@1.4.0 --version
+npx forgeai-agentic-init@latest
 ```
 
-Or install it globally:
+Preview without writing files:
 
 ```bash
-npm install --global forgeai-agentic-init@1.4.0
-forgeai-init --dry-run
-forgeai-init
-forgeai-init --profile nextjs
-forgeai-init --profile auto
-forgeai-init --check
-forgeai-init --check-profile
-forgeai-init --check-git
-forgeai-init --list-profiles
-forgeai-init --help
-forgeai-init --version
+npx forgeai-agentic-init@latest --dry-run
+```
+
+Install with automatic stack detection:
+
+```bash
+npx forgeai-agentic-init@latest --profile auto
+```
+
+Pin a version only when you need a reproducible setup:
+
+```bash
+npx forgeai-agentic-init@1.4.0
 ```
 
 `1.4.0` adds optional stack profiles (`nextjs`, `node-api`, `tauri`,
 `monorepo`, `python-api`, and `mobile`), `--profile auto`,
-`.ai/manifest.json`, `--check-profile`, and `--list-profiles`. npm package versions are
-immutable, so publish this only if `forgeai-agentic-init@1.4.0` has not
-already been published.
+`.ai/manifest.json`, `--check-profile`, and `--list-profiles`. npm package
+versions are immutable, so publish this only if
+`forgeai-agentic-init@1.4.0` has not already been published.
+
+### Common commands
+
+```bash
+npx forgeai-agentic-init@latest --check
+npx forgeai-agentic-init@latest --check-updates --check
+npx forgeai-agentic-init@latest --upgrade
+npx forgeai-agentic-init@latest --list-profiles
+```
+
+### Version preflight
+
+ForgeAI records the installed harness package version in
+`.ai/manifest.json`. On interactive runs, the CLI checks npm for the latest
+`forgeai-agentic-init` version before initialization/check commands. If a
+newer package exists, it prompts:
+
+```text
+1. Skip for now
+2. Update the ForgeAI harness to latest
+```
+
+For non-interactive agent sessions or CI, run the check explicitly:
+
+```bash
+npx forgeai-agentic-init@latest --check-updates --check
+```
+
+Use `--skip-update-check` when offline or when a workflow must avoid network
+access.
+
+When the human chooses to update, run:
+
+```bash
+npx forgeai-agentic-init@latest --upgrade
+```
+
+`--upgrade` overwrites the installed ForgeAI harness files with the selected
+package version and preserves the profile recorded in `.ai/manifest.json`.
 
 ### Optional stack profiles
 
@@ -73,17 +105,14 @@ The base harness works for any project. Profiles add stack-specific guidance
 without replacing the shared `.ai/` workflow:
 
 ```bash
-npx forgeai-agentic-init@1.4.0 --profile nextjs
-npx forgeai-agentic-init@1.4.0 --profile node-api
-npx forgeai-agentic-init@1.4.0 --profile tauri
-npx forgeai-agentic-init@1.4.0 --profile monorepo
-npx forgeai-agentic-init@1.4.0 --profile python-api
-npx forgeai-agentic-init@1.4.0 --profile mobile
+npx forgeai-agentic-init@latest --profile nextjs
 ```
 
 Use `--profile auto` to detect a supported stack from project files such as
 `package.json`, `next.config.*`, `pnpm-workspace.yaml`, `src-tauri/`,
-`pyproject.toml`, or mobile framework files. After initialization,
+`pyproject.toml`, or mobile framework files. Supported profiles are
+`nextjs`, `node-api`, `tauri`, `monorepo`, `python-api`, and `mobile`; run
+`npx forgeai-agentic-init@latest --list-profiles` for the current list. After initialization,
 `.ai/manifest.json` records the package version and selected profile.
 
 Check the installed profile:
