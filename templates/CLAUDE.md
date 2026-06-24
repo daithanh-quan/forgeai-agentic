@@ -2,6 +2,21 @@
 
 This project was initialized with the ForgeAI agentic harness (`.ai/`).
 
+At the start of the first agent session, check whether the installed
+ForgeAI harness is behind the latest package:
+
+```bash
+npx forgeai-agentic-init@latest --check-updates --check
+```
+
+If the check reports an outdated harness, ask the human whether to skip for
+now or update to the latest version before implementation work. If the human
+chooses update, run:
+
+```bash
+npx forgeai-agentic-init@latest --upgrade
+```
+
 Before making any code changes, read these files in order:
 
 1. `.ai/README.md` — harness overview and full recommended read order

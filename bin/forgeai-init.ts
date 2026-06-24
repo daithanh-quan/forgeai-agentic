@@ -32,17 +32,21 @@ const root = path.resolve(process.cwd());
 const templateDir = path.resolve(__dirname, '../templates');
 const profilesDir = path.resolve(__dirname, '../profiles');
 const packageJsonPath = path.resolve(__dirname, '../package.json');
+const packageName = 'forgeai-agentic-init';
 
 const rawArgs = process.argv.slice(2);
 const args = new Set(rawArgs);
 const help = args.has('--help') || args.has('-h');
 const version = args.has('--version') || args.has('-v');
 const force = args.has('--force');
+const upgrade = args.has('--upgrade');
 const dryRun = args.has('--dry-run');
 const check = args.has('--check');
 const checkGit = args.has('--check-git');
 const checkProfile = args.has('--check-profile');
 const listProfiles = args.has('--list-profiles');
+const checkUpdates = args.has('--check-updates');
+const skipUpdateCheck = args.has('--skip-update-check') || process.env.FORGEAI_SKIP_UPDATE_CHECK === '1';
 const requestedProfile = getArgValue('--profile') ?? 'base';
 
 const requiredHarnessFiles = listFilesRecursive(templateDir);
@@ -117,6 +121,26 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function parseSemver(versionValue: string | undefined): [number, number, number] | null {
+  if (!versionValue) return null;
+  const match = versionValue.trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function compareSemver(left: string | undefined, right: string | undefined): number {
+  const leftParts = parseSemver(left);
+  const rightParts = parseSemver(right);
+  if (!leftParts || !rightParts) return 0;
+
+  for (let index = 0; index < leftParts.length; index += 1) {
+    if (leftParts[index] > rightParts[index]) return 1;
+    if (leftParts[index] < rightParts[index]) return -1;
+  }
+
+  return 0;
+}
+
 function listFilesRecursive(directory: string, baseDirectory = directory): string[] {
   if (!fs.existsSync(directory)) return [];
 
@@ -144,6 +168,24 @@ function getPackageVersion(): string {
   } catch {
     return 'unknown';
   }
+}
+
+function getLatestPackageVersion(): { version: string | null; error: string | null } {
+  const mockedVersion = process.env.FORGEAI_TEST_LATEST_VERSION;
+  if (mockedVersion) return { version: mockedVersion, error: null };
+
+  const result = spawnSync('npm', ['view', packageName, 'version', '--json'], {
+    cwd: root,
+    encoding: 'utf8',
+    timeout: 3000,
+    maxBuffer: 1024 * 1024
+  });
+
+  if (result.error) return { version: null, error: result.error.message };
+  if (result.status !== 0) return { version: null, error: (result.stderr || result.stdout || 'npm view failed').trim() };
+
+  const rawVersion = result.stdout.trim().replace(/^"|"$/g, '');
+  return parseSemver(rawVersion) ? { version: rawVersion, error: null } : { version: null, error: `invalid npm version: ${rawVersion}` };
 }
 
 function getAvailableProfiles(): string[] {
@@ -219,7 +261,7 @@ function resolveProfile(profile: string): { status: 'ok' | 'none' | 'invalid' | 
 function createManifest(profile: string): HarnessManifest {
   return {
     version: 1,
-    package: 'forgeai-agentic-init',
+    package: packageName,
     package_version: getPackageVersion(),
     profile,
     initialized_at: new Date().toISOString()
@@ -236,8 +278,8 @@ function writeManifest(profile: string): void {
     return;
   }
 
-  if (fs.existsSync(destination) && !force) {
-    console.log(`skip ${relativePath} already exists. Use --force to overwrite.`);
+  if (fs.existsSync(destination) && !force && !upgrade) {
+    console.log(`skip ${relativePath} already exists. Use --force or --upgrade to overwrite.`);
     return;
   }
 
@@ -253,7 +295,9 @@ function readManifest(): HarnessManifest | null {
 function usage(): string {
   return `Usage:
   forgeai-init [--dry-run] [--force] [--profile <name|auto>]
+  forgeai-init --upgrade
   forgeai-init --check
+  forgeai-init --check-updates
   forgeai-init --check-git
   forgeai-init --check-profile
   forgeai-init --list-profiles
@@ -263,16 +307,92 @@ function usage(): string {
 Options:
   --dry-run     Print files that would be created without writing them.
   --force       Overwrite existing harness files during initialization.
+  --upgrade     Overwrite installed ForgeAI harness files with this package version.
   --profile     Apply an optional stack profile: auto, nextjs, node-api, tauri, monorepo, python-api, or mobile.
   --check       Validate installed ForgeAI harness files and model adapters.
+  --check-updates
+                Check npm for the latest ForgeAI version, even in non-interactive mode.
   --check-git   Validate git branch, worktree, remote, hooks, and PR/MR tooling.
   --check-profile
                 Validate the installed profile against detected project signals.
+  --skip-update-check
+                Skip the npm latest-version preflight check.
   --list-profiles
                 Print supported profile names.
   --version     Print the package version.
   --help        Print this help text.
 `;
+}
+
+function shouldRunUpdateCheck(): boolean {
+  if (skipUpdateCheck) return false;
+  if (help || version || listProfiles) return false;
+  if (process.env.CI === 'true') return false;
+  if (!checkUpdates && !isInteractiveTerminal() && !process.env.FORGEAI_TEST_LATEST_VERSION) return false;
+  return true;
+}
+
+function isInteractiveTerminal(): boolean {
+  return Boolean(process.stdin.isTTY && process.stdout.isTTY);
+}
+
+function promptUpdateChoice(latestVersion: string): 'skip' | 'update' {
+  console.log('');
+  console.log(`ForgeAI ${latestVersion} is available.`);
+  console.log('Choose an option:');
+  console.log('  1. Skip for now');
+  console.log('  2. Update the ForgeAI harness to latest');
+  process.stdout.write('Select 1 or 2: ');
+
+  const buffer = Buffer.alloc(32);
+  const bytesRead = fs.readSync(0, buffer, 0, buffer.length, null);
+  const choice = buffer.subarray(0, bytesRead).toString('utf8').trim();
+  return choice === '2' ? 'update' : 'skip';
+}
+
+function rerunWithLatest(): void {
+  const result = spawnSync('npx', [`${packageName}@latest`, '--upgrade', '--skip-update-check'], {
+    cwd: root,
+    env: { ...process.env, FORGEAI_SKIP_UPDATE_CHECK: '1' },
+    stdio: 'inherit'
+  });
+
+  process.exit(result.status ?? 1);
+}
+
+function runUpdatePreflight(): void {
+  if (!shouldRunUpdateCheck()) return;
+
+  const currentVersion = getPackageVersion();
+  const manifest = readManifest();
+  const installedVersion = manifest?.package_version;
+  const latest = getLatestPackageVersion();
+
+  if (!latest.version) {
+    if (isInteractiveTerminal()) {
+      console.log(formatStatus('update skipped', `could not check latest ${packageName} version${latest.error ? ` (${latest.error})` : ''}`));
+    }
+    return;
+  }
+
+  const currentIsOutdated = compareSemver(currentVersion, latest.version) < 0;
+  const installedIsOutdated = installedVersion ? compareSemver(installedVersion, latest.version) < 0 : false;
+  if (!currentIsOutdated && !installedIsOutdated) return;
+
+  console.log('ForgeAI update check');
+  console.log(formatStatus(installedVersion && installedIsOutdated ? 'outdated' : 'ok', `installed harness: ${installedVersion ?? 'not installed yet'}`));
+  console.log(formatStatus(currentIsOutdated ? 'outdated' : 'ok', `current CLI: ${currentVersion}`));
+  console.log(formatStatus('latest', `${packageName}@${latest.version}`));
+
+  if (!isInteractiveTerminal()) {
+    console.log(`Recommendation: ask the human to run npx ${packageName}@latest --upgrade, or skip this update for now.`);
+    console.log('');
+    return;
+  }
+
+  if (promptUpdateChoice(latest.version) === 'update') rerunWithLatest();
+  console.log('Skipping update for now.');
+  console.log('');
 }
 
 function runCommand(command: string, commandArgs: string[], cwd = root): { status: number | null; stdout: string; stderr: string } {
@@ -615,8 +735,8 @@ function copyRecursive(src: string, dest: string): void {
     for (const item of fs.readdirSync(src)) copyRecursive(path.join(src, item), path.join(dest, item));
     return;
   }
-  if (fs.existsSync(dest) && !force) {
-    console.log(`skip ${path.relative(root, dest)} already exists. Use --force to overwrite.`);
+  if (fs.existsSync(dest) && !force && !upgrade) {
+    console.log(`skip ${path.relative(root, dest)} already exists. Use --force or --upgrade to overwrite.`);
     return;
   }
   if (dryRun) console.log(`would create ${path.relative(root, dest)}`);
@@ -627,14 +747,18 @@ function copyRecursive(src: string, dest: string): void {
   }
 }
 
+runUpdatePreflight();
+
 if (help) console.log(usage());
 else if (version) console.log(getPackageVersion());
 else if (listProfiles) console.log(['base', ...getAvailableProfiles()].join('\n'));
 else if (checkGit) runCheckGit();
 else if (checkProfile) runCheckProfile();
 else if (check) runCheck();
+else if (checkUpdates) console.log('Update check complete.');
 else {
-  const profile = resolveProfile(requestedProfile);
+  const manifestProfile = readManifest()?.profile;
+  const profile = resolveProfile(upgrade ? (manifestProfile ?? requestedProfile) : requestedProfile);
   if (profile.status === 'invalid') {
     console.error(profile.detail);
     process.exitCode = 1;
