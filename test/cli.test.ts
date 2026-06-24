@@ -84,7 +84,7 @@ test('initialization copies the template files', () => {
       fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')
     ) as HarnessManifest;
 
-    assert.equal(manifest.package_version, '1.4.0');
+    assert.equal(manifest.package_version, '1.4.1');
     assert.equal(manifest.profile, 'base');
     assert.match(routing, /provider: agy/);
     assert.match(routing, /score_range: \[0, 2\]/);
@@ -109,7 +109,7 @@ test('help and version report CLI metadata', () => {
   assert.match(helpOutput, /forgeai-init --check-profile/);
   assert.match(helpOutput, /--profile\s+Apply an optional stack profile/);
   assert.match(helpOutput, /--version\s+Print the package version/);
-  assert.equal(versionOutput.trim(), '1.4.0');
+  assert.equal(versionOutput.trim(), '1.4.1');
 });
 
 test('list-profiles reports supported profiles', () => {
@@ -140,7 +140,7 @@ test('profile initialization installs stack-specific files and manifest', () => 
     const manifest = JSON.parse(
       fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')
     ) as HarnessManifest;
-    assert.equal(manifest.package_version, '1.4.0');
+    assert.equal(manifest.package_version, '1.4.1');
     assert.equal(manifest.profile, 'nextjs');
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
@@ -175,7 +175,7 @@ test('upgrade overwrites harness files and preserves installed profile', () => {
     ) as HarnessManifest;
     const readme = fs.readFileSync(path.join(target, '.ai', 'README.md'), 'utf8');
 
-    assert.equal(manifest.package_version, '1.4.0');
+    assert.equal(manifest.package_version, '1.4.1');
     assert.equal(manifest.profile, 'nextjs');
     assert.match(readme, /# AI Project Harness/);
     assert.equal(fs.existsSync(path.join(target, '.ai', 'profiles', 'nextjs.md')), true);
@@ -288,13 +288,13 @@ test('check suggests updating when installed harness is behind latest version', 
 
     const output = runTs(cli, ['--check'], {
       cwd: target,
-      env: { ...process.env, PATH: '', FORGEAI_TEST_LATEST_VERSION: '1.4.0' }
+      env: { ...process.env, PATH: '', FORGEAI_TEST_LATEST_VERSION: '1.4.1' }
     });
 
     assert.match(output, /ForgeAI update check/);
     assert.match(output, /outdated\s+installed harness: 1\.3\.0/);
-    assert.match(output, /ok\s+current CLI: 1\.4\.0/);
-    assert.match(output, /latest\s+forgeai-agentic-init@1\.4\.0/);
+    assert.match(output, /ok\s+current CLI: 1\.4\.1/);
+    assert.match(output, /latest\s+forgeai-agentic-init@1\.4\.1/);
     assert.match(output, /Recommendation: ask the human to run npx forgeai-agentic-init@latest --upgrade/);
     assert.match(output, /ForgeAI harness check/);
   } finally {
@@ -324,7 +324,7 @@ test('skip-update-check suppresses version preflight', () => {
 
     const output = runTs(cli, ['--check', '--skip-update-check'], {
       cwd: target,
-      env: { ...process.env, PATH: '', FORGEAI_TEST_LATEST_VERSION: '1.4.0' }
+      env: { ...process.env, PATH: '', FORGEAI_TEST_LATEST_VERSION: '1.4.1' }
     });
 
     assert.doesNotMatch(output, /ForgeAI update check/);
