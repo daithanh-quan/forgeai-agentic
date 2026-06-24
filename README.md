@@ -51,14 +51,14 @@ npx forgeai-agentic-init@latest --profile auto
 Pin a version only when you need a reproducible setup:
 
 ```bash
-npx forgeai-agentic-init@1.4.0
+npx forgeai-agentic-init@1.4.1
 ```
 
-`1.4.0` adds optional stack profiles (`nextjs`, `node-api`, `tauri`,
+`1.4.1` adds optional stack profiles (`nextjs`, `node-api`, `tauri`,
 `monorepo`, `python-api`, and `mobile`), `--profile auto`,
 `.ai/manifest.json`, `--check-profile`, and `--list-profiles`. npm package
 versions are immutable, so publish this only if
-`forgeai-agentic-init@1.4.0` has not already been published.
+`forgeai-agentic-init@1.4.1` has not already been published.
 
 ### Common commands
 
