@@ -7,11 +7,6 @@
     <list default="true" id="20ddf617-4185-4a0e-af54-4403565d1dc2" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bin/forgeai-init.ts" beforeDir="false" afterPath="$PROJECT_DIR$/bin/forgeai-init.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/templates/.ai/BOOTSTRAP.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/BOOTSTRAP.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/templates/AGENTS.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/AGENTS.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/templates/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/CLAUDE.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test/cli.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/test/cli.test.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

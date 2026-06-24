@@ -51,13 +51,13 @@ No existing files are deleted except via rename. `templates/openspec/*`, `templa
 **Files:**
 - Rename: `templates/.ai/AGENTS.md` → `templates/.ai/AGENT_REGISTRY.md`
 
-- [ ] **Step 1: Rename the file with git**
+- [x] **Step 1: Rename the file with git**
 
 ```bash
 git mv templates/.ai/AGENTS.md templates/.ai/AGENT_REGISTRY.md
 ```
 
-- [ ] **Step 2: Update the header to clarify the naming split**
+- [x] **Step 2: Update the header to clarify the naming split**
 
 Replace the first 4 lines of `templates/.ai/AGENT_REGISTRY.md`:
 
@@ -86,7 +86,7 @@ completion checklists), see `.ai/agents/*.md`.
 
 Leave the rest of the file (Orchestrator/Frontend/Backend/Spec/Review agent sections, model routing table, human review gate) unchanged.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 ```bash
 ls templates/.ai/ | grep -E '^AGENT'
@@ -94,7 +94,7 @@ ls templates/.ai/ | grep -E '^AGENT'
 
 Expected: only `AGENT_REGISTRY.md` is listed (no `AGENTS.md`).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add templates/.ai/AGENT_REGISTRY.md
@@ -108,7 +108,7 @@ git commit -m "rename .ai/AGENTS.md to .ai/AGENT_REGISTRY.md to avoid Codex nami
 **Files:**
 - Create: `templates/CLAUDE.md`
 
-- [ ] **Step 1: Create the file**
+- [x] **Step 1: Create the file**
 
 ```markdown
 # CLAUDE.md
@@ -136,7 +136,7 @@ If `.ai/PROJECT.md` still contains `TODO` placeholders, follow
 - Claude Code native skills (auto-discoverable): `.claude/skills/*/SKILL.md`
 ```
 
-- [ ] **Step 2: Verify**
+- [x] **Step 2: Verify**
 
 ```bash
 test -f templates/CLAUDE.md && head -1 templates/CLAUDE.md
@@ -144,7 +144,7 @@ test -f templates/CLAUDE.md && head -1 templates/CLAUDE.md
 
 Expected: `# CLAUDE.md`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add templates/CLAUDE.md
@@ -158,7 +158,7 @@ git commit -m "add root CLAUDE.md pointer for Claude Code auto-discovery"
 **Files:**
 - Create: `templates/AGENTS.md`
 
-- [ ] **Step 1: Create the file**
+- [x] **Step 1: Create the file**
 
 ```markdown
 # AGENTS.md
@@ -186,7 +186,7 @@ If `.ai/PROJECT.md` still contains `TODO` placeholders, follow
 `.ai/BOOTSTRAP.md` before starting implementation work.
 ```
 
-- [ ] **Step 2: Verify**
+- [x] **Step 2: Verify**
 
 ```bash
 test -f templates/AGENTS.md && head -1 templates/AGENTS.md
@@ -194,7 +194,7 @@ test -f templates/AGENTS.md && head -1 templates/AGENTS.md
 
 Expected: `# AGENTS.md`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add templates/AGENTS.md
@@ -208,7 +208,7 @@ git commit -m "add root AGENTS.md pointer for Codex auto-discovery"
 **Files:**
 - Create: `templates/.ai/BOOTSTRAP.md`
 
-- [ ] **Step 1: Create the file**
+- [x] **Step 1: Create the file**
 
 ```markdown
 # Bootstrap Instructions
@@ -285,7 +285,7 @@ Before writing into `.ai/PROJECT.md`, inspect:
   agents know to verify rather than trust them.
 ```
 
-- [ ] **Step 2: Verify**
+- [x] **Step 2: Verify**
 
 ```bash
 test -f templates/.ai/BOOTSTRAP.md && head -1 templates/.ai/BOOTSTRAP.md
@@ -293,7 +293,7 @@ test -f templates/.ai/BOOTSTRAP.md && head -1 templates/.ai/BOOTSTRAP.md
 
 Expected: `# Bootstrap Instructions`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add templates/.ai/BOOTSTRAP.md
@@ -308,7 +308,7 @@ git commit -m "add .ai/BOOTSTRAP.md first-run guide for any coding agent"
 - Create: `templates/.ai/agents/orchestrator.md`
 - Create: `templates/.ai/agents/planner.md`
 
-- [ ] **Step 1: Create `templates/.ai/agents/orchestrator.md`**
+- [x] **Step 1: Create `templates/.ai/agents/orchestrator.md`**
 
 ```markdown
 # Orchestrator Agent
@@ -371,7 +371,7 @@ for human review.
 - [ ] Final summary follows the required format from `.ai/RULES.md`.
 ```
 
-- [ ] **Step 2: Create `templates/.ai/agents/planner.md`**
+- [x] **Step 2: Create `templates/.ai/agents/planner.md`**
 
 ```markdown
 # Planner Agent
@@ -430,7 +430,7 @@ subtasks, and validation strategy, before any code is written.
 - [ ] Risks and open questions listed.
 ```
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 ```bash
 for f in orchestrator planner; do test -f templates/.ai/agents/$f.md && echo "$f OK"; done
@@ -438,7 +438,7 @@ for f in orchestrator planner; do test -f templates/.ai/agents/$f.md && echo "$f
 
 Expected: `orchestrator OK` and `planner OK`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add templates/.ai/agents/orchestrator.md templates/.ai/agents/planner.md
@@ -454,7 +454,7 @@ git commit -m "add orchestrator and planner agent templates"
 - Create: `templates/.ai/agents/frontend.md`
 - Create: `templates/.ai/agents/backend.md`
 
-- [ ] **Step 1: Create `templates/.ai/agents/architect.md`**
+- [x] **Step 1: Create `templates/.ai/agents/architect.md`**
 
 ```markdown
 # Architect Agent
@@ -512,7 +512,7 @@ data flow, module boundaries, API/data contracts, and trade-offs.
 - [ ] Decisions worth remembering are queued for `.ai/MEMORY.md`.
 ```
 
-- [ ] **Step 2: Create `templates/.ai/agents/frontend.md`**
+- [x] **Step 2: Create `templates/.ai/agents/frontend.md`**
 
 ```markdown
 # Frontend Agent
@@ -569,7 +569,7 @@ state, and data fetching.
       they were not is documented.
 ```
 
-- [ ] **Step 3: Create `templates/.ai/agents/backend.md`**
+- [x] **Step 3: Create `templates/.ai/agents/backend.md`**
 
 ```markdown
 # Backend Agent
@@ -631,7 +631,7 @@ auth, integrations, and background jobs.
       reason they were not is documented.
 ```
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 for f in architect frontend backend; do test -f templates/.ai/agents/$f.md && echo "$f OK"; done
@@ -639,7 +639,7 @@ for f in architect frontend backend; do test -f templates/.ai/agents/$f.md && ec
 
 Expected: all three print `OK`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add templates/.ai/agents/architect.md templates/.ai/agents/frontend.md templates/.ai/agents/backend.md
@@ -655,7 +655,7 @@ git commit -m "add architect, frontend, and backend agent templates"
 - Create: `templates/.ai/agents/reviewer.md`
 - Create: `templates/.ai/agents/pr-writer.md`
 
-- [ ] **Step 1: Create `templates/.ai/agents/tester.md`**
+- [x] **Step 1: Create `templates/.ai/agents/tester.md`**
 
 ```markdown
 # Tester Agent
@@ -708,7 +708,7 @@ the project's validation commands.
 - [ ] Manual QA steps documented for anything untestable automatically.
 ```
 
-- [ ] **Step 2: Create `templates/.ai/agents/reviewer.md`**
+- [x] **Step 2: Create `templates/.ai/agents/reviewer.md`**
 
 ```markdown
 # Reviewer Agent
@@ -768,7 +768,7 @@ safety, scope control, and maintainability before human approval.
 - [ ] Review report includes a clear recommendation.
 ```
 
-- [ ] **Step 3: Create `templates/.ai/agents/pr-writer.md`**
+- [x] **Step 3: Create `templates/.ai/agents/pr-writer.md`**
 
 ```markdown
 # PR Writer Agent
@@ -827,7 +827,7 @@ why, key files, validation evidence, and risks — in the format required by
 - [ ] Reviewer's recommendation status reflected accurately.
 ```
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 for f in tester reviewer pr-writer; do test -f templates/.ai/agents/$f.md && echo "$f OK"; done
@@ -836,7 +836,7 @@ ls templates/.ai/agents/ | wc -l
 
 Expected: all three print `OK`, and the directory listing shows `8`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add templates/.ai/agents/tester.md templates/.ai/agents/reviewer.md templates/.ai/agents/pr-writer.md
@@ -853,7 +853,7 @@ git commit -m "add tester, reviewer, and pr-writer agent templates"
 This new skill is referenced by `tester.md` (Task 7) and is the canonical
 source that `.claude/skills/testing/SKILL.md` (Task 9) will point to.
 
-- [ ] **Step 1: Create the file**
+- [x] **Step 1: Create the file**
 
 ```markdown
 ---
@@ -922,7 +922,7 @@ does not exist, note that and choose the closest equivalent from
 - [ ] Manual QA steps documented where needed.
 ```
 
-- [ ] **Step 2: Verify**
+- [x] **Step 2: Verify**
 
 ```bash
 test -f templates/.ai/skills/testing/SKILL.md && head -4 templates/.ai/skills/testing/SKILL.md
@@ -930,7 +930,7 @@ test -f templates/.ai/skills/testing/SKILL.md && head -4 templates/.ai/skills/te
 
 Expected: shows the YAML frontmatter starting with `---` and `name: testing`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add templates/.ai/skills/testing/SKILL.md
@@ -951,7 +951,7 @@ These are thin, Claude Code-discoverable wrappers (valid `SKILL.md` with
 `name`/`description` frontmatter) that point back to the canonical
 model-agnostic skill docs in `.ai/skills/`, keeping content DRY.
 
-- [ ] **Step 1: Create `templates/.claude/skills/frontend/SKILL.md`**
+- [x] **Step 1: Create `templates/.claude/skills/frontend/SKILL.md`**
 
 ```markdown
 ---
@@ -976,7 +976,7 @@ Also read, in order:
 - `.ai/agents/frontend.md` — agent role definition and completion checklist
 ```
 
-- [ ] **Step 2: Create `templates/.claude/skills/backend/SKILL.md`**
+- [x] **Step 2: Create `templates/.claude/skills/backend/SKILL.md`**
 
 ```markdown
 ---
@@ -1000,7 +1000,7 @@ Also read, in order:
 - `.ai/agents/backend.md` — agent role definition and completion checklist
 ```
 
-- [ ] **Step 3: Create `templates/.claude/skills/testing/SKILL.md`**
+- [x] **Step 3: Create `templates/.claude/skills/testing/SKILL.md`**
 
 ```markdown
 ---
@@ -1023,7 +1023,7 @@ Also read:
 - `.ai/agents/tester.md` — agent role definition and completion checklist
 ```
 
-- [ ] **Step 4: Create `templates/.claude/skills/reviewer/SKILL.md`**
+- [x] **Step 4: Create `templates/.claude/skills/reviewer/SKILL.md`**
 
 ```markdown
 ---
@@ -1047,7 +1047,7 @@ Also read:
 - `.ai/agents/reviewer.md` — agent role definition and completion checklist
 ```
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 ```bash
 for f in frontend backend testing reviewer; do
@@ -1057,7 +1057,7 @@ done
 
 Expected: all four print `OK`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add templates/.claude/skills
@@ -1071,7 +1071,7 @@ git commit -m "add Claude Code native skill wrappers under .claude/skills"
 **Files:**
 - Modify: `templates/.ai/README.md`
 
-- [ ] **Step 1: Update the recommended read order and add naming/skills notes**
+- [x] **Step 1: Update the recommended read order and add naming/skills notes**
 
 Replace the full content of `templates/.ai/README.md`:
 
@@ -1182,7 +1182,7 @@ npx forgeai-agentic-init@latest
 - Human review is the final gate before merge or deployment.
 ```
 
-- [ ] **Step 2: Verify**
+- [x] **Step 2: Verify**
 
 ```bash
 grep -n "AGENT_REGISTRY.md" templates/.ai/README.md
@@ -1192,7 +1192,7 @@ grep -n ".claude/skills" templates/.ai/README.md
 
 Expected: each grep returns at least one match.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add templates/.ai/README.md
@@ -1206,7 +1206,7 @@ git commit -m "update .ai/README.md for AGENT_REGISTRY rename, BOOTSTRAP, and du
 **Files:**
 - Modify: `templates/.ai/PROJECT.md`
 
-- [ ] **Step 1: Replace the full content**
+- [x] **Step 1: Replace the full content**
 
 Replace the full content of `templates/.ai/PROJECT.md`:
 
@@ -1350,7 +1350,7 @@ A task is only done when:
   and risks.
 ```
 
-- [ ] **Step 2: Verify**
+- [x] **Step 2: Verify**
 
 ```bash
 grep -c "<!--" templates/.ai/PROJECT.md
@@ -1360,7 +1360,7 @@ Expected: `6` (one guidance comment per TODO-bearing section: Project
 identity, Product goal, Current MVP scope, Technology stack, Architecture
 overview, Important directories).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add templates/.ai/PROJECT.md
@@ -1374,7 +1374,7 @@ git commit -m "annotate .ai/PROJECT.md placeholders with discovery guidance"
 **Files:**
 - Modify: `README.md`
 
-- [ ] **Step 1: Update "What gets installed" tree**
+- [x] **Step 1: Update "What gets installed" tree**
 
 Replace:
 ```text
@@ -1449,7 +1449,7 @@ openspec/
     specs/capability.md
 ```
 
-- [ ] **Step 2: Add "After Initialization" section**
+- [x] **Step 2: Add "After Initialization" section**
 
 Insert a new section after "## What gets installed" and before
 "## MVP principles":
@@ -1499,7 +1499,7 @@ different tools without duplicating instructions:
   back to `.ai/skills/*` for the full content.
 ```
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 ```bash
 grep -n "After Initialization" README.md
@@ -1509,7 +1509,7 @@ grep -n ".claude/skills" README.md
 
 Expected: each grep returns at least one match.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add README.md
@@ -1523,7 +1523,7 @@ git commit -m "document root pointer files, bootstrap flow, and multi-agent layo
 **Files:**
 - None (verification only — confirms `bin/forgeai-init.js` needs no changes)
 
-- [ ] **Step 1: Dry-run against a scratch directory**
+- [x] **Step 1: Dry-run against a scratch directory**
 
 ```bash
 rm -rf /tmp/forgeai-scratch && mkdir -p /tmp/forgeai-scratch
@@ -1538,7 +1538,7 @@ Expected: output lists `would create CLAUDE.md`, `would create AGENTS.md`,
 skill files), among the existing entries. No `.ai/AGENTS.md` entry should
 appear.
 
-- [ ] **Step 2: Real run and inspect the resulting tree**
+- [x] **Step 2: Real run and inspect the resulting tree**
 
 ```bash
 cd /tmp/forgeai-scratch && node /Users/admin/Documents/Learn/forgeai-agentic-mvp/bin/forgeai-init.js
@@ -1549,7 +1549,7 @@ Expected: file list matches the updated "What gets installed" tree from
 Task 12, plus `bin`/`templates` are not present (only `templates/` contents
 are copied). No leftover `.ai/AGENTS.md`.
 
-- [ ] **Step 3: Re-run without `--force` to confirm backward-compatible skip behavior**
+- [x] **Step 3: Re-run without `--force` to confirm backward-compatible skip behavior**
 
 ```bash
 cd /tmp/forgeai-scratch && node /Users/admin/Documents/Learn/forgeai-agentic-mvp/bin/forgeai-init.js
@@ -1558,13 +1558,13 @@ cd /tmp/forgeai-scratch && node /Users/admin/Documents/Learn/forgeai-agentic-mvp
 Expected: every file prints `skip <path> already exists. Use --force to
 overwrite.` — confirms existing idempotent CLI behavior is unchanged.
 
-- [ ] **Step 4: Clean up scratch directory**
+- [x] **Step 4: Clean up scratch directory**
 
 ```bash
 rm -rf /tmp/forgeai-scratch
 ```
 
-- [ ] **Step 5: No commit needed for this task** (verification only).
+- [x] **Step 5: No commit needed for this task** (verification only).
 
 ---
 
@@ -1586,3 +1586,49 @@ When all tasks above are done, provide:
      are still unimplemented.
    - `.ai/PROJECT.md` guidance comments rely on the agent actually removing
      them after filling sections — not enforced by tooling.
+
+---
+
+## Phase 1 Closeout
+
+**Status:** Complete.
+
+**Closed on:** 2026-06-24.
+
+**Released package version:** `1.4.1`.
+
+**Implemented beyond the original task list:**
+
+- Optional stack profiles: `nextjs`, `node-api`, `tauri`, `monorepo`,
+  `python-api`, and `mobile`.
+- `.ai/manifest.json` with package version and selected profile.
+- `--check`, `--check-profile`, `--check-git`, and `--list-profiles`.
+- Model routing files, CLI adapters, delegated assignment workflow, and
+  smoke-test assignments.
+- Version preflight with `--check-updates`, `--skip-update-check`, and
+  `--upgrade`.
+
+**Verification completed:**
+
+```bash
+npm test
+node --import /Users/admin/Documents/Learn/forgeai-agentic/node_modules/tsx/dist/loader.mjs /Users/admin/Documents/Learn/forgeai-agentic/bin/forgeai-init.ts --version
+node --import /Users/admin/Documents/Learn/forgeai-agentic/node_modules/tsx/dist/loader.mjs /Users/admin/Documents/Learn/forgeai-agentic/bin/forgeai-init.ts --help
+node --import /Users/admin/Documents/Learn/forgeai-agentic/node_modules/tsx/dist/loader.mjs /Users/admin/Documents/Learn/forgeai-agentic/bin/forgeai-init.ts --dry-run --skip-update-check
+```
+
+Observed results:
+
+- `npm test` passed: `21/21`.
+- `--version` returned `1.4.1`.
+- `--help` includes `--upgrade`, `--check-updates`, and
+  `--skip-update-check`.
+- Dry-run from a clean scratch directory listed the full expected harness
+  tree, including root pointers, `.ai/`, `.claude/skills/`, and `openspec/`.
+
+**Known follow-up outside Phase 1:**
+
+- Add a Claude-native planner/spec skill wrapper if Claude Code should
+  discover `.ai/skills/spec-planning/SKILL.md` directly.
+- Decide whether future harness upgrades need a merge-aware updater instead
+  of overwriting managed harness files with `--upgrade`.
