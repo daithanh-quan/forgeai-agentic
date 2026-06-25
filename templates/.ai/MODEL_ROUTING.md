@@ -25,6 +25,7 @@ The orchestrator owns:
 - Task intake and decomposition.
 - Scoring every proposed subtask.
 - Architecture, security, and destructive decisions.
+- Multi-session coordination through `.ai/state/sessions.md`.
 - Requesting configured reviewer checks for delegated output and validation
   evidence.
 - Final synthesis for the human.
@@ -69,10 +70,16 @@ Every delegated assignment must contain:
 - Objective: One measurable outcome
 - Model tier: standard
 - Token budget: 8000
+- Session ID: agent-task-01
 
 ## Allowed context
 - Exact files or directories the model may read
 - Relevant contract or short excerpt
+
+## Coordination scope
+- Read scope: Exact files/directories or `repo`
+- Write scope: Exact files/directories the model may edit
+- Parallel safety: independent, sequential, or needs-human-decision
 
 ## Constraints
 - Patterns to preserve
@@ -97,25 +104,41 @@ Start from `.ai/workflows/delegated-assignment.md`.
 Do not send the entire conversation or all harness files. Send the assignment,
 the relevant role/skill, and only the context needed to complete it.
 
+## Prevent session overlap
+
+Before launching parallel delegated work, record each unfinished session in
+`.ai/state/sessions.md` with a narrow write scope and run:
+
+```bash
+forgeai-init --check-sessions
+```
+
+Parallel work is allowed only when unfinished sessions have disjoint write
+scopes. If scopes overlap, run those assignments sequentially, narrow the
+write scopes, or ask the human to choose which session owns the shared files.
+
 ## Delegation loop
 
 1. The current orchestrator reads the task and repository context.
 2. The orchestrator creates independent, bounded subtasks.
 3. The orchestrator scores each subtask and applies minimum-tier rules.
-4. The orchestrator invokes the configured model through the available CLI,
+4. The orchestrator records active parallel sessions in `.ai/state/sessions.md`
+   and checks for write-scope overlap.
+5. The orchestrator invokes the configured model through the available CLI,
    API, MCP, or sub-agent tool when delegation is useful and supported.
-5. If the selected provider CLI is missing or fails healthcheck, the current
+6. If the selected provider CLI is missing or fails healthcheck, the current
    model executes the bounded assignment locally instead of blocking on the
    router.
-6. The delegated model returns changes or a structured recommendation.
-7. The configured reviewer reviews the diff, acceptance criteria, and
+7. The delegated model returns changes or a structured recommendation.
+8. The configured reviewer reviews the diff, acceptance criteria, and
    validation evidence. If no separate reviewer is available, the orchestrator
    performs the review locally using `.ai/skills/code-review/SKILL.md`.
-8. If the reviewer requests changes, return the findings to the same
+9. If the reviewer requests changes, return the findings to the same
    implementing model once with corrected context. If the retry still fails or
    the model is unavailable, the current model completes the fix locally or
    escalates to the human for a decision.
-9. The orchestrator prepares the final response after review passes or
+10. The orchestrator marks completed sessions as `done` and prepares the final
+   response after review passes or
    remaining risk is explicitly documented.
 
 ## CLI adapters

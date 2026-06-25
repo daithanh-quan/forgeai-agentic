@@ -20,6 +20,18 @@ type HarnessManifest = {
   initialized_at: string;
 };
 
+type AgentSession = {
+  id: string;
+  owner: string;
+  task: string;
+  branch: string;
+  status: string;
+  started: string;
+  readScope: string[];
+  writeScope: string[];
+  notes: string;
+};
+
 type PackageJson = {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
@@ -43,6 +55,7 @@ const upgrade = args.has('--upgrade');
 const dryRun = args.has('--dry-run');
 const check = args.has('--check');
 const checkGit = args.has('--check-git');
+const checkSessions = args.has('--check-sessions');
 const checkProfile = args.has('--check-profile');
 const listProfiles = args.has('--list-profiles');
 const checkUpdates = args.has('--check-updates');
@@ -299,6 +312,7 @@ function usage(): string {
   forgeai-init --check
   forgeai-init --check-updates
   forgeai-init --check-git
+  forgeai-init --check-sessions
   forgeai-init --check-profile
   forgeai-init --list-profiles
   forgeai-init --version
@@ -313,6 +327,8 @@ Options:
   --check-updates
                 Check npm for the latest ForgeAI version, even in non-interactive mode.
   --check-git   Validate git branch, worktree, remote, hooks, and PR/MR tooling.
+  --check-sessions
+                Validate active agent sessions for overlapping write scopes.
   --check-profile
                 Validate the installed profile against detected project signals.
   --skip-update-check
@@ -418,6 +434,167 @@ function firstNonEmptyLine(value: string): string | null {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .find(Boolean) ?? null;
+}
+
+function cleanTableCell(value: string | undefined): string {
+  return (value ?? '')
+    .trim()
+    .replace(/^`|`$/g, '')
+    .trim();
+}
+
+function parseScopeList(value: string): string[] {
+  const cleaned = cleanTableCell(value);
+  if (!cleaned || cleaned === '-' || cleaned.toLowerCase() === 'none') return [];
+
+  return cleaned
+    .split(/,|<br\s*\/?>/i)
+    .map((item) => cleanTableCell(item))
+    .filter(Boolean);
+}
+
+function normalizeScopePath(scope: string): string {
+  const trimmed = scope
+    .trim()
+    .replace(/^`|`$/g, '')
+    .replace(/\\/g, '/')
+    .replace(/^\.\//, '');
+
+  if (trimmed === '/') return '.';
+  return trimmed.replace(/\/+$/, '') || '.';
+}
+
+function isBroadScope(scope: string): boolean {
+  const normalized = normalizeScopePath(scope).toLowerCase();
+  return normalized === '.' || normalized === '*' || normalized === 'repo' || normalized === 'all' || normalized.includes('*');
+}
+
+function scopesOverlap(left: string, right: string): boolean {
+  const leftPath = normalizeScopePath(left);
+  const rightPath = normalizeScopePath(right);
+
+  if (isBroadScope(leftPath) || isBroadScope(rightPath)) return true;
+  if (leftPath === rightPath) return true;
+  if (leftPath.startsWith(`${rightPath}/`)) return true;
+  if (rightPath.startsWith(`${leftPath}/`)) return true;
+  return false;
+}
+
+function parseSessionTable(content: string): AgentSession[] {
+  const sessions: AgentSession[] = [];
+  let inActiveSessions = false;
+
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (line.startsWith('## ')) {
+      inActiveSessions = /^##\s+Active Sessions\b/i.test(line);
+      continue;
+    }
+
+    if (!inActiveSessions || !line.startsWith('|')) continue;
+    if (/^\|\s*-+/.test(line) || /\|\s*ID\s*\|/i.test(line)) continue;
+
+    const cells = line
+      .slice(1, line.endsWith('|') ? -1 : undefined)
+      .split('|')
+      .map((cell) => cell.trim());
+
+    if (cells.length < 9) continue;
+
+    const id = cleanTableCell(cells[0]);
+    if (!id || id === 'example-session') continue;
+
+    sessions.push({
+      id,
+      owner: cleanTableCell(cells[1]),
+      task: cleanTableCell(cells[2]),
+      branch: cleanTableCell(cells[3]),
+      status: cleanTableCell(cells[4]).toLowerCase(),
+      started: cleanTableCell(cells[5]),
+      readScope: parseScopeList(cells[6]),
+      writeScope: parseScopeList(cells[7]),
+      notes: cleanTableCell(cells[8])
+    });
+  }
+
+  return sessions;
+}
+
+function isUnfinishedSession(session: AgentSession): boolean {
+  return !['done', 'complete', 'completed', 'closed', 'cancelled', 'canceled'].includes(session.status);
+}
+
+function runCheckSessions(): void {
+  console.log('ForgeAI session check');
+  console.log('');
+
+  const sessionsPath = path.join(root, '.ai', 'state', 'sessions.md');
+  if (!fs.existsSync(sessionsPath)) {
+    console.log(formatStatus('missing', '.ai/state/sessions.md'));
+    console.log('');
+    console.log('Result: session coordination file missing. Run forgeai-init --upgrade to install it.');
+    process.exitCode = 1;
+    return;
+  }
+
+  const sessions = parseSessionTable(fs.readFileSync(sessionsPath, 'utf8'));
+  const unfinished = sessions.filter(isUnfinishedSession);
+
+  if (sessions.length === 0) {
+    console.log(formatStatus('ok', 'no real sessions recorded'));
+    console.log('');
+    console.log('Result: no active session overlap detected.');
+    return;
+  }
+
+  for (const session of sessions) {
+    const writeScope = session.writeScope.length > 0 ? session.writeScope.join(', ') : 'missing';
+    const status = isUnfinishedSession(session) ? 'active' : 'closed';
+    console.log(formatStatus(status, `${session.id} ${session.status || 'unknown'} write: ${writeScope}`));
+  }
+
+  let collisions = 0;
+  let missingWriteScopes = 0;
+
+  for (const session of unfinished) {
+    if (session.writeScope.length === 0) {
+      missingWriteScopes += 1;
+      console.log(formatStatus('invalid', `${session.id} has no write scope`));
+    }
+  }
+
+  for (let leftIndex = 0; leftIndex < unfinished.length; leftIndex += 1) {
+    const left = unfinished[leftIndex];
+    for (let rightIndex = leftIndex + 1; rightIndex < unfinished.length; rightIndex += 1) {
+      const right = unfinished[rightIndex];
+      for (const leftScope of left.writeScope) {
+        const overlappingScope = right.writeScope.find((rightScope) => scopesOverlap(leftScope, rightScope));
+        if (!overlappingScope) continue;
+        collisions += 1;
+        console.log(
+          formatStatus(
+            'overlap',
+            `${left.id} (${normalizeScopePath(leftScope)}) conflicts with ${right.id} (${normalizeScopePath(overlappingScope)})`
+          )
+        );
+        break;
+      }
+    }
+  }
+
+  console.log('');
+  if (missingWriteScopes > 0 || collisions > 0) {
+    console.log('Result: active sessions need coordination before parallel agent work continues.');
+    process.exitCode = 1;
+    return;
+  }
+
+  if (unfinished.length === 0) {
+    console.log('Result: no active sessions.');
+    return;
+  }
+
+  console.log('Result: active sessions have disjoint write scopes.');
 }
 
 function detectProvider(remoteUrl: string | null): string {
@@ -653,6 +830,18 @@ function runCheck(): void {
   }
 
   console.log('');
+  console.log('Session coordination');
+  const sessionsPath = path.join(root, '.ai', 'state', 'sessions.md');
+  if (!fs.existsSync(sessionsPath)) {
+    console.log(formatStatus('missing', '.ai/state/sessions.md'));
+    missingRequired += 1;
+  } else {
+    const unfinishedSessions = parseSessionTable(fs.readFileSync(sessionsPath, 'utf8')).filter(isUnfinishedSession);
+    console.log(formatStatus('ok', `.ai/state/sessions.md (${unfinishedSessions.length} active)`));
+    console.log(formatStatus('check', 'run forgeai-init --check-sessions before parallel agent work'));
+  }
+
+  console.log('');
   if (missingRequired > 0 || adapterReadFailed) {
     console.log('Result: harness incomplete. Run forgeai-init or restore the missing/invalid files.');
     process.exitCode = 1;
@@ -753,6 +942,7 @@ if (help) console.log(usage());
 else if (version) console.log(getPackageVersion());
 else if (listProfiles) console.log(['base', ...getAvailableProfiles()].join('\n'));
 else if (checkGit) runCheckGit();
+else if (checkSessions) runCheckSessions();
 else if (checkProfile) runCheckProfile();
 else if (check) runCheck();
 else if (checkUpdates) console.log('Update check complete.');

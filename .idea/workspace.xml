@@ -7,6 +7,19 @@
     <list default="true" id="20ddf617-4185-4a0e-af54-4403565d1dc2" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bin/forgeai-init.ts" beforeDir="false" afterPath="$PROJECT_DIR$/bin/forgeai-init.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/superpowers/plans/2026-06-13-forgeai-multi-agent-harness.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/superpowers/plans/2026-06-13-forgeai-multi-agent-harness.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/MODEL_ROUTING.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/MODEL_ROUTING.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/WORKFLOW.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/WORKFLOW.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/agents/orchestrator.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/agents/orchestrator.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/model-routing.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/model-routing.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/state/CURRENT.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/state/CURRENT.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/workflows/delegated-assignment.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/workflows/delegated-assignment.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/workflows/task-intake.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/workflows/task-intake.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test/cli.test.ts" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -68,16 +81,12 @@
       <workItem from="1782090664318" duration="615000" />
       <workItem from="1782138151742" duration="612000" />
       <workItem from="1782309203916" duration="2674000" />
+      <workItem from="1782394774681" duration="4231000" />
     </task>
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
-    <option name="exactExcludedFiles">
-      <list>
-        <option value="$PROJECT_DIR$/test/cli.test.js" />
-      </list>
-    </option>
   </component>
   <component name="github-copilot-workspace">
     <instructionFileLocations>

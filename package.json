@@ -1,6 +1,6 @@
 {
   "name": "forgeai-agentic-init",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "description": "AI project initialization kit for agentic coding workflows.",
   "type": "module",
   "bin": {
@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --import tsx --test test/cli.test.ts",
+    "test": "npm run build && node --import tsx --test test/*.test.ts",
     "prepublishOnly": "npm test"
   },
   "files": [

@@ -10,12 +10,19 @@
 - Provider route: `AGY for score 0-2, Codex for score 3-5, Claude for score 6-10`
 - Score: `C0 + R0 + A0 + X0 = 0`
 - Token budget: `...`
+- Session ID: `agent-task-...`
 
 ## Allowed Context
 
 - `path/to/file`
 - `path/to/directory/`
 - Relevant contract or decision: `...`
+
+## Coordination Scope
+
+- Read scope: `path/to/file`, `path/to/directory/`, or `repo`
+- Write scope: `exact/file.ts`, `narrow/directory/`
+- Parallel safety: `independent | sequential | needs-human-decision`
 
 ## Constraints
 
