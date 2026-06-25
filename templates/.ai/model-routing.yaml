@@ -9,6 +9,7 @@ orchestrator:
   responsibilities:
     - score tasks
     - split work into bounded subtasks
+    - coordinate active session scopes before parallel work
     - approve architecture and security decisions
     - request configured reviewer checks for delegated outputs
     - deliver the final response
@@ -120,6 +121,8 @@ rules:
   require_validation_command: true
   send_only_required_context: true
   parallelize_only_independent_tasks: true
+  require_session_scope_for_parallel_work: true
+  reject_overlapping_write_scopes: true
   configured_reviewer_must_review_outputs: true
   return_failed_review_to_implementing_model: true
 

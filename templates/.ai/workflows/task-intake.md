@@ -44,3 +44,9 @@ Paste requirement here.
 | Subtask | Agent | C | R | A | X | Total | Model tier | Token budget |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: |
 | ... | ... | 0 | 0 | 0 | 0 | 0 | fast | 4000 |
+
+## Session Coordination
+
+| Session ID | Subtask | Read scope | Write scope | Parallel safety |
+| --- | --- | --- | --- | --- |
+| ... | ... | `path/to/file` | `path/to/file` | independent |

@@ -83,6 +83,8 @@ Follow `.ai/MODEL_ROUTING.md` and `.ai/model-routing.yaml`.
 - Score complexity, risk, ambiguity, and context for each subtask.
 - Apply minimum-tier overrides for architecture and sensitive work.
 - Give delegated models bounded assignments and only required context.
+- For parallel work, record each active session in `.ai/state/sessions.md`
+  with read/write scope and run `forgeai-init --check-sessions`.
 - Route by `.ai/model-routing.yaml`. By default, scores `0-2` go to the fast
   tier, scores `3-5` to the standard tier, scores `6-8` to the strong tier,
   and scores `9-10` stay with the current orchestrator.
@@ -93,6 +95,10 @@ Follow `.ai/MODEL_ROUTING.md` and `.ai/model-routing.yaml`.
 If the environment cannot invoke the selected model, use the configured
 fallback instead of blocking the task. The default fallback is for the current
 model to execute the bounded assignment locally.
+
+If session write scopes overlap, do not run those assignments in parallel.
+Narrow the write scopes, sequence the work, or ask the human which session
+owns the shared files.
 
 ## 5a. Branch and worktree naming
 

@@ -51,15 +51,16 @@ npx forgeai-agentic-init@latest --profile auto
 Pin a version only when you need a reproducible setup:
 
 ```bash
-npx forgeai-agentic-init@1.4.1
+npx forgeai-agentic-init@1.5.0
 ```
 
-`1.4.1` adds update preflight checks and `--upgrade`. Optional stack
-profiles (`nextjs`, `node-api`, `tauri`, `monorepo`, `python-api`, and
-`mobile`), `--profile auto`, `.ai/manifest.json`, `--check-profile`, and
-`--list-profiles` were added in `1.4.0`. npm package versions are immutable,
-so publish this only if `forgeai-agentic-init@1.4.1` has not already been
-published.
+`1.5.0` adds multi-session coordination with `.ai/state/sessions.md` and
+`--check-sessions`. `1.4.1` added update preflight checks and `--upgrade`.
+Optional stack profiles (`nextjs`, `node-api`, `tauri`, `monorepo`,
+`python-api`, and `mobile`), `--profile auto`, `.ai/manifest.json`,
+`--check-profile`, and `--list-profiles` were added in `1.4.0`. npm package
+versions are immutable, so publish this only if
+`forgeai-agentic-init@1.5.0` has not already been published.
 
 ### Common commands
 
@@ -156,6 +157,7 @@ AGENTS.md
   router/run-model.ts
   WORKFLOW.md
   state/CURRENT.md
+  state/sessions.md
   state/assignments/TASK-CODEX-TEST.md
   state/assignments/TASK-REVIEWER-SMOKE.md
   workflows/task-intake.md
@@ -237,6 +239,17 @@ relying on an agent for real tasks:
    validate locally, and do not push or create a PR/MR until a remote is
    configured.
 
+   Before running multiple agent sessions in parallel, record each session in
+   `.ai/state/sessions.md` with a narrow write scope and run:
+
+   ```bash
+   forgeai-init --check-sessions
+   ```
+
+   The session checker fails when unfinished sessions have overlapping write
+   scopes, so the orchestrator can sequence the work or narrow assignments
+   before agents edit the same files with stale context.
+
 5. Verify optional integrations:
 
    ```bash
@@ -293,6 +306,11 @@ Defaults route scores `0-2` to AGY, scores `3-5` to Codex, scores `6-8` to the
 configured strong tier, and scores `9-10` stay with the current orchestrator.
 If the selected CLI is not installed, the current model executes the bounded
 assignment locally instead of blocking on the router.
+
+For multi-session work, the orchestrator records active sessions in
+`.ai/state/sessions.md` and runs `forgeai-init --check-sessions` before
+parallel delegation. This catches overlapping write scopes early; it is a
+coordination gate, not a replacement for git review or the reviewer agent.
 
 After delegated work finishes, the configured reviewer checks the result. In
 Claude Code this can be the Claude reviewer sub-agent; in other tools it can be
