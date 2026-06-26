@@ -51,16 +51,19 @@ npx forgeai-agentic-init@latest --profile auto
 Pin a version only when you need a reproducible setup:
 
 ```bash
-npx forgeai-agentic-init@1.5.0
+npx forgeai-agentic-init@2.1.0
 ```
 
-`1.5.0` adds multi-session coordination with `.ai/state/sessions.md` and
+`2.1.0` adds the Phase 2 lifecycle foundation: lifecycle state tracking,
+task journals, task-type workflow templates, stale-task detection guidance,
+closure rules, and a Claude-native planner skill wrapper. `1.5.0` added
+multi-session coordination with `.ai/state/sessions.md` and
 `--check-sessions`. `1.4.1` added update preflight checks and `--upgrade`.
 Optional stack profiles (`nextjs`, `node-api`, `tauri`, `monorepo`,
 `python-api`, and `mobile`), `--profile auto`, `.ai/manifest.json`,
 `--check-profile`, and `--list-profiles` were added in `1.4.0`. npm package
 versions are immutable, so publish this only if
-`forgeai-agentic-init@1.5.0` has not already been published.
+`forgeai-agentic-init@2.1.0` has not already been published.
 
 ### Common commands
 
@@ -157,11 +160,23 @@ AGENTS.md
   router/run-model.ts
   WORKFLOW.md
   state/CURRENT.md
+  state/lifecycle.md
   state/sessions.md
+  state/tasks/_template.md
   state/assignments/TASK-CODEX-TEST.md
   state/assignments/TASK-REVIEWER-SMOKE.md
   workflows/task-intake.md
   workflows/delegated-assignment.md
+  workflows/lifecycle-management.md
+  workflows/task-types/
+    bug.md
+    feature.md
+    refactor.md
+    research.md
+    audit.md
+    incident.md
+    release.md
+    dependency-upgrade.md
   profiles/<profile>.md
   workflows/<profile-specific-workflow>.md
   agents/
@@ -182,6 +197,7 @@ AGENTS.md
     <profile-specific-skill>/SKILL.md
 .claude/
   skills/
+    planner/SKILL.md
     frontend/SKILL.md
     backend/SKILL.md
     testing/SKILL.md

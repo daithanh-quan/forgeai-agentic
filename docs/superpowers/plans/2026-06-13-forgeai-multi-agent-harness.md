@@ -14,5 +14,8 @@ updated independently.
 
 ## Current Status
 
-Phase 1 is complete. The closeout, verification commands, and known follow-ups
-live in [05-after-init-closeout.md](2026-06-13-forgeai-multi-agent-harness/05-after-init-closeout.md).
+Phase 1 is complete. The closeout and verification commands live in
+[05-after-init-closeout.md](2026-06-13-forgeai-multi-agent-harness/05-after-init-closeout.md).
+Phase 2 has started with the agentic lifecycle foundation: lifecycle states,
+task journals, task-type templates, stale-task detection guidance, closure
+rules, and a Claude-native planner/spec wrapper.

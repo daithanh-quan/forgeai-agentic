@@ -6,6 +6,14 @@
 - Link/ID: `...`
 - Priority: `low | medium | high | urgent`
 
+## Lifecycle
+
+- Task ID: `TASK-YYYYMMDD-short-slug`
+- Task type: `bug | feature | refactor | research | audit | incident | release | dependency-upgrade`
+- Current state: `intake`
+- Journal: `.ai/state/tasks/<task-id>.md` or `not needed because ...`
+- Stale status: `fresh`
+
 ## Requirement
 
 Paste requirement here.
@@ -50,3 +58,9 @@ Paste requirement here.
 | Session ID | Subtask | Read scope | Write scope | Parallel safety |
 | --- | --- | --- | --- | --- |
 | ... | ... | `path/to/file` | `path/to/file` | independent |
+
+## Closure Plan
+
+- Delivery notes location:
+- Memory update needed: `yes | no | unknown`
+- Changelog/PR notes needed: `yes | no | unknown`

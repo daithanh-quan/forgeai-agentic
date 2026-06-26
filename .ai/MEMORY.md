@@ -53,6 +53,19 @@ It is not part of the npm package because `package.json#files` only publishes
   `.ai/MEMORY.md`, what belongs in changelogs or PR notes, and what should be
   discarded as temporary task context.
 
+### 2026-06-26 - Phase 2 lifecycle foundation started
+
+- **Decision:** Start Phase 2 by adding markdown-first lifecycle primitives to
+  the installable harness: lifecycle state definitions, task journals,
+  lifecycle management workflow, and task-type templates.
+- **Why:** These files satisfy the core "agentic lifecycle management" roadmap
+  without adding database-backed orchestration or brittle automation before the
+  workflow has proven value.
+- **Impact:** Future Phase 2 work should build on `.ai/state/lifecycle.md`,
+  `.ai/state/tasks/_template.md`, `.ai/workflows/lifecycle-management.md`, and
+  `.ai/workflows/task-types/*.md` rather than creating competing task-state
+  formats.
+
 #### Phase 3: plugin and marketplace layer
 
 - Add optional Claude Code plugin templates with `.claude-plugin/plugin.json`,

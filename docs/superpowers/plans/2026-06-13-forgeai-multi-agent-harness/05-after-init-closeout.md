@@ -122,11 +122,9 @@ When all tasks above are done, provide:
 3. **Rationale** — for each of the 8 objectives in the original spec, one
    sentence on how it was satisfied and which task(s) implemented it.
 4. **Remaining risks / future improvements**, e.g.:
-   - `.ai/skills/spec-planning/SKILL.md` has no `.claude/skills/` mirror
-     (not required by the spec's 4-skill list — flag if a "planner" Claude
-     skill is wanted later).
-   - Profiles (`--profile nextjs`, etc.) from the README's "Future roadmap"
-     are still unimplemented.
+   - Future harness upgrades may need a merge-aware updater instead of
+     overwriting managed files with `--upgrade`.
+   - Profile coverage may need to expand as new stacks become common.
    - `.ai/PROJECT.md` guidance comments rely on the agent actually removing
      them after filling sections — not enforced by tooling.
 
@@ -171,9 +169,15 @@ Observed results:
 - Dry-run from a clean scratch directory listed the full expected harness
   tree, including root pointers, `.ai/`, `.claude/skills/`, and `openspec/`.
 
+**Phase 2 follow-up completed:**
+
+- Added a Claude-native planner/spec skill wrapper so Claude Code can discover
+  `.ai/skills/spec-planning/SKILL.md` directly.
+- Added the initial agentic lifecycle foundation: `.ai/state/lifecycle.md`,
+  `.ai/state/tasks/_template.md`, `.ai/workflows/lifecycle-management.md`,
+  and `.ai/workflows/task-types/*.md`.
+
 **Known follow-up outside Phase 1:**
 
-- Add a Claude-native planner/spec skill wrapper if Claude Code should
-  discover `.ai/skills/spec-planning/SKILL.md` directly.
 - Decide whether future harness upgrades need a merge-aware updater instead
   of overwriting managed harness files with `--upgrade`.
