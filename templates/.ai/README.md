@@ -26,17 +26,23 @@ tell the agent:
 6. `MODEL_ROUTING.md`, `model-routing.yaml`, `cli-adapters.json`, and
    `router/run-model.ts` — scoring, model tiers, CLI adapters, token
    budgets, delegation, and fallbacks.
-7. `WORKFLOW.md` — flow from task intake to human review.
-8. If `.ai/profiles/<profile>.md` exists, read it after `WORKFLOW.md` and
+7. `WORKFLOW.md` and `workflows/lifecycle-management.md` — flow from task
+   intake through closure, memory update, and stale-task handling.
+8. `state/lifecycle.md` — lifecycle states, transition rules, stale-task
+   detection, and closure rules.
+9. If `.ai/profiles/<profile>.md` exists, read it after `WORKFLOW.md` and
    before choosing task-specific skills.
-9. `state/CURRENT.md` — current project state and active focus.
-10. `state/sessions.md` — active session read/write scopes for parallel work.
-11. `agents/*.md` — per-role templates (responsibilities, inputs, outputs,
+10. `state/CURRENT.md` — current project state and active focus.
+11. `state/sessions.md` — active session read/write scopes for parallel work.
+12. `state/tasks/_template.md` — task journal format for resumable work.
+13. `workflows/task-types/*.md` — lifecycle templates for bugs, features,
+   refactors, research, audits, incidents, releases, and dependency upgrades.
+14. `agents/*.md` — per-role templates (responsibilities, inputs, outputs,
    completion checklists).
-12. Relevant `skills/*/SKILL.md` — task-specific operating instructions.
+15. Relevant `skills/*/SKILL.md` — task-specific operating instructions.
     Profile-specific skills are additive guidance on top of the shared skills
     unless they explicitly say they replace a shared skill.
-13. Relevant `openspec/changes/*` — spec-driven change artifacts.
+16. Relevant `openspec/changes/*` — spec-driven change artifacts.
 
 ## Smoke tests
 

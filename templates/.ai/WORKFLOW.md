@@ -6,6 +6,7 @@ This file defines the default flow from task intake to human review.
 
 ```text
 Task intake
+  -> Triage
   -> Clarify scope
   -> Decide if spec is needed
   -> Plan subtasks
@@ -15,7 +16,15 @@ Task intake
   -> Validate
   -> Review
   -> Human approval
+  -> Delivery
+  -> Memory update
+  -> Closure
 ```
+
+For resumable, delegated, risky, or multi-step work, use
+`.ai/workflows/lifecycle-management.md` and create a task journal from
+`.ai/state/tasks/_template.md`. Use `.ai/state/lifecycle.md` for state names,
+transition criteria, stale-task detection, and closure rules.
 
 ## 1. Task intake
 
@@ -29,6 +38,23 @@ The agent collects:
 - Deadline/priority if any.
 
 Use `.ai/workflows/task-intake.md` as the template.
+
+For long-running work, create or update the task journal during intake and set
+its state to `intake`.
+
+## 1a. Triage lifecycle type and state
+
+Classify the work before planning:
+
+- Task type: `bug`, `feature`, `refactor`, `research`, `audit`, `incident`,
+  `release`, or `dependency-upgrade`.
+- Lifecycle state: use `.ai/state/lifecycle.md`.
+- Task-type template: use `.ai/workflows/task-types/<type>.md`.
+- Journal: create `.ai/state/tasks/<task-id>.md` when the task is delegated,
+  risky, resumable, multi-step, or needs durable validation evidence.
+
+Move from `intake` to `triage` only after source, priority, affected area,
+and initial acceptance criteria are recorded.
 
 ## 2. Clarify scope
 
@@ -75,6 +101,9 @@ The plan should be short and executable:
 - [ ] Run validation
 - [ ] Prepare review summary
 ```
+
+Move from `planning` to `assignment` only when scope, assumptions, subtasks,
+and validation are explicit in the response, OpenSpec artifact, or task journal.
 
 ## 5. Score and route subtasks
 
@@ -220,6 +249,8 @@ If validation cannot run, document:
 - Main error.
 - Why the agent did not continue fixing it in this task scope.
 
+Record validation evidence in the task journal before moving to `review`.
+
 ## 8. Review
 
 The review agent checks:
@@ -246,3 +277,16 @@ The final result should be easy for a human to review:
 ## Validation
 ## Risks / follow-up
 ```
+
+## 10. Delivery, memory update, and closure
+
+Before closing a task:
+
+- Delivery notes summarize changed files, validation, review status, risks, and
+  follow-up.
+- `.ai/MEMORY.md` is updated only for durable project knowledge: architecture
+  decisions, recurring pitfalls, stable commands, test strategy, or owner/team
+  preferences.
+- Temporary details stay in `.ai/state/tasks/<task-id>.md`.
+- Active session rows in `.ai/state/sessions.md` are marked `done` or removed.
+- The task journal is moved to `closed` with final outcome and date.
