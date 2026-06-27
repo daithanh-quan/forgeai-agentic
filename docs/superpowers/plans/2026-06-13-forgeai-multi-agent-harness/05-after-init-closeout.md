@@ -179,5 +179,8 @@ Observed results:
 
 **Known follow-up outside Phase 1:**
 
+- Phase 3 is CodeGraph/context graph support for large legacy projects:
+  `.ai/codegraph/` artifacts, legacy bootstrap, incremental graph refresh, and
+  graph-guided context selection before code edits.
 - Decide whether future harness upgrades need a merge-aware updater instead
   of overwriting managed harness files with `--upgrade`.

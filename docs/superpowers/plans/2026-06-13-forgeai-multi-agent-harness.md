@@ -19,3 +19,6 @@ Phase 1 is complete. The closeout and verification commands live in
 Phase 2 has started with the agentic lifecycle foundation: lifecycle states,
 task journals, task-type templates, stale-task detection guidance, closure
 rules, and a Claude-native planner/spec wrapper.
+The next planned phase is CodeGraph/context graph support for large legacy
+projects, centered on `.ai/codegraph/` artifacts and graph-guided context
+selection before agents edit code.

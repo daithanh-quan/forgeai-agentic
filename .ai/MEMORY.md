@@ -66,7 +66,37 @@ It is not part of the npm package because `package.json#files` only publishes
   `.ai/workflows/task-types/*.md` rather than creating competing task-state
   formats.
 
-#### Phase 3: plugin and marketplace layer
+#### Phase 3: CodeGraph and legacy context discovery
+
+- Add a CodeGraph/context graph layer so agents can orient themselves in very
+  large legacy projects without reading the entire repository blindly.
+- Define graph artifacts under `.ai/codegraph/` for modules, symbols,
+  imports/exports, call edges, entrypoints, domain groupings, tests, risks,
+  and generated summaries.
+- Add a legacy bootstrap workflow that detects stacks, identifies entrypoints,
+  maps high-risk modules, links tests to source, and records unknowns instead
+  of guessing.
+- Add task-time graph usage rules so agents select relevant context from the
+  graph, then verify against real source files before editing.
+- Add incremental refresh guidance for changed files, specific directories,
+  and stale graph data so very large repositories do not require full reindexing
+  for every task.
+- Keep CodeGraph model-agnostic and artifact-first before adding parser-heavy
+  automation or language-specific generators.
+
+### 2026-06-27 - Phase 3 should be CodeGraph after lifecycle
+
+- **Decision:** The phase after lifecycle management is CodeGraph/context
+  discovery, focused on helping agents understand large, old, complex
+  repositories before implementation work.
+- **Why:** Legacy projects often fail agent workflows because the difficult
+  part is finding the relevant entrypoints, hidden dependencies, side effects,
+  tests, and domain boundaries before editing code.
+- **Impact:** Plugin and marketplace work moves later. Near-term work should
+  design `.ai/codegraph/` artifacts, bootstrap/update workflows, and rules for
+  using graph context as a map while still verifying behavior in source code.
+
+#### Phase 4: plugin and marketplace layer
 
 - Add optional Claude Code plugin templates with `.claude-plugin/plugin.json`,
   marketplace metadata, workflow skills, and reviewer sub-agent wrappers.
@@ -79,7 +109,7 @@ It is not part of the npm package because `package.json#files` only publishes
 - Add plugin smoke tests that verify workflow skill discovery, reviewer
   behavior, and marketplace metadata.
 
-#### Phase 4: model routing and delegation
+#### Phase 5: model routing and delegation
 
 - Add provider adapter templates for Claude, Codex, AGY, local models, and
   custom CLI/API runners.
@@ -90,7 +120,7 @@ It is not part of the npm package because `package.json#files` only publishes
 - Add retry policy per task type so failed delegation does not loop forever.
 - Add token and cost budgets per task, per model tier, and per session.
 
-#### Phase 5: review, validation, and quality gates
+#### Phase 6: review, validation, and quality gates
 
 - Add OpenSpec validation commands for proposal, design, task, and spec files.
 - Add reviewer scorecards for correctness, scope control, security, tests,
@@ -101,7 +131,7 @@ It is not part of the npm package because `package.json#files` only publishes
 - Add CI examples that run `forgeai-init --check`, `--check-git`, OpenSpec
   validation, lint, typecheck, and tests.
 
-#### Phase 6: external workflow connectors
+#### Phase 7: external workflow connectors
 
 - Add Jira, Linear, GitHub Issues, GitLab Issues, and Bitbucket issue intake
   templates.
@@ -111,7 +141,7 @@ It is not part of the npm package because `package.json#files` only publishes
   and follow-up tasks.
 - Add team handoff templates for async review and multi-day agent work.
 
-#### Phase 7: memory and knowledge management
+#### Phase 8: memory and knowledge management
 
 - Add structured memory sections for architecture decisions, recurring bugs,
   commands, test strategy, ownership, and deployment notes.
@@ -122,7 +152,7 @@ It is not part of the npm package because `package.json#files` only publishes
 - Add import/export guidance for sharing stable knowledge across related
   repositories.
 
-#### Phase 8: advanced agentic orchestration
+#### Phase 9: advanced agentic orchestration
 
 - Add explicit multi-agent worktree strategy for parallel implementation,
   review, and conflict resolution.
@@ -135,7 +165,7 @@ It is not part of the npm package because `package.json#files` only publishes
 - Add evaluation tasks that compare single-agent vs. multi-agent outcomes on
   correctness, speed, cost, and review quality.
 
-#### Phase 9: ecosystem and governance
+#### Phase 10: ecosystem and governance
 
 - Publish stable template versioning and migration notes.
 - Add contribution guidelines for new agents, skills, profiles, adapters, and
