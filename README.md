@@ -51,20 +51,22 @@ npx forgeai-agentic-init@latest --profile auto
 Pin a version only when you need a reproducible setup:
 
 ```bash
-npx forgeai-agentic-init@2.1.0
+npx forgeai-agentic-init@2.2.0
 ```
 
-`2.1.0` adds the Phase 2 lifecycle foundation: lifecycle state tracking,
-task journals, task-type workflow templates, stale-task detection guidance,
-closure rules, `forgeai-init --check-lifecycle`, and a Claude-native planner
-skill wrapper. `1.5.0` added
+`2.2.0` adds orchestrator-run lifecycle diagnostics with
+`forgeai-init --check-lifecycle`, so agents can validate task journals, stale
+work, and closed-task memory decisions automatically. `2.1.0` added the Phase
+2 lifecycle foundation: lifecycle state tracking, task journals, task-type
+workflow templates, stale-task detection guidance, closure rules, and a
+Claude-native planner skill wrapper. `1.5.0` added
 multi-session coordination with `.ai/state/sessions.md` and
 `--check-sessions`. `1.4.1` added update preflight checks and `--upgrade`.
 Optional stack profiles (`nextjs`, `node-api`, `tauri`, `monorepo`,
 `python-api`, and `mobile`), `--profile auto`, `.ai/manifest.json`,
 `--check-profile`, and `--list-profiles` were added in `1.4.0`. npm package
 versions are immutable, so publish this only if
-`forgeai-agentic-init@2.1.0` has not already been published.
+`forgeai-agentic-init@2.2.0` has not already been published.
 
 ### Agent-run diagnostics
 
