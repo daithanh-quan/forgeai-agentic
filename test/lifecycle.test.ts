@@ -3,7 +3,50 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { cli, type HarnessManifest, runTs } from './helpers.js';
+import { cli, type ExecError, type HarnessManifest, runTs } from './helpers.js';
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function taskJournal(overrides: Partial<Record<'id' | 'type' | 'state' | 'updated' | 'stale' | 'memoryDecision', string>> = {}): string {
+  const id = overrides.id ?? 'TASK-20260628-lifecycle-check';
+  const type = overrides.type ?? 'feature';
+  const state = overrides.state ?? 'execution';
+  const updated = overrides.updated ?? today();
+  const stale = overrides.stale ?? 'fresh';
+  const memoryDecision = overrides.memoryDecision ?? '- [ ] Update `.ai/MEMORY.md`\n- [ ] No memory update needed';
+
+  return [
+    '# Task Journal Template',
+    '',
+    '## Identity',
+    '',
+    `- Task ID: \`${id}\``,
+    '- Source: `manual`',
+    '- Source link/ID: `local`',
+    `- Task type: \`${type}\``,
+    '- Priority: `medium`',
+    '- Owner/orchestrator: `Codex`',
+    `- Current state: \`${state}\``,
+    '- Branch/worktree: `feat/lifecycle-check`',
+    '- Created: `2026-06-28`',
+    `- Last updated: \`${updated}\``,
+    `- Stale status: \`${stale}\``,
+    '',
+    '## Requirement',
+    '',
+    'Validate lifecycle checker behavior.',
+    '',
+    '## Acceptance Criteria',
+    '',
+    '- [x] Checker has evidence.',
+    '',
+    '## Memory Update Decision',
+    '',
+    memoryDecision
+  ].join('\n');
+}
 
 test('dry run lists files without writing them', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-dry-run-'));
@@ -71,10 +114,95 @@ test('help and version report CLI metadata', () => {
   assert.match(helpOutput, /Usage:/);
   assert.match(helpOutput, /forgeai-init --check-git/);
   assert.match(helpOutput, /forgeai-init --check-sessions/);
+  assert.match(helpOutput, /forgeai-init --check-lifecycle/);
   assert.match(helpOutput, /forgeai-init --check-profile/);
   assert.match(helpOutput, /--profile\s+Apply an optional stack profile/);
   assert.match(helpOutput, /--version\s+Print the package version/);
   assert.equal(versionOutput.trim(), '2.1.0');
+});
+
+test('lifecycle check passes with no real task journals', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-lifecycle-empty-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const output = runTs(cli, ['--check-lifecycle'], { cwd: target });
+
+    assert.match(output, /ForgeAI lifecycle check/);
+    assert.match(output, /ok\s+\.ai\/state\/lifecycle\.md/);
+    assert.match(output, /ok\s+no real task journals recorded/);
+    assert.match(output, /Result: lifecycle state is usable\./);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('lifecycle check validates an active task journal', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-lifecycle-active-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.writeFileSync(path.join(target, '.ai', 'state', 'tasks', 'TASK-20260628-lifecycle-check.md'), taskJournal());
+
+    const output = runTs(cli, ['--check-lifecycle'], { cwd: target });
+
+    assert.match(output, /active\s+\.ai\/state\/tasks\/TASK-20260628-lifecycle-check\.md/);
+    assert.match(output, /state: execution/);
+    assert.match(output, /Result: lifecycle state is usable\./);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('lifecycle check rejects stale active task journals', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-lifecycle-stale-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.writeFileSync(
+      path.join(target, '.ai', 'state', 'tasks', 'TASK-20000101-stale-work.md'),
+      taskJournal({ id: 'TASK-20000101-stale-work', updated: '2000-01-01' })
+    );
+
+    assert.throws(
+      () => runTs(cli, ['--check-lifecycle'], { cwd: target }),
+      (error: unknown) => {
+        const execError = error as ExecError;
+        const stdout = String(execError.stdout ?? '');
+        assert.match(stdout, /needs refresh\s+\.ai\/state\/tasks\/TASK-20000101-stale-work\.md last updated/);
+        assert.match(stdout, /Result: lifecycle journals have stale active work\./);
+        return true;
+      }
+    );
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('lifecycle check rejects closed journals without memory decision', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-lifecycle-closed-invalid-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.writeFileSync(
+      path.join(target, '.ai', 'state', 'tasks', 'TASK-20260628-closed-work.md'),
+      taskJournal({ id: 'TASK-20260628-closed-work', state: 'closed' })
+    );
+
+    assert.throws(
+      () => runTs(cli, ['--check-lifecycle'], { cwd: target }),
+      (error: unknown) => {
+        const execError = error as ExecError;
+        const stdout = String(execError.stdout ?? '');
+        assert.match(stdout, /invalid\s+\.ai\/state\/tasks\/TASK-20260628-closed-work\.md closed without exactly one memory update decision/);
+        assert.match(stdout, /Result: lifecycle journals need fixes before reliable agent handoff\./);
+        return true;
+      }
+    );
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
 });
 
 test('list-profiles reports supported profiles', () => {

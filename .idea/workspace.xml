@@ -5,7 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="20ddf617-4185-4a0e-af54-4403565d1dc2" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.ai/MEMORY.md" beforeDir="false" afterPath="$PROJECT_DIR$/.ai/MEMORY.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bin/forgeai-init.ts" beforeDir="false" afterPath="$PROJECT_DIR$/bin/forgeai-init.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/superpowers/plans/2026-06-13-forgeai-multi-agent-harness.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/superpowers/plans/2026-06-13-forgeai-multi-agent-harness.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/superpowers/plans/2026-06-13-forgeai-multi-agent-harness/05-after-init-closeout.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/superpowers/plans/2026-06-13-forgeai-multi-agent-harness/05-after-init-closeout.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/state/lifecycle.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/state/lifecycle.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/templates/.ai/workflows/lifecycle-management.md" beforeDir="false" afterPath="$PROJECT_DIR$/templates/.ai/workflows/lifecycle-management.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/test/lifecycle.test.ts" beforeDir="false" afterPath="$PROJECT_DIR$/test/lifecycle.test.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

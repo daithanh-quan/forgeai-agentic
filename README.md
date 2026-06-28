@@ -56,7 +56,8 @@ npx forgeai-agentic-init@2.1.0
 
 `2.1.0` adds the Phase 2 lifecycle foundation: lifecycle state tracking,
 task journals, task-type workflow templates, stale-task detection guidance,
-closure rules, and a Claude-native planner skill wrapper. `1.5.0` added
+closure rules, `forgeai-init --check-lifecycle`, and a Claude-native planner
+skill wrapper. `1.5.0` added
 multi-session coordination with `.ai/state/sessions.md` and
 `--check-sessions`. `1.4.1` added update preflight checks and `--upgrade`.
 Optional stack profiles (`nextjs`, `node-api`, `tauri`, `monorepo`,
@@ -65,11 +66,16 @@ Optional stack profiles (`nextjs`, `node-api`, `tauri`, `monorepo`,
 versions are immutable, so publish this only if
 `forgeai-agentic-init@2.1.0` has not already been published.
 
-### Common commands
+### Agent-run diagnostics
+
+These commands are for the orchestrator/agent to run automatically at workflow
+checkpoints. Humans do not need to run them during normal use; use them only
+for diagnostics.
 
 ```bash
 npx forgeai-agentic-init@latest --check
 npx forgeai-agentic-init@latest --check-updates --check
+npx forgeai-agentic-init@latest --check-lifecycle
 npx forgeai-agentic-init@latest --upgrade
 npx forgeai-agentic-init@latest --list-profiles
 ```
@@ -86,7 +92,7 @@ newer package exists, it prompts:
 2. Update the ForgeAI harness to latest
 ```
 
-For non-interactive agent sessions or CI, run the check explicitly:
+For non-interactive agent sessions or CI, the agent runs the check explicitly:
 
 ```bash
 npx forgeai-agentic-init@latest --check-updates --check
@@ -95,7 +101,7 @@ npx forgeai-agentic-init@latest --check-updates --check
 Use `--skip-update-check` when offline or when a workflow must avoid network
 access.
 
-When the human chooses to update, run:
+When the human chooses to update, the agent runs:
 
 ```bash
 npx forgeai-agentic-init@latest --upgrade
@@ -116,11 +122,12 @@ npx forgeai-agentic-init@latest --profile nextjs
 Use `--profile auto` to detect a supported stack from project files such as
 `package.json`, `next.config.*`, `pnpm-workspace.yaml`, `src-tauri/`,
 `pyproject.toml`, or mobile framework files. Supported profiles are
-`nextjs`, `node-api`, `tauri`, `monorepo`, `python-api`, and `mobile`; run
-`npx forgeai-agentic-init@latest --list-profiles` for the current list. After initialization,
+`nextjs`, `node-api`, `tauri`, `monorepo`, `python-api`, and `mobile`; the
+agent can run `npx forgeai-agentic-init@latest --list-profiles` for the
+current list. After initialization,
 `.ai/manifest.json` records the package version and selected profile.
 
-Check the installed profile:
+The agent checks the installed profile when stack-specific guidance is needed:
 
 ```bash
 forgeai-init --check-profile
@@ -235,11 +242,12 @@ relying on an agent for real tasks:
    (package.json, lockfiles, config files), and how to handle unknown
    information (leave `TODO`, never guess).
 
-4. Check the installed harness:
+4. The agent checks the installed harness automatically:
 
    ```bash
    forgeai-init --check
    forgeai-init --check-git
+   forgeai-init --check-lifecycle
    ```
 
    If no extra model CLIs are available, the checker reports single-agent
@@ -255,8 +263,12 @@ relying on an agent for real tasks:
    validate locally, and do not push or create a PR/MR until a remote is
    configured.
 
-   Before running multiple agent sessions in parallel, record each session in
-   `.ai/state/sessions.md` with a narrow write scope and run:
+   The lifecycle checker validates `.ai/state/lifecycle.md`, task journal
+   metadata under `.ai/state/tasks/`, stale active tasks, and closed-task
+   memory update decisions.
+
+   Before launching multiple agent sessions in parallel, the orchestrator records
+   each session in `.ai/state/sessions.md` with a narrow write scope and runs:
 
    ```bash
    forgeai-init --check-sessions
@@ -266,7 +278,7 @@ relying on an agent for real tasks:
    scopes, so the orchestrator can sequence the work or narrow assignments
    before agents edit the same files with stale context.
 
-5. Verify optional integrations:
+5. The agent verifies optional integrations when it needs them:
 
    ```bash
    claude --version

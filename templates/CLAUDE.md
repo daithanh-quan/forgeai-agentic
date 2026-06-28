@@ -11,7 +11,7 @@ npx forgeai-agentic-init@latest --check-updates --check
 
 If the check reports an outdated harness, ask the human whether to skip for
 now or update to the latest version before implementation work. If the human
-chooses update, run:
+chooses update, the agent runs:
 
 ```bash
 npx forgeai-agentic-init@latest --upgrade

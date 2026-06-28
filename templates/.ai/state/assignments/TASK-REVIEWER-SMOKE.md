@@ -31,8 +31,8 @@
 
 ## Validation
 ```bash
-# Run this in Claude Code by asking:
-# "Use the reviewer sub-agent/skill to review .ai/state/assignments/TASK-REVIEWER-SMOKE.md"
+# The orchestrator runs this in Claude Code by invoking:
+# Use the reviewer sub-agent/skill to review .ai/state/assignments/TASK-REVIEWER-SMOKE.md
 ```
 
 ## Return format

@@ -20,5 +20,5 @@ for short-lived coordination only; durable decisions belong in `.ai/MEMORY.md`.
 - Do not run sessions in parallel when their write scopes overlap.
 - If a session needs broad repository context, mark the read scope as `repo`
   but keep the write scope narrow.
-- Run `forgeai-init --check-sessions` before launching parallel delegated
-  work or before resuming after a long pause.
+- The orchestrator runs `forgeai-init --check-sessions` before launching
+  parallel delegated work or before resuming after a long pause.

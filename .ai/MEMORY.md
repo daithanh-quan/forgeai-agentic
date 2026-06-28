@@ -66,6 +66,17 @@ It is not part of the npm package because `package.json#files` only publishes
   `.ai/workflows/task-types/*.md` rather than creating competing task-state
   formats.
 
+### 2026-06-28 - Phase 2 lifecycle checker added
+
+- **Decision:** Add `forgeai-init --check-lifecycle` as the first tooling gate
+  for lifecycle state files and task journals.
+- **Why:** Markdown lifecycle files help agents resume work, but long-running
+  handoffs also need a cheap local check for missing lifecycle files, invalid
+  task metadata, stale active journals, and closed tasks without a memory
+  update decision.
+- **Impact:** Agents should run `forgeai-init --check-lifecycle` before
+  resuming paused work, handing off a task, or closing a task journal.
+
 #### Phase 3: CodeGraph and legacy context discovery
 
 - Add a CodeGraph/context graph layer so agents can orient themselves in very

@@ -43,7 +43,9 @@ Mark a task `stale` in its journal when any condition applies:
 
 Before resuming a stale task, re-run repository discovery for the affected area,
 refresh the validation plan, update assumptions, and re-check session write
-scope overlap with `forgeai-init --check-sessions`.
+scope overlap with `forgeai-init --check-sessions`. The orchestrator runs
+`forgeai-init --check-lifecycle` before resuming or handing off long-running
+work.
 
 ## Closure Rules
 
@@ -64,3 +66,16 @@ Keep temporary notes only in the task journal:
 Put user-facing release notes, PR notes, or changelog entries in the project
 location that the repository already uses. Do not overload `.ai/MEMORY.md` with
 release prose.
+
+## CLI Check
+
+The orchestrator runs this before resuming paused work, handing off to another
+agent, or closing a task:
+
+```bash
+forgeai-init --check-lifecycle
+```
+
+The checker validates required lifecycle files, task journal identity fields,
+allowed lifecycle states, stale active tasks, and closed-task memory update
+decisions.
