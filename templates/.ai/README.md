@@ -48,14 +48,14 @@ tell the agent:
 
 - Delegation CLI check: `.ai/state/assignments/TASK-CODEX-TEST.md`
 - Reviewer check: `.ai/state/assignments/TASK-REVIEWER-SMOKE.md`
-- Session overlap check: `forgeai-init --check-sessions`
+- Session overlap check: the orchestrator runs `forgeai-init --check-sessions`
 
-For the reviewer check, ask your configured reviewer to review the smoke-test
-assignment. In Claude Code, use the reviewer sub-agent/skill. In Codex, AGY,
-Cline, RooCode, Aider, or a local model, ask the current orchestrator to apply
-`.ai/agents/reviewer.md` and `.ai/skills/code-review/SKILL.md`. It should
-return `Request changes` because the simulated delegated result omits
-required validation evidence.
+For the reviewer check, the orchestrator invokes the configured reviewer on
+the smoke-test assignment. In Claude Code, it uses the reviewer
+sub-agent/skill. In Codex, AGY, Cline, RooCode, Aider, or a local model, the
+current orchestrator applies `.ai/agents/reviewer.md` and
+`.ai/skills/code-review/SKILL.md`. It should return `Request changes` because
+the simulated delegated result omits required validation evidence.
 
 ## Optional token optimization
 

@@ -62,8 +62,11 @@ Before resuming paused work:
 2. Compare the current branch/base, lockfiles, schema/config files, and touched
    files against the journal assumptions.
 3. Re-run or refresh validation if implementation changed after the last test.
-4. Run `forgeai-init --check-sessions` when more than one session may be active.
-5. Mark `Stale status` as `stale` until assumptions and validation are refreshed.
+4. The orchestrator runs `forgeai-init --check-sessions` when more than one
+   session may be active.
+5. The orchestrator runs `forgeai-init --check-lifecycle` to catch stale active
+   journals and invalid lifecycle metadata.
+6. Mark `Stale status` as `stale` until assumptions and validation are refreshed.
 
 ## 5. Close The Task Deliberately
 
@@ -74,6 +77,8 @@ Before marking `closed`:
 - Validation evidence is present or skipped with a reason.
 - `.ai/MEMORY.md` update decision is explicit.
 - Temporary session rows in `.ai/state/sessions.md` are marked `done` or removed.
+- `forgeai-init --check-lifecycle` passes, or any failure is resolved in the
+  journal before handoff.
 
 Do not close a task just because the implementation is complete. Closure
 requires delivery and memory disposition.

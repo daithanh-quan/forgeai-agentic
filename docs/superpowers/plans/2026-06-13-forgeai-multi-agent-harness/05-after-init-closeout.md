@@ -176,6 +176,8 @@ Observed results:
 - Added the initial agentic lifecycle foundation: `.ai/state/lifecycle.md`,
   `.ai/state/tasks/_template.md`, `.ai/workflows/lifecycle-management.md`,
   and `.ai/workflows/task-types/*.md`.
+- Added `forgeai-init --check-lifecycle` to validate lifecycle files, task
+  journal metadata, stale active work, and closed-task memory decisions.
 
 **Known follow-up outside Phase 1:**
 

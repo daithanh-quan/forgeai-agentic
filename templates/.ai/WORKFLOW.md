@@ -112,8 +112,9 @@ Follow `.ai/MODEL_ROUTING.md` and `.ai/model-routing.yaml`.
 - Score complexity, risk, ambiguity, and context for each subtask.
 - Apply minimum-tier overrides for architecture and sensitive work.
 - Give delegated models bounded assignments and only required context.
-- For parallel work, record each active session in `.ai/state/sessions.md`
-  with read/write scope and run `forgeai-init --check-sessions`.
+- For parallel work, the orchestrator records each active session in
+  `.ai/state/sessions.md` with read/write scope and runs
+  `forgeai-init --check-sessions`.
 - Route by `.ai/model-routing.yaml`. By default, scores `0-2` go to the fast
   tier, scores `3-5` to the standard tier, scores `6-8` to the strong tier,
   and scores `9-10` stay with the current orchestrator.
@@ -170,7 +171,7 @@ git worktree add ../.worktrees/forgeai-check -b feat/forgeai-check main
 Do not push or create a PR/MR until the human connects a remote and
 authenticates the provider CLI. If a remote exists but `gh`, `glab`, `bb`, or
 provider authentication is missing, complete local validation and report the
-exact push and PR/MR command for the human to run after login.
+exact push and PR/MR command for the human to approve or run after login.
 
 Use lowercase kebab-case unless preserving an external issue id such as
 `feat/PROJ-123-agentic-check`. Do not use `agent/...` branch names.

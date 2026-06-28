@@ -106,16 +106,18 @@ the relevant role/skill, and only the context needed to complete it.
 
 ## Prevent session overlap
 
-Before launching parallel delegated work, record each unfinished session in
-`.ai/state/sessions.md` with a narrow write scope and run:
+Before launching parallel delegated work, the orchestrator records each
+unfinished session in `.ai/state/sessions.md` with a narrow write scope and
+runs:
 
 ```bash
 forgeai-init --check-sessions
 ```
 
 Parallel work is allowed only when unfinished sessions have disjoint write
-scopes. If scopes overlap, run those assignments sequentially, narrow the
-write scopes, or ask the human to choose which session owns the shared files.
+scopes. If scopes overlap, the orchestrator runs those assignments
+sequentially, narrows the write scopes, or asks the human to choose which
+session owns the shared files.
 
 ## Delegation loop
 
