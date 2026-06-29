@@ -1,6 +1,6 @@
 {
   "name": "forgeai-agentic-init",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "AI project initialization kit for agentic coding workflows.",
   "type": "module",
   "bin": {
