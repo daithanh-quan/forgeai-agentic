@@ -76,3 +76,23 @@ test('unknown profile fails before writing files', () => {
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+test('check-profile reports an invalid manifest instead of crashing', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-bad-manifest-check-'));
+
+  try {
+    runTs(cli, ['--profile', 'node-api'], { cwd: target });
+    fs.writeFileSync(path.join(target, '.ai', 'manifest.json'), '{ "profile": "node-api", ');
+
+    let output = '';
+    try {
+      output = runTs(cli, ['--check-profile'], { cwd: target });
+    } catch (error) {
+      output = String((error as ExecError).stdout ?? '');
+    }
+
+    assert.match(output, /invalid \.ai\/manifest\.json/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});

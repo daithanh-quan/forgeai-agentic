@@ -78,12 +78,22 @@ for diagnostics.
 
 ```bash
 npx forgeai-agentic-init@latest --check
+npx forgeai-agentic-init@latest --check-all
 npx forgeai-agentic-init@latest --check-updates --check
 npx forgeai-agentic-init@latest --check-lifecycle
 npx forgeai-agentic-init@latest --check-codegraph
+npx forgeai-agentic-init@latest --check-codegraph --strict
 npx forgeai-agentic-init@latest --upgrade
 npx forgeai-agentic-init@latest --list-profiles
 ```
+
+`--check-all` runs the harness, CodeGraph, lifecycle, and profile checks in one
+pass and returns a single aggregated exit code; it runs CodeGraph in strict
+mode, so a still-template graph fails the run. Use it as a readiness gate before
+risky edits. `--check` stays lightweight and only validates harness files and
+adapters. Add `--strict` to `--check-codegraph` to exit non-zero (instead of
+exit 0) while the repository graph still contains template TODOs — useful when
+the graph gates CI or automated edits.
 
 ### Version preflight
 
@@ -116,9 +126,12 @@ npx forgeai-agentic-init@latest --upgrade
 package version and preserves the profile recorded in `.ai/manifest.json`.
 Populated project content and run state are never clobbered on upgrade: if they
 already exist, `.ai/PROJECT.md`, `.ai/MEMORY.md`, `.ai/AGENT_REGISTRY.md`,
-`.ai/codegraph/graph.json`, `.ai/codegraph/hotspots.md`, and everything under
-`.ai/state/` are preserved (reported as `preserved <path>`). Use `--force` to
-overwrite these too.
+`.ai/codegraph/graph.json`, `.ai/codegraph/hotspots.md`, `.ai/state/CURRENT.md`,
+`.ai/state/sessions.md`, and per-task journals (`.ai/state/tasks/*.md` except
+`_template.md`) are preserved (reported as `preserved <path>`). Harness-managed
+state docs still update on upgrade — `.ai/state/lifecycle.md`, the task journal
+template, and the smoke assignments under `.ai/state/assignments/`. Use
+`--force` to overwrite the preserved files too.
 
 ### Optional stack profiles
 

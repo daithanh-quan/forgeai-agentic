@@ -119,3 +119,92 @@ test('codegraph check rejects stale graph metadata', () => {
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+test('codegraph check --strict exits non-zero on a template graph', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-codegraph-strict-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+
+    assert.throws(
+      () => runTs(cli, ['--check-codegraph', '--strict'], { cwd: target }),
+      (error: unknown) => {
+        const stdout = String((error as ExecError).stdout ?? '');
+        assert.match(stdout, /still contains template TODOs/);
+        assert.match(stdout, /Result: CodeGraph installed, but repository graph still needs bootstrap\./);
+        return true;
+      }
+    );
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('codegraph check without --strict stays exit 0 on a template graph', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-codegraph-nonstrict-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const output = runTs(cli, ['--check-codegraph'], { cwd: target });
+
+    assert.match(output, /Result: CodeGraph installed, but repository graph still needs bootstrap\./);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('codegraph check flags a half-filled graph whose summary is still TODO', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-codegraph-half-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.writeFileSync(
+      path.join(target, '.ai', 'codegraph', 'graph.json'),
+      JSON.stringify({
+        schema_version: 1,
+        generated_at: new Date().toISOString().slice(0, 10),
+        source: 'test-fixture',
+        repository: { name: 'fixture', root: '.', profile: 'base' },
+        nodes: [
+          { id: 'cli', path: 'bin/forgeai-init.ts', type: 'module', summary: 'TODO: what this area owns', confidence: 'high' }
+        ],
+        edges: []
+      })
+    );
+
+    let output = '';
+    try {
+      output = runTs(cli, ['--check-codegraph'], { cwd: target });
+    } catch (error) {
+      output = String((error as ExecError).stdout ?? '');
+    }
+
+    assert.match(output, /still contains template TODOs/);
+    assert.doesNotMatch(output, /Result: CodeGraph is usable/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('codegraph check rejects a generated_at date in the future', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-codegraph-future-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    const future = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    writeGraph(target, future);
+
+    assert.throws(
+      () => runTs(cli, ['--check-codegraph'], { cwd: target }),
+      (error: unknown) => {
+        const stdout = String((error as ExecError).stdout ?? '');
+        assert.match(stdout, /future/i);
+        assert.match(stdout, /Result: CodeGraph needs fixes/);
+        return true;
+      }
+    );
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
