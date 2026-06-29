@@ -1,0 +1,88 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import test from 'node:test';
+import { cli, type ExecError, runTs } from './helpers.js';
+
+test('upgrade preserves populated project context and state files', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-preserve-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const projectPath = path.join(target, '.ai', 'PROJECT.md');
+    const memoryPath = path.join(target, '.ai', 'MEMORY.md');
+    const registryPath = path.join(target, '.ai', 'AGENT_REGISTRY.md');
+    const graphPath = path.join(target, '.ai', 'codegraph', 'graph.json');
+    const currentPath = path.join(target, '.ai', 'state', 'CURRENT.md');
+
+    fs.writeFileSync(projectPath, '# Real Project\n\nPopulated by the team.\n');
+    fs.writeFileSync(memoryPath, '# Real Memory\n\nDecision log entry.\n');
+    fs.writeFileSync(registryPath, '# Real Registry\n\nProject agents listed here.\n');
+    fs.writeFileSync(graphPath, JSON.stringify({ schema_version: 1, source: 'real-scan', nodes: [{ id: 'app' }] }));
+    fs.writeFileSync(currentPath, '# Current\n\nActive task notes.\n');
+
+    const output = runTs(cli, ['--upgrade'], { cwd: target });
+
+    assert.match(fs.readFileSync(projectPath, 'utf8'), /Real Project/);
+    assert.match(fs.readFileSync(memoryPath, 'utf8'), /Real Memory/);
+    assert.match(fs.readFileSync(registryPath, 'utf8'), /Real Registry/);
+    assert.match(fs.readFileSync(graphPath, 'utf8'), /real-scan/);
+    assert.match(fs.readFileSync(currentPath, 'utf8'), /Active task notes/);
+    assert.match(output, /preserved \.ai\/PROJECT\.md/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('upgrade still refreshes framework template files', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-refresh-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const agentPath = path.join(target, '.ai', 'agents', 'orchestrator.md');
+    fs.writeFileSync(agentPath, 'STALE LOCAL EDIT\n');
+
+    runTs(cli, ['--upgrade'], { cwd: target });
+
+    assert.doesNotMatch(fs.readFileSync(agentPath, 'utf8'), /STALE LOCAL EDIT/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('auto profile reports invalid package.json instead of crashing', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-invalid-pkg-auto-'));
+
+  try {
+    fs.writeFileSync(path.join(target, 'package.json'), '{ "name": "broken", ');
+
+    const output = runTs(cli, ['--profile', 'auto'], { cwd: target });
+
+    assert.match(output, /invalid package\.json/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-profile reports invalid package.json instead of crashing', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-invalid-pkg-check-'));
+
+  try {
+    runTs(cli, ['--profile', 'node-api'], { cwd: target });
+    fs.writeFileSync(path.join(target, 'package.json'), '{ "name": "broken", ');
+
+    let output = '';
+    try {
+      output = runTs(cli, ['--check-profile'], { cwd: target });
+    } catch (error) {
+      output = String((error as ExecError).stdout ?? '');
+    }
+
+    assert.match(output, /invalid package\.json/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});

@@ -51,10 +51,12 @@ npx forgeai-agentic-init@latest --profile auto
 Pin a version only when you need a reproducible setup:
 
 ```bash
-npx forgeai-agentic-init@2.2.0
+npx forgeai-agentic-init@2.3.0
 ```
 
-`2.2.0` adds orchestrator-run lifecycle diagnostics with
+`2.3.0` adds CodeGraph artifacts and `forgeai-init --check-codegraph` for
+graph-guided context selection in large or legacy repositories. `2.2.0` added
+orchestrator-run lifecycle diagnostics with
 `forgeai-init --check-lifecycle`, so agents can validate task journals, stale
 work, and closed-task memory decisions automatically. `2.1.0` added the Phase
 2 lifecycle foundation: lifecycle state tracking, task journals, task-type
@@ -66,7 +68,7 @@ Optional stack profiles (`nextjs`, `node-api`, `tauri`, `monorepo`,
 `python-api`, and `mobile`), `--profile auto`, `.ai/manifest.json`,
 `--check-profile`, and `--list-profiles` were added in `1.4.0`. npm package
 versions are immutable, so publish this only if
-`forgeai-agentic-init@2.2.0` has not already been published.
+`forgeai-agentic-init@2.3.0` has not already been published.
 
 ### Agent-run diagnostics
 
@@ -78,6 +80,7 @@ for diagnostics.
 npx forgeai-agentic-init@latest --check
 npx forgeai-agentic-init@latest --check-updates --check
 npx forgeai-agentic-init@latest --check-lifecycle
+npx forgeai-agentic-init@latest --check-codegraph
 npx forgeai-agentic-init@latest --upgrade
 npx forgeai-agentic-init@latest --list-profiles
 ```
@@ -109,8 +112,13 @@ When the human chooses to update, the agent runs:
 npx forgeai-agentic-init@latest --upgrade
 ```
 
-`--upgrade` overwrites the installed ForgeAI harness files with the selected
+`--upgrade` refreshes the installed ForgeAI harness files with the selected
 package version and preserves the profile recorded in `.ai/manifest.json`.
+Populated project content and run state are never clobbered on upgrade: if they
+already exist, `.ai/PROJECT.md`, `.ai/MEMORY.md`, `.ai/AGENT_REGISTRY.md`,
+`.ai/codegraph/graph.json`, `.ai/codegraph/hotspots.md`, and everything under
+`.ai/state/` are preserved (reported as `preserved <path>`). Use `--force` to
+overwrite these too.
 
 ### Optional stack profiles
 
@@ -168,6 +176,11 @@ AGENTS.md
   cli-adapters.json
   router/run-model.ts
   WORKFLOW.md
+  codegraph/
+    README.md
+    graph.json
+    hotspots.md
+    context-packs/_template.md
   state/CURRENT.md
   state/lifecycle.md
   state/sessions.md
@@ -177,6 +190,7 @@ AGENTS.md
   workflows/task-intake.md
   workflows/delegated-assignment.md
   workflows/lifecycle-management.md
+  workflows/codegraph-context.md
   workflows/task-types/
     bug.md
     feature.md
@@ -250,6 +264,7 @@ relying on an agent for real tasks:
    forgeai-init --check
    forgeai-init --check-git
    forgeai-init --check-lifecycle
+   forgeai-init --check-codegraph
    ```
 
    If no extra model CLIs are available, the checker reports single-agent
@@ -268,6 +283,9 @@ relying on an agent for real tasks:
    The lifecycle checker validates `.ai/state/lifecycle.md`, task journal
    metadata under `.ai/state/tasks/`, stale active tasks, and closed-task
    memory update decisions.
+
+   The CodeGraph checker validates `.ai/codegraph/` artifacts so agents can
+   refresh stale module maps and build task context packs before risky edits.
 
    Before launching multiple agent sessions in parallel, the orchestrator records
    each session in `.ai/state/sessions.md` with a narrow write scope and runs:
@@ -314,6 +332,8 @@ different tools without duplicating instructions:
   `.ai/WORKFLOW.md` — shared context and rules for any agent.
 - `.ai/AGENT_REGISTRY.md` + `.ai/agents/*.md` — shared agent-role
   definitions and model routing.
+- `.ai/codegraph/*` — shared module map, hotspots, and task context packs for
+  graph-guided context selection.
 - `.ai/skills/*` — shared, model-agnostic task guidance.
 - `.claude/skills/*` — Claude Code-specific skill entry points that point
   back to `.ai/skills/*` for the full content.

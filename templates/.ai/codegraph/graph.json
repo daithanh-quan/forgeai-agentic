@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "generated_at": "TODO",
+  "source": "TODO: bootstrap, manual-audit, static-analysis, or agent-refresh",
+  "repository": {
+    "name": "TODO",
+    "root": ".",
+    "profile": "TODO"
+  },
+  "nodes": [
+    {
+      "id": "TODO-module-id",
+      "path": "TODO/path-or-glob",
+      "type": "module",
+      "summary": "TODO: what this area owns",
+      "owners": [],
+      "entrypoints": [],
+      "public_contracts": [],
+      "dependencies": [],
+      "dependents": [],
+      "tags": [],
+      "confidence": "low"
+    }
+  ],
+  "edges": [
+    {
+      "from": "TODO-module-id",
+      "to": "TODO-other-module-id",
+      "kind": "depends_on",
+      "summary": "TODO: why the relationship matters",
+      "confidence": "low"
+    }
+  ]
+}

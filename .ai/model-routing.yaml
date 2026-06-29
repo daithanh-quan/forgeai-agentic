@@ -1,0 +1,138 @@
+version: 1
+enabled: true
+
+orchestrator:
+  role: orchestrator
+  mode: current_model_by_default
+  provider: current
+  model: current
+  responsibilities:
+    - score tasks
+    - split work into bounded subtasks
+    - coordinate active session scopes before parallel work
+    - approve architecture and security decisions
+    - request configured reviewer checks for delegated outputs
+    - deliver the final response
+  notes:
+    - The orchestrator is the model currently operating in the user's tool unless the human explicitly chooses another model.
+    - Claude, Codex, AGY, Aider, local models, or a custom agent can all be the orchestrator when they can read this harness.
+    - Do not block orchestration just because a specific provider CLI is unavailable.
+
+reviewer:
+  provider: current
+  model: current
+  role: reviewer
+  responsibilities:
+    - review every delegated implementation before final delivery
+    - return failed work to the implementing model with concrete findings
+    - approve only when acceptance criteria and validation evidence are met
+  notes:
+    - Replace provider/model with a dedicated reviewer if your environment exposes one.
+    - If no dedicated reviewer is available, the orchestrator performs the reviewer checklist locally using .ai/skills/code-review/SKILL.md.
+
+# Replace provider/model values with models available in your tools.
+tiers:
+  fast:
+    provider: agy
+    model: "Gemini 3.5 Flash (Low)"
+    score_range: [0, 2]
+    token_budget: 4000
+    use_for:
+      - repository search
+      - documentation cleanup
+      - formatting
+      - simple test generation
+
+  standard:
+    provider: codex
+    model: gpt-5.5
+    score_range: [3, 5]
+    token_budget: 8000
+    use_for:
+      - localized bug fixes
+      - small UI changes
+      - API wiring
+      - focused test implementation
+
+  strong:
+    provider: codex
+    model: gpt-5.5
+    score_range: [6, 8]
+    token_budget: 16000
+    use_for:
+      - multi-file implementation
+      - complex debugging
+      - contract changes
+      - code review
+
+  lead:
+    provider: current
+    model: current
+    score_range: [9, 10]
+    token_budget: 24000
+    route_behavior: keep_with_orchestrator
+    use_for:
+      - task decomposition
+      - architecture
+      - security-sensitive work
+      - final review and synthesis
+
+scoring:
+  complexity:
+    range: [0, 3]
+    guidance:
+      0: mechanical or single obvious edit
+      1: localized change using existing patterns
+      2: multi-file logic or non-trivial debugging
+      3: architecture, concurrency, or cross-system behavior
+
+  risk:
+    range: [0, 3]
+    guidance:
+      0: docs, formatting, or isolated tests
+      1: reversible product behavior
+      2: public API, persistent data, or broad regression risk
+      3: auth, security, payments, destructive actions, or production infra
+
+  ambiguity:
+    range: [0, 2]
+    guidance:
+      0: explicit requirement and acceptance criteria
+      1: assumptions needed but bounded
+      2: unclear behavior or conflicting requirements
+
+  context:
+    range: [0, 2]
+    guidance:
+      0: one or two known files
+      1: several files in one subsystem
+      2: broad repository or multiple systems
+
+rules:
+  minimum_tier:
+    architecture: lead
+    auth_or_security: lead
+    payments: lead
+    destructive_migration: lead
+    public_api_change: strong
+    final_review: lead
+  delegate_only_bounded_tasks: true
+  require_acceptance_criteria: true
+  require_validation_command: true
+  send_only_required_context: true
+  parallelize_only_independent_tasks: true
+  require_session_scope_for_parallel_work: true
+  reject_overlapping_write_scopes: true
+  configured_reviewer_must_review_outputs: true
+  return_failed_review_to_implementing_model: true
+
+fallback:
+  unavailable_model: current_model_executes_locally
+  delegation_not_supported: current_model_executes_locally
+  failed_validation: retry_implementing_model_once_then_current_model
+  failed_review: retry_implementing_model_once_then_current_model
+
+# CLI connection details are intentionally separate from routing policy.
+# Configure executable commands in .ai/cli-adapters.json and use
+# .ai/router/run-model.ts to invoke a selected tier when your environment
+# supports delegation through local CLIs.
