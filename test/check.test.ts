@@ -173,3 +173,44 @@ test('check reports multi-agent mode when multiple adapter CLIs are available', 
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+test('check-all runs harness, codegraph, lifecycle, and profile checks', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-check-all-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+
+    let output = '';
+    try {
+      output = runTs(cli, ['--check-all'], { cwd: target, env: { ...process.env, PATH: '' } });
+    } catch (error) {
+      output = String((error as ExecError).stdout ?? '');
+    }
+
+    assert.match(output, /ForgeAI harness check/);
+    assert.match(output, /ForgeAI CodeGraph check/);
+    assert.match(output, /ForgeAI lifecycle check/);
+    assert.match(output, /ForgeAI profile check/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-all exits non-zero while the CodeGraph is still a template', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-check-all-fail-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+
+    assert.throws(
+      () => runTs(cli, ['--check-all'], { cwd: target, env: { ...process.env, PATH: '' } }),
+      (error: unknown) => {
+        const stdout = String((error as ExecError).stdout ?? '');
+        assert.match(stdout, /still contains template TODOs/);
+        return true;
+      }
+    );
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});

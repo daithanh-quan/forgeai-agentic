@@ -99,6 +99,8 @@ const checkSessions = args.has('--check-sessions');
 const checkLifecycle = args.has('--check-lifecycle');
 const checkCodeGraph = args.has('--check-codegraph');
 const checkProfile = args.has('--check-profile');
+const checkAll = args.has('--check-all');
+const strict = args.has('--strict');
 const listProfiles = args.has('--list-profiles');
 const checkUpdates = args.has('--check-updates');
 const skipUpdateCheck = args.has('--skip-update-check') || process.env.FORGEAI_SKIP_UPDATE_CHECK === '1';
@@ -300,17 +302,41 @@ function fileExists(relativePath: string): boolean {
   return fs.existsSync(path.join(root, relativePath));
 }
 
-function detectProjectProfile(): string | null {
+// Returns every stack the project signals, in selection-priority order. The
+// first entry is what `--profile auto` installs; later entries let us warn when
+// e.g. a monorepo also carries Next.js or API signals.
+function detectProjectStacks(): string[] {
   const packageJson = getProjectPackageJson();
+  const stacks: string[] = [];
 
-  if (fileExists('src-tauri') || fileExists('tauri.conf.json') || fileExists('tauri.conf.json5')) return 'tauri';
-  if (fileExists('pnpm-workspace.yaml') || fileExists('turbo.json') || fileExists('nx.json') || fileExists('lerna.json') || packageJson?.workspaces) return 'monorepo';
-  if (hasDependency(packageJson, ['next']) || fileExists('next.config.js') || fileExists('next.config.mjs') || fileExists('next.config.ts')) return 'nextjs';
-  if (hasDependency(packageJson, ['express', 'fastify', '@nestjs/core', 'hono', 'koa'])) return 'node-api';
-  if (fileExists('pyproject.toml') || fileExists('requirements.txt') || fileExists('uv.lock') || fileExists('poetry.lock') || fileExists('Pipfile')) return 'python-api';
-  if (hasDependency(packageJson, ['react-native', 'expo']) || fileExists('pubspec.yaml') || fileExists('ios') || fileExists('android')) return 'mobile';
+  if (fileExists('src-tauri') || fileExists('tauri.conf.json') || fileExists('tauri.conf.json5')) stacks.push('tauri');
+  if (fileExists('pnpm-workspace.yaml') || fileExists('turbo.json') || fileExists('nx.json') || fileExists('lerna.json') || packageJson?.workspaces) stacks.push('monorepo');
+  if (hasDependency(packageJson, ['next']) || fileExists('next.config.js') || fileExists('next.config.mjs') || fileExists('next.config.ts')) stacks.push('nextjs');
+  if (hasDependency(packageJson, ['express', 'fastify', '@nestjs/core', 'hono', 'koa'])) stacks.push('node-api');
+  if (fileExists('pyproject.toml') || fileExists('requirements.txt') || fileExists('uv.lock') || fileExists('poetry.lock') || fileExists('Pipfile')) stacks.push('python-api');
+  if (hasDependency(packageJson, ['react-native', 'expo']) || fileExists('pubspec.yaml') || fileExists('ios') || fileExists('android')) stacks.push('mobile');
 
-  return null;
+  return stacks;
+}
+
+function detectProjectProfile(): string | null {
+  return detectProjectStacks()[0] ?? null;
+}
+
+function detectMonorepoSecondaryStack(): string | null {
+  const stacks = detectProjectStacks();
+  if (stacks[0] !== 'monorepo') return null;
+  return stacks.find((stack) => stack !== 'monorepo') ?? null;
+}
+
+// The monorepo profile is intentionally generic; if the repo also signals a
+// concrete stack (Next.js, an API framework, etc.) the stack-specific workflow
+// is not bundled, so surface that instead of silently dropping it.
+function warnMonorepoSecondaryStack(installedProfile: string): void {
+  if (installedProfile !== 'monorepo') return;
+  const secondary = detectMonorepoSecondaryStack();
+  if (!secondary) return;
+  console.log(`note: detected monorepo + ${secondary}; the monorepo profile does not bundle ${secondary}-specific workflow`);
 }
 
 function resolveProfile(profile: string): { status: 'ok' | 'none' | 'invalid' | 'unknown'; profile: string; detail: string } {
@@ -367,7 +393,14 @@ function writeManifest(profile: string): void {
 }
 
 function readManifest(): HarnessManifest | null {
-  return readJsonFileIfPresent<HarnessManifest>(path.join(root, '.ai', 'manifest.json'));
+  const manifestPath = path.join(root, '.ai', 'manifest.json');
+  if (!fs.existsSync(manifestPath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as HarnessManifest;
+  } catch (error) {
+    console.log(`invalid .ai/manifest.json: ${getErrorMessage(error)} (treating as no manifest)`);
+    return null;
+  }
 }
 
 function usage(): string {
@@ -379,8 +412,9 @@ function usage(): string {
   forgeai-init --check-git
   forgeai-init --check-sessions
   forgeai-init --check-lifecycle
-  forgeai-init --check-codegraph
+  forgeai-init --check-codegraph [--strict]
   forgeai-init --check-profile
+  forgeai-init --check-all
   forgeai-init --list-profiles
   forgeai-init --version
   forgeai-init --help
@@ -400,8 +434,11 @@ Options:
                 Validate lifecycle state files and task journals.
   --check-codegraph
                 Validate CodeGraph artifacts for graph-guided context selection.
+                Add --strict to exit non-zero when the graph is still a template.
   --check-profile
                 Validate the installed profile against detected project signals.
+  --check-all   Run the harness, CodeGraph (strict), lifecycle, and profile
+                checks together and return one aggregated exit code.
   --skip-update-check
                 Skip the npm latest-version preflight check.
   --list-profiles
@@ -511,7 +548,18 @@ function cleanTableCell(value: string | undefined): string {
   return (value ?? '')
     .trim()
     .replace(/^`|`$/g, '')
+    .replace(/\\\|/g, '|')
     .trim();
+}
+
+// Splits a markdown table row into cells, honoring `\|` as an escaped literal
+// pipe rather than a column delimiter so scopes/paths/notes containing pipes do
+// not silently shift later columns (which would hide real write-scope overlap).
+function splitTableRow(line: string): string[] {
+  return line
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split(/(?<!\\)\|/);
 }
 
 function parseScopeList(value: string): string[] {
@@ -565,10 +613,7 @@ function parseSessionTable(content: string): AgentSession[] {
     if (!inActiveSessions || !line.startsWith('|')) continue;
     if (/^\|\s*-+/.test(line) || /\|\s*ID\s*\|/i.test(line)) continue;
 
-    const cells = line
-      .slice(1, line.endsWith('|') ? -1 : undefined)
-      .split('|')
-      .map((cell) => cell.trim());
+    const cells = splitTableRow(line).map((cell) => cell.trim());
 
     if (cells.length < 9) continue;
 
@@ -818,14 +863,21 @@ function isTodoValue(value: unknown): boolean {
 }
 
 function isTemplateCodeGraph(graph: CodeGraph): boolean {
-  return isTodoValue(graph.generated_at) || isTodoValue(graph.source) || graph.nodes?.some((node) => isTodoValue(node.id) || isTodoValue(node.path)) === true;
+  if (isTodoValue(graph.generated_at) || isTodoValue(graph.source)) return true;
+  const nodeHasTodo = graph.nodes?.some(
+    (node) => isTodoValue(node.id) || isTodoValue(node.path) || isTodoValue(node.type) || isTodoValue(node.summary)
+  );
+  const edgeHasTodo = graph.edges?.some(
+    (edge) => isTodoValue(edge.from) || isTodoValue(edge.to) || isTodoValue(edge.kind) || isTodoValue(edge.summary)
+  );
+  return nodeHasTodo === true || edgeHasTodo === true;
 }
 
 function isValidConfidence(value: string | undefined): boolean {
   return value === 'high' || value === 'medium' || value === 'low';
 }
 
-function runCheckCodeGraph(): void {
+function runCheckCodeGraph(options: { strict?: boolean } = {}): void {
   console.log('ForgeAI CodeGraph check');
   console.log('');
 
@@ -871,6 +923,7 @@ function runCheckCodeGraph(): void {
     console.log(formatStatus('next', 'populate graph.json before using CodeGraph for risky edits'));
     console.log('');
     console.log('Result: CodeGraph installed, but repository graph still needs bootstrap.');
+    if (options.strict) process.exitCode = 1;
     return;
   }
 
@@ -887,9 +940,14 @@ function runCheckCodeGraph(): void {
     console.log(formatStatus('invalid', `generated_at must be YYYY-MM-DD, got ${graph.generated_at ?? 'missing'}`));
   } else {
     const ageDays = daysSince(generatedAt);
-    const status = ageDays > 30 ? 'stale' : 'ok';
-    if (ageDays > 30) failures += 1;
-    console.log(formatStatus(status, `generated_at: ${graph.generated_at} (${ageDays} days old)`));
+    if (ageDays < 0) {
+      failures += 1;
+      console.log(formatStatus('invalid', `generated_at is in the future: ${graph.generated_at}`));
+    } else {
+      const status = ageDays > 30 ? 'stale' : 'ok';
+      if (ageDays > 30) failures += 1;
+      console.log(formatStatus(status, `generated_at: ${graph.generated_at} (${ageDays} days old)`));
+    }
   }
 
   if (!graph.source) {
@@ -1251,6 +1309,7 @@ function runCheckProfile(): void {
   console.log(formatStatus(manifest ? 'ok' : 'missing', manifest ? `.ai/manifest.json profile: ${installedProfile}` : '.ai/manifest.json'));
   console.log(formatStatus(detectedProfile ? 'detected' : 'unknown', detectedProfile ?? 'no supported stack profile detected'));
   console.log(formatStatus('available', availableProfiles.join(', ') || 'none'));
+  warnMonorepoSecondaryStack(installedProfile);
 
   if (!manifest) {
     console.log('');
@@ -1300,6 +1359,27 @@ function runCheckProfile(): void {
   console.log('Result: profile installed and consistent.');
 }
 
+// Aggregates the harness, CodeGraph, lifecycle, and profile checks into one
+// pass so an agent or CI step gets a single readiness verdict. CodeGraph is run
+// in strict mode here: a still-template graph means the harness is not ready.
+// Each underlying check only sets process.exitCode on failure (never resets it
+// to 0), so the aggregated exit code reflects any sub-check failure.
+function runCheckAll(): void {
+  const separator = () => {
+    console.log('');
+    console.log('----------------------------------------');
+    console.log('');
+  };
+
+  runCheck();
+  separator();
+  runCheckCodeGraph({ strict: true });
+  separator();
+  runCheckLifecycle();
+  separator();
+  runCheckProfile();
+}
+
 // Files/dirs that hold project- or run-specific content populated by the
 // agent or human. On --upgrade they are preserved if they already exist so an
 // upgrade never clobbers a populated CodeGraph, project context, or run state.
@@ -1308,14 +1388,21 @@ const PRESERVE_ON_UPGRADE_FILES = new Set([
   '.ai/MEMORY.md',
   '.ai/AGENT_REGISTRY.md',
   '.ai/codegraph/graph.json',
-  '.ai/codegraph/hotspots.md'
+  '.ai/codegraph/hotspots.md',
+  '.ai/state/CURRENT.md',
+  '.ai/state/sessions.md'
 ]);
-const PRESERVE_ON_UPGRADE_DIRS = ['.ai/state'];
 
+// Run state populated by agent/human is preserved; harness-managed templates and
+// reference docs under .ai/state (lifecycle.md, the task journal template, smoke
+// assignments) keep updating on upgrade. Real per-task journals are run state.
 function isPreservedOnUpgrade(dest: string): boolean {
   const relative = path.relative(root, dest).split(path.sep).join('/');
   if (PRESERVE_ON_UPGRADE_FILES.has(relative)) return true;
-  return PRESERVE_ON_UPGRADE_DIRS.some((dir) => relative === dir || relative.startsWith(`${dir}/`));
+  if (/^\.ai\/state\/tasks\/.+\.md$/.test(relative) && relative !== '.ai/state/tasks/_template.md') {
+    return true;
+  }
+  return false;
 }
 
 function copyRecursive(src: string, dest: string): void {
@@ -1326,7 +1413,7 @@ function copyRecursive(src: string, dest: string): void {
     return;
   }
   if (fs.existsSync(dest)) {
-    if (upgrade && isPreservedOnUpgrade(dest)) {
+    if (upgrade && !force && isPreservedOnUpgrade(dest)) {
       console.log(`preserved ${path.relative(root, dest)}`);
       return;
     }
@@ -1351,8 +1438,9 @@ else if (listProfiles) console.log(['base', ...getAvailableProfiles()].join('\n'
 else if (checkGit) runCheckGit();
 else if (checkSessions) runCheckSessions();
 else if (checkLifecycle) runCheckLifecycle();
-else if (checkCodeGraph) runCheckCodeGraph();
+else if (checkCodeGraph) runCheckCodeGraph({ strict });
 else if (checkProfile) runCheckProfile();
+else if (checkAll) runCheckAll();
 else if (check) runCheck();
 else if (checkUpdates) console.log('Update check complete.');
 else {
@@ -1369,6 +1457,7 @@ else {
       console.log(`profile auto skipped: ${profile.detail}`);
     }
     writeManifest(profile.profile);
+    warnMonorepoSecondaryStack(profile.profile);
     console.log(dryRun ? 'Dry run complete.' : 'ForgeAI agentic markdown kit initialized.');
   }
 }

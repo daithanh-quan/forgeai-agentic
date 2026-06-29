@@ -53,6 +53,68 @@ test('upgrade still refreshes framework template files', () => {
   }
 });
 
+test('upgrade --force overwrites preserved files too', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-force-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const projectPath = path.join(target, '.ai', 'PROJECT.md');
+    fs.writeFileSync(projectPath, '# Real Project\n');
+
+    runTs(cli, ['--upgrade', '--force'], { cwd: target });
+
+    assert.doesNotMatch(fs.readFileSync(projectPath, 'utf8'), /Real Project/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('upgrade refreshes harness-managed state templates but keeps run state', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-state-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const lifecyclePath = path.join(target, '.ai', 'state', 'lifecycle.md');
+    const taskTemplatePath = path.join(target, '.ai', 'state', 'tasks', '_template.md');
+    const assignmentPath = path.join(target, '.ai', 'state', 'assignments', 'TASK-CODEX-TEST.md');
+    const currentPath = path.join(target, '.ai', 'state', 'CURRENT.md');
+    const sessionsPath = path.join(target, '.ai', 'state', 'sessions.md');
+
+    fs.writeFileSync(lifecyclePath, 'STALE LIFECYCLE\n');
+    fs.writeFileSync(taskTemplatePath, 'STALE TEMPLATE\n');
+    fs.writeFileSync(assignmentPath, 'STALE ASSIGNMENT\n');
+    fs.writeFileSync(currentPath, '# Current\n\nActive task notes.\n');
+    fs.writeFileSync(sessionsPath, '# Sessions\n\nMy real session row.\n');
+
+    runTs(cli, ['--upgrade'], { cwd: target });
+
+    assert.doesNotMatch(fs.readFileSync(lifecyclePath, 'utf8'), /STALE LIFECYCLE/);
+    assert.doesNotMatch(fs.readFileSync(taskTemplatePath, 'utf8'), /STALE TEMPLATE/);
+    assert.doesNotMatch(fs.readFileSync(assignmentPath, 'utf8'), /STALE ASSIGNMENT/);
+    assert.match(fs.readFileSync(currentPath, 'utf8'), /Active task notes/);
+    assert.match(fs.readFileSync(sessionsPath, 'utf8'), /My real session row/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('upgrade survives an invalid manifest instead of crashing', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-bad-manifest-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.writeFileSync(path.join(target, '.ai', 'manifest.json'), '{ "profile": "base", ');
+
+    const output = runTs(cli, ['--upgrade'], { cwd: target });
+
+    assert.match(output, /invalid \.ai\/manifest\.json/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('auto profile reports invalid package.json instead of crashing', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-invalid-pkg-auto-'));
 

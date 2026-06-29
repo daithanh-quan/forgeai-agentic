@@ -67,3 +67,38 @@ test('session check rejects overlapping active write scopes', () => {
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+test('session check parses write scopes correctly despite escaped pipes', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-session-escape-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+
+    fs.writeFileSync(
+      path.join(target, '.ai', 'state', 'sessions.md'),
+      [
+        '# Agent Sessions',
+        '',
+        '## Active Sessions',
+        '',
+        '| ID | Owner | Task | Branch | Status | Started | Read scope | Write scope | Notes |',
+        '| --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+        '| s1 | alice | refactor | feat/x | active | 2026-06-01 | - | src/app | - |',
+        '| s2 | bob | fix a \\| b | feat/y | active | 2026-06-02 | - | src/app | - |',
+        ''
+      ].join('\n')
+    );
+
+    assert.throws(
+      () => runTs(cli, ['--check-sessions'], { cwd: target }),
+      (error: unknown) => {
+        const stdout = String((error as ExecError).stdout ?? '');
+        assert.match(stdout, /overlap/);
+        assert.match(stdout, /Result: active sessions need coordination/);
+        return true;
+      }
+    );
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
