@@ -17,6 +17,10 @@ test('check validates a freshly initialized harness', () => {
     });
 
     assert.match(output, /ok\s+\.ai\/skills\/frontend-implementation\/SKILL\.md/);
+    assert.match(output, /ok\s+\.ai\/codegraph\/README\.md/);
+    assert.match(output, /ok\s+\.ai\/codegraph\/graph\.json/);
+    assert.match(output, /ok\s+\.ai\/codegraph\/hotspots\.md/);
+    assert.match(output, /ok\s+\.ai\/workflows\/codegraph-context\.md/);
     assert.match(output, /ok\s+\.ai\/state\/lifecycle\.md/);
     assert.match(output, /ok\s+\.ai\/state\/tasks\/_template\.md/);
     assert.match(output, /ok\s+\.ai\/workflows\/lifecycle-management\.md/);
@@ -54,13 +58,13 @@ test('check suggests updating when installed harness is behind latest version', 
 
     const output = runTs(cli, ['--check'], {
       cwd: target,
-      env: { ...process.env, PATH: '', FORGEAI_TEST_LATEST_VERSION: '2.2.0' }
+      env: { ...process.env, PATH: '', FORGEAI_TEST_LATEST_VERSION: '2.3.0' }
     });
 
     assert.match(output, /ForgeAI update check/);
     assert.match(output, /outdated\s+installed harness: 1\.3\.0/);
-    assert.match(output, /ok\s+current CLI: 2\.2\.0/);
-    assert.match(output, /latest\s+forgeai-agentic-init@2\.2\.0/);
+    assert.match(output, /ok\s+current CLI: 2\.3\.0/);
+    assert.match(output, /latest\s+forgeai-agentic-init@2\.3\.0/);
     assert.match(output, /Recommendation: ask the human to run npx forgeai-agentic-init@latest --upgrade/);
     assert.match(output, /ForgeAI harness check/);
   } finally {
@@ -90,7 +94,7 @@ test('skip-update-check suppresses version preflight', () => {
 
     const output = runTs(cli, ['--check', '--skip-update-check'], {
       cwd: target,
-      env: { ...process.env, PATH: '', FORGEAI_TEST_LATEST_VERSION: '2.2.0' }
+      env: { ...process.env, PATH: '', FORGEAI_TEST_LATEST_VERSION: '2.3.0' }
     });
 
     assert.doesNotMatch(output, /ForgeAI update check/);

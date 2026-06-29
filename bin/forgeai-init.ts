@@ -43,6 +43,35 @@ type TaskJournal = {
   noMemoryUpdateChecked: boolean;
 };
 
+type CodeGraphNode = {
+  id?: string;
+  path?: string;
+  type?: string;
+  summary?: string;
+  confidence?: string;
+};
+
+type CodeGraphEdge = {
+  from?: string;
+  to?: string;
+  kind?: string;
+  summary?: string;
+  confidence?: string;
+};
+
+type CodeGraph = {
+  schema_version?: number;
+  generated_at?: string;
+  source?: string;
+  repository?: {
+    name?: string;
+    root?: string;
+    profile?: string;
+  };
+  nodes?: CodeGraphNode[];
+  edges?: CodeGraphEdge[];
+};
+
 type PackageJson = {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
@@ -68,6 +97,7 @@ const check = args.has('--check');
 const checkGit = args.has('--check-git');
 const checkSessions = args.has('--check-sessions');
 const checkLifecycle = args.has('--check-lifecycle');
+const checkCodeGraph = args.has('--check-codegraph');
 const checkProfile = args.has('--check-profile');
 const listProfiles = args.has('--list-profiles');
 const checkUpdates = args.has('--check-updates');
@@ -247,7 +277,14 @@ function normalizeProfile(profile: string): string {
 }
 
 function getProjectPackageJson(): PackageJson | null {
-  return readJsonIfPresent<PackageJson>('package.json');
+  const absolutePath = path.join(root, 'package.json');
+  if (!fs.existsSync(absolutePath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(absolutePath, 'utf8')) as PackageJson;
+  } catch (error) {
+    console.log(`invalid package.json: ${getErrorMessage(error)} (profile detection skipped)`);
+    return null;
+  }
 }
 
 function hasDependency(packageJson: PackageJson | null, names: string[]): boolean {
@@ -342,6 +379,7 @@ function usage(): string {
   forgeai-init --check-git
   forgeai-init --check-sessions
   forgeai-init --check-lifecycle
+  forgeai-init --check-codegraph
   forgeai-init --check-profile
   forgeai-init --list-profiles
   forgeai-init --version
@@ -360,6 +398,8 @@ Options:
                 Validate active agent sessions for overlapping write scopes.
   --check-lifecycle
                 Validate lifecycle state files and task journals.
+  --check-codegraph
+                Validate CodeGraph artifacts for graph-guided context selection.
   --check-profile
                 Validate the installed profile against detected project signals.
   --skip-update-check
@@ -773,6 +813,173 @@ function runCheckLifecycle(): void {
   console.log('Result: lifecycle state is usable.');
 }
 
+function isTodoValue(value: unknown): boolean {
+  return typeof value === 'string' && /\bTODO\b/i.test(value);
+}
+
+function isTemplateCodeGraph(graph: CodeGraph): boolean {
+  return isTodoValue(graph.generated_at) || isTodoValue(graph.source) || graph.nodes?.some((node) => isTodoValue(node.id) || isTodoValue(node.path)) === true;
+}
+
+function isValidConfidence(value: string | undefined): boolean {
+  return value === 'high' || value === 'medium' || value === 'low';
+}
+
+function runCheckCodeGraph(): void {
+  console.log('ForgeAI CodeGraph check');
+  console.log('');
+
+  const requiredCodeGraphFiles = [
+    '.ai/codegraph/README.md',
+    '.ai/codegraph/graph.json',
+    '.ai/codegraph/hotspots.md',
+    '.ai/codegraph/context-packs/_template.md',
+    '.ai/workflows/codegraph-context.md'
+  ];
+  let failures = 0;
+
+  for (const relativePath of requiredCodeGraphFiles) {
+    const exists = fs.existsSync(path.join(root, relativePath));
+    if (!exists) failures += 1;
+    console.log(formatStatus(exists ? 'ok' : 'missing', relativePath));
+  }
+
+  const graphPath = path.join(root, '.ai', 'codegraph', 'graph.json');
+  if (!fs.existsSync(graphPath)) {
+    console.log('');
+    console.log('Result: CodeGraph artifacts are incomplete. Run forgeai-init --upgrade to install them.');
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log('');
+  console.log('Graph metadata');
+
+  let graph: CodeGraph;
+  try {
+    graph = JSON.parse(fs.readFileSync(graphPath, 'utf8')) as CodeGraph;
+  } catch (error) {
+    console.log(formatStatus('invalid', `.ai/codegraph/graph.json (${getErrorMessage(error)})`));
+    console.log('');
+    console.log('Result: CodeGraph JSON is invalid.');
+    process.exitCode = 1;
+    return;
+  }
+
+  if (isTemplateCodeGraph(graph)) {
+    console.log(formatStatus('needs bootstrap', '.ai/codegraph/graph.json still contains template TODOs'));
+    console.log(formatStatus('next', 'populate graph.json before using CodeGraph for risky edits'));
+    console.log('');
+    console.log('Result: CodeGraph installed, but repository graph still needs bootstrap.');
+    return;
+  }
+
+  if (graph.schema_version !== 1) {
+    failures += 1;
+    console.log(formatStatus('invalid', `schema_version must be 1, got ${graph.schema_version ?? 'missing'}`));
+  } else {
+    console.log(formatStatus('ok', 'schema_version: 1'));
+  }
+
+  const generatedAt = parseDateOnly(graph.generated_at ?? '');
+  if (!generatedAt) {
+    failures += 1;
+    console.log(formatStatus('invalid', `generated_at must be YYYY-MM-DD, got ${graph.generated_at ?? 'missing'}`));
+  } else {
+    const ageDays = daysSince(generatedAt);
+    const status = ageDays > 30 ? 'stale' : 'ok';
+    if (ageDays > 30) failures += 1;
+    console.log(formatStatus(status, `generated_at: ${graph.generated_at} (${ageDays} days old)`));
+  }
+
+  if (!graph.source) {
+    failures += 1;
+    console.log(formatStatus('invalid', 'source is required'));
+  } else {
+    console.log(formatStatus('ok', `source: ${graph.source}`));
+  }
+
+  const nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+  const edges = Array.isArray(graph.edges) ? graph.edges : [];
+  if (!Array.isArray(graph.nodes) || nodes.length === 0) {
+    failures += 1;
+    console.log(formatStatus('invalid', 'nodes must contain at least one module'));
+  } else {
+    console.log(formatStatus('ok', `${nodes.length} graph node${nodes.length === 1 ? '' : 's'}`));
+  }
+
+  if (!Array.isArray(graph.edges)) {
+    failures += 1;
+    console.log(formatStatus('invalid', 'edges must be an array'));
+  } else {
+    console.log(formatStatus('ok', `${edges.length} graph edge${edges.length === 1 ? '' : 's'}`));
+  }
+
+  const nodeIds = new Set<string>();
+  for (const [index, node] of nodes.entries()) {
+    const label = node.id || `node[${index}]`;
+    let nodeFailures = 0;
+
+    if (!node.id) {
+      nodeFailures += 1;
+      console.log(formatStatus('invalid', `node[${index}] missing id`));
+    } else if (nodeIds.has(node.id)) {
+      nodeFailures += 1;
+      console.log(formatStatus('invalid', `${node.id} is duplicated`));
+    } else {
+      nodeIds.add(node.id);
+    }
+
+    if (!node.path) {
+      nodeFailures += 1;
+      console.log(formatStatus('invalid', `${label} missing path`));
+    }
+    if (!node.summary) {
+      nodeFailures += 1;
+      console.log(formatStatus('invalid', `${label} missing summary`));
+    }
+    if (!isValidConfidence(node.confidence)) {
+      nodeFailures += 1;
+      console.log(formatStatus('invalid', `${label} confidence must be high, medium, or low`));
+    }
+
+    failures += nodeFailures;
+  }
+
+  for (const [index, edge] of edges.entries()) {
+    const label = `edge[${index}]`;
+    let edgeFailures = 0;
+
+    if (!edge.from || !nodeIds.has(edge.from)) {
+      edgeFailures += 1;
+      console.log(formatStatus('invalid', `${label} references missing from node: ${edge.from ?? 'missing'}`));
+    }
+    if (!edge.to || !nodeIds.has(edge.to)) {
+      edgeFailures += 1;
+      console.log(formatStatus('invalid', `${label} references missing to node: ${edge.to ?? 'missing'}`));
+    }
+    if (!edge.kind) {
+      edgeFailures += 1;
+      console.log(formatStatus('invalid', `${label} missing kind`));
+    }
+    if (!isValidConfidence(edge.confidence)) {
+      edgeFailures += 1;
+      console.log(formatStatus('invalid', `${label} confidence must be high, medium, or low`));
+    }
+
+    failures += edgeFailures;
+  }
+
+  console.log('');
+  if (failures > 0) {
+    console.log('Result: CodeGraph needs fixes before graph-guided context selection is reliable.');
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log('Result: CodeGraph is usable for graph-guided context selection.');
+}
+
 function detectProvider(remoteUrl: string | null): string {
   if (!remoteUrl) return 'none';
   if (/github\.com[:/]/i.test(remoteUrl)) return 'github';
@@ -1093,6 +1300,24 @@ function runCheckProfile(): void {
   console.log('Result: profile installed and consistent.');
 }
 
+// Files/dirs that hold project- or run-specific content populated by the
+// agent or human. On --upgrade they are preserved if they already exist so an
+// upgrade never clobbers a populated CodeGraph, project context, or run state.
+const PRESERVE_ON_UPGRADE_FILES = new Set([
+  '.ai/PROJECT.md',
+  '.ai/MEMORY.md',
+  '.ai/AGENT_REGISTRY.md',
+  '.ai/codegraph/graph.json',
+  '.ai/codegraph/hotspots.md'
+]);
+const PRESERVE_ON_UPGRADE_DIRS = ['.ai/state'];
+
+function isPreservedOnUpgrade(dest: string): boolean {
+  const relative = path.relative(root, dest).split(path.sep).join('/');
+  if (PRESERVE_ON_UPGRADE_FILES.has(relative)) return true;
+  return PRESERVE_ON_UPGRADE_DIRS.some((dir) => relative === dir || relative.startsWith(`${dir}/`));
+}
+
 function copyRecursive(src: string, dest: string): void {
   const stat = fs.statSync(src);
   if (stat.isDirectory()) {
@@ -1100,9 +1325,15 @@ function copyRecursive(src: string, dest: string): void {
     for (const item of fs.readdirSync(src)) copyRecursive(path.join(src, item), path.join(dest, item));
     return;
   }
-  if (fs.existsSync(dest) && !force && !upgrade) {
-    console.log(`skip ${path.relative(root, dest)} already exists. Use --force or --upgrade to overwrite.`);
-    return;
+  if (fs.existsSync(dest)) {
+    if (upgrade && isPreservedOnUpgrade(dest)) {
+      console.log(`preserved ${path.relative(root, dest)}`);
+      return;
+    }
+    if (!force && !upgrade) {
+      console.log(`skip ${path.relative(root, dest)} already exists. Use --force or --upgrade to overwrite.`);
+      return;
+    }
   }
   if (dryRun) console.log(`would create ${path.relative(root, dest)}`);
   else {
@@ -1120,6 +1351,7 @@ else if (listProfiles) console.log(['base', ...getAvailableProfiles()].join('\n'
 else if (checkGit) runCheckGit();
 else if (checkSessions) runCheckSessions();
 else if (checkLifecycle) runCheckLifecycle();
+else if (checkCodeGraph) runCheckCodeGraph();
 else if (checkProfile) runCheckProfile();
 else if (check) runCheck();
 else if (checkUpdates) console.log('Update check complete.');

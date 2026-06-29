@@ -179,10 +179,13 @@ Observed results:
 - Added `forgeai-init --check-lifecycle` to validate lifecycle files, task
   journal metadata, stale active work, and closed-task memory decisions.
 
+**Phase 3 follow-up completed:**
+
+- Added CodeGraph/context graph support for large legacy projects:
+  `.ai/codegraph/` artifacts, graph-guided context packs, bootstrap/read-order
+  integration, incremental refresh guidance, and `forgeai-init --check-codegraph`.
+
 **Known follow-up outside Phase 1:**
 
-- Phase 3 is CodeGraph/context graph support for large legacy projects:
-  `.ai/codegraph/` artifacts, legacy bootstrap, incremental graph refresh, and
-  graph-guided context selection before code edits.
 - Decide whether future harness upgrades need a merge-aware updater instead
   of overwriting managed harness files with `--upgrade`.

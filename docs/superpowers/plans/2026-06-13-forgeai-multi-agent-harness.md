@@ -11,15 +11,16 @@ updated independently.
 4. [Skills and Root Pointers](2026-06-13-forgeai-multi-agent-harness/03-skills-root-pointers.md)
 5. [Project Context](2026-06-13-forgeai-multi-agent-harness/04-project-context.md)
 6. [After Initialization and Phase 1 Closeout](2026-06-13-forgeai-multi-agent-harness/05-after-init-closeout.md)
+7. [Phase 3 CodeGraph Context Support](2026-06-13-forgeai-multi-agent-harness/06-codegraph-context.md)
 
 ## Current Status
 
 Phase 1 is complete. The closeout and verification commands live in
 [05-after-init-closeout.md](2026-06-13-forgeai-multi-agent-harness/05-after-init-closeout.md).
-Phase 2 has started with the agentic lifecycle foundation: lifecycle states,
+Phase 2 is complete with the agentic lifecycle foundation: lifecycle states,
 task journals, task-type templates, stale-task detection guidance, closure
 rules, `forgeai-init --check-lifecycle`, and a Claude-native planner/spec
 wrapper.
-The next planned phase is CodeGraph/context graph support for large legacy
-projects, centered on `.ai/codegraph/` artifacts and graph-guided context
-selection before agents edit code.
+Phase 3 is complete with CodeGraph/context graph support for large legacy
+projects: `.ai/codegraph/` artifacts, graph-guided context-pack workflow,
+bootstrap/read-order integration, `forgeai-init --check-codegraph`, and tests.
