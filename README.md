@@ -51,11 +51,17 @@ npx forgeai-agentic-init@latest --profile auto
 Pin a version only when you need a reproducible setup:
 
 ```bash
-npx forgeai-agentic-init@2.3.0
+npx forgeai-agentic-init@2.3.1
 ```
 
-`2.3.0` adds CodeGraph artifacts and `forgeai-init --check-codegraph` for
-graph-guided context selection in large or legacy repositories. `2.2.0` added
+`2.3.1` hardens the harness against data loss and stale-context blind spots:
+`--upgrade` preserves populated project/run state (and `--force` overrides it),
+malformed `package.json`/`.ai/manifest.json` degrade gracefully instead of
+crashing, and it adds `--check-all`, `--check-codegraph --strict`, stricter
+CodeGraph template detection, a monorepo secondary-stack warning, and
+escaped-pipe-safe session parsing. `2.3.0` adds CodeGraph artifacts and
+`forgeai-init --check-codegraph` for graph-guided context selection in large or
+legacy repositories. `2.2.0` added
 orchestrator-run lifecycle diagnostics with
 `forgeai-init --check-lifecycle`, so agents can validate task journals, stale
 work, and closed-task memory decisions automatically. `2.1.0` added the Phase
@@ -68,7 +74,7 @@ Optional stack profiles (`nextjs`, `node-api`, `tauri`, `monorepo`,
 `python-api`, and `mobile`), `--profile auto`, `.ai/manifest.json`,
 `--check-profile`, and `--list-profiles` were added in `1.4.0`. npm package
 versions are immutable, so publish this only if
-`forgeai-agentic-init@2.3.0` has not already been published.
+`forgeai-agentic-init@2.3.1` has not already been published.
 
 ### Agent-run diagnostics
 
