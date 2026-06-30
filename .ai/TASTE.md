@@ -37,3 +37,7 @@ This file stores style and preference guidance so AI agents produce output that 
 - Agents must be able to explain why they chose an approach.
 - Difficult tasks should be split into subtasks before coding.
 - Model routing: use cheaper/faster models for classification and strong models for architecture, hard refactors, and difficult debugging.
+- Model transparency: always state which model is actually running each step
+  (`[model: <provider>/<model> · tier · delegated|local-fallback]`) and never
+  let a tier label imply a model that did not run the work. See the
+  "Model transparency rules" section in `.ai/RULES.md`.

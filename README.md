@@ -406,6 +406,33 @@ When delegation is available through local CLIs, invoke a tier with:
 npx tsx .ai/router/run-model.ts --tier standard --assignment .ai/state/assignments/TASK-01.md
 ```
 
+### Register your own model CLI
+
+Add any model CLI you already have (for example a GLM CLI) as a routable
+adapter with one command — no hand-editing required:
+
+```bash
+# Minimal: registers an adapter named "glm" running the "glm" command.
+forgeai-init --add-model glm --model glm-4.6
+
+# Also point a routing tier at it (edits .ai/model-routing.yaml):
+forgeai-init --add-model glm --model glm-4.6 --tier standard
+
+# A CLI whose command name or call shape differs from the defaults:
+forgeai-init --add-model zai --command zai-cli --input argv \
+  --args '["chat","--model","{model}","--message","{assignment}"]'
+```
+
+Defaults keep the common case a one-liner: `--command` defaults to the provider
+name, `--args` to `["--model","{model}"]`, `--input` to `stdin`, healthcheck to
+`--version`. Keep the `{model}` placeholder in `--args` (the router substitutes
+the real id at run time). Without `--tier`, only `.ai/cli-adapters.json` is
+touched and the provider is usable via `run-model.ts --provider <name> --model
+<id>`. Inspect or remove adapters with `forgeai-init --list-models` and
+`forgeai-init --remove-model <name>`. Custom adapters and tier edits are
+preserved across `forgeai-init --upgrade`. API keys belong in environment
+variables, never in these files.
+
 The full scoring, handoff, fallback, and review protocol is documented in
 `.ai/MODEL_ROUTING.md`. ForgeAI does not store provider credentials or install
 model integrations; the host tool must expose models through a CLI, API, MCP,

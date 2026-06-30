@@ -1,0 +1,178 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { root } from './context.js';
+import { formatStatus, runGit, firstNonEmptyLine, commandExists, readJsonIfPresent } from './utils.js';
+
+export function detectProvider(remoteUrl: string | null): string {
+  if (!remoteUrl) return 'none';
+  if (/github\.com[:/]/i.test(remoteUrl)) return 'github';
+  if (/gitlab\.com[:/]/i.test(remoteUrl)) return 'gitlab';
+  if (/bitbucket\.org[:/]/i.test(remoteUrl)) return 'bitbucket';
+  return 'unknown';
+}
+
+export function detectRemote(): { name: string | null; url: string | null } {
+  const origin = runGit(['remote', 'get-url', 'origin']);
+  if (origin.status === 0) return { name: 'origin', url: origin.stdout.trim() };
+
+  const remotes = runGit(['remote']);
+  const remoteName = firstNonEmptyLine(remotes.stdout);
+  if (!remoteName) return { name: null, url: null };
+
+  const remoteUrl = runGit(['remote', 'get-url', remoteName]);
+  return {
+    name: remoteName,
+    url: remoteUrl.status === 0 ? remoteUrl.stdout.trim() : null
+  };
+}
+
+export function detectBaseBranch(remoteName: string | null): string | null {
+  if (remoteName) {
+    const remoteHead = runGit(['symbolic-ref', '--short', `refs/remotes/${remoteName}/HEAD`]);
+    if (remoteHead.status === 0) return remoteHead.stdout.trim();
+
+    for (const branch of ['main', 'master', 'develop']) {
+      const ref = `${remoteName}/${branch}`;
+      if (runGit(['rev-parse', '--verify', '--quiet', ref]).status === 0) return ref;
+    }
+  }
+
+  for (const branch of ['main', 'master', 'develop']) {
+    if (runGit(['rev-parse', '--verify', '--quiet', branch]).status === 0) return branch;
+  }
+
+  return null;
+}
+
+export function isProtectedBranch(branch: string): boolean {
+  return branch === 'main' || branch === 'master' || branch === 'production' || branch.startsWith('release/');
+}
+
+export function branchNamingStatus(branch: string | null): { status: string; detail: string } {
+  if (!branch) return { status: 'detached', detail: 'HEAD is detached' };
+  if (isProtectedBranch(branch)) return { status: 'protected', detail: `${branch} should not be used for agent work` };
+
+  const valid = /^(feat|fix|docs|refactor|test|chore|perf|ci|build)\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(branch);
+  return valid
+    ? { status: 'ok', detail: branch }
+    : { status: 'invalid', detail: `${branch} should use feat/, fix/, docs/, refactor/, test/, chore/, perf/, ci/, or build/` };
+}
+
+export function detectHooks(): string[] {
+  const hooks: string[] = [];
+  if (fs.existsSync(path.join(root, '.husky'))) hooks.push('husky');
+  if (fs.existsSync(path.join(root, '.pre-commit-config.yaml'))) hooks.push('pre-commit');
+  if (fs.existsSync(path.join(root, 'lefthook.yml')) || fs.existsSync(path.join(root, 'lefthook.yaml'))) hooks.push('lefthook');
+
+  const hooksPath = runGit(['config', '--get', 'core.hooksPath']);
+  if (hooksPath.status === 0 && hooksPath.stdout.trim()) hooks.push(`core.hooksPath=${hooksPath.stdout.trim()}`);
+
+  try {
+    const packageJson = readJsonIfPresent<{ scripts?: Record<string, string>; 'lint-staged'?: unknown }>('package.json');
+    if (packageJson?.['lint-staged']) hooks.push('lint-staged');
+    if (packageJson?.scripts?.['lint-staged']) hooks.push('lint-staged script');
+    if (packageJson?.scripts?.prepare?.includes('husky')) hooks.push('husky prepare');
+  } catch {
+    // Invalid package.json is reported elsewhere by project validation.
+  }
+
+  return [...new Set(hooks)];
+}
+
+export function detectConflictRisk(baseBranch: string | null, hasRemote: boolean): { status: string; detail: string } {
+  if (!baseBranch) return { status: 'unknown', detail: hasRemote ? 'base branch not found locally; run git fetch' : 'no local base branch found' };
+
+  const baseExists = runGit(['rev-parse', '--verify', '--quiet', baseBranch]);
+  if (baseExists.status !== 0) return { status: 'needs fetch', detail: `${baseBranch} is not available locally` };
+
+  const mergeBase = runGit(['merge-base', 'HEAD', baseBranch]);
+  const mergeBaseSha = mergeBase.stdout.trim();
+  if (mergeBase.status !== 0 || !mergeBaseSha) return { status: 'unknown', detail: `cannot compute merge-base with ${baseBranch}` };
+
+  const mergeTree = runGit(['merge-tree', mergeBaseSha, 'HEAD', baseBranch]);
+  if (mergeTree.status !== 0) return { status: 'unknown', detail: mergeTree.stderr.trim() || 'git merge-tree failed' };
+
+  const hasConflict = /<<<<<<<|=======|>>>>>>>/.test(mergeTree.stdout);
+  return hasConflict
+    ? { status: 'conflict', detail: `merge with ${baseBranch} has conflicts` }
+    : { status: 'clean', detail: `no local merge conflict detected against ${baseBranch}` };
+}
+
+export function detectPrTool(provider: string): { status: string; detail: string } {
+  if (provider === 'github') return commandExists('gh') ? { status: 'available', detail: 'gh' } : { status: 'missing', detail: 'install/login gh or create PR manually' };
+  if (provider === 'gitlab') return commandExists('glab') ? { status: 'available', detail: 'glab' } : { status: 'missing', detail: 'install/login glab or create MR manually' };
+  if (provider === 'bitbucket') return commandExists('bb') ? { status: 'available', detail: 'bb' } : { status: 'manual', detail: 'Bitbucket CLI not configured; create PR manually or configure bb' };
+  if (provider === 'none') return { status: 'none', detail: 'no remote connected; keep work local' };
+  return { status: 'unknown', detail: 'provider-specific PR/MR tool not configured' };
+}
+
+export function runCheckGit(): void {
+  console.log('ForgeAI git check');
+  console.log('');
+
+  if (!commandExists('git')) {
+    console.log(formatStatus('missing', 'git command is not available'));
+    console.log('');
+    console.log('Result: git unavailable. Install git before using worktree or branch checks.');
+    process.exitCode = 1;
+    return;
+  }
+
+  const insideRepo = runGit(['rev-parse', '--is-inside-work-tree']);
+  if (insideRepo.status !== 0 || insideRepo.stdout.trim() !== 'true') {
+    console.log(formatStatus('missing', 'not inside a git worktree'));
+    console.log('');
+    console.log('Result: git repository not found. Run git init or connect a repository before branch/worktree checks.');
+    process.exitCode = 1;
+    return;
+  }
+
+  const topLevel = runGit(['rev-parse', '--show-toplevel']).stdout.trim();
+  const currentBranchOutput = runGit(['branch', '--show-current']);
+  const currentBranch = currentBranchOutput.stdout.trim() || null;
+  const remote = detectRemote();
+  const provider = detectProvider(remote.url);
+  const baseBranch = detectBaseBranch(remote.name);
+  const status = runGit(['status', '--porcelain']);
+  const isDirty = status.stdout.trim().length > 0;
+  const branchStatus = branchNamingStatus(currentBranch);
+  const hooks = detectHooks();
+  const conflictRisk = detectConflictRisk(baseBranch, Boolean(remote.name));
+  const prTool = detectPrTool(provider);
+
+  console.log('Repository');
+  console.log(formatStatus('ok', topLevel || root));
+  console.log(formatStatus(provider === 'none' ? 'none' : 'ok', `provider: ${provider}`));
+  console.log(formatStatus(remote.name ? 'ok' : 'none', `remote: ${remote.name ? `${remote.name} ${remote.url ?? ''}` : 'not configured'}`));
+  console.log(formatStatus(baseBranch ? 'ok' : 'unknown', `base branch: ${baseBranch ?? 'not detected'}`));
+  console.log(formatStatus(currentBranch ? 'ok' : 'detached', `current branch: ${currentBranch ?? 'detached HEAD'}`));
+
+  console.log('');
+  console.log('Branch and worktree');
+  console.log(formatStatus(branchStatus.status, branchStatus.detail));
+  console.log(formatStatus(isDirty ? 'dirty' : 'clean', isDirty ? 'working tree has local changes' : 'working tree has no local changes'));
+  console.log(formatStatus(conflictRisk.status, conflictRisk.detail));
+
+  console.log('');
+  console.log('Hooks and review');
+  console.log(formatStatus(hooks.length > 0 ? 'detected' : 'none', hooks.length > 0 ? hooks.join(', ') : 'no local git hooks detected'));
+  console.log(formatStatus(prTool.status, `PR/MR tool: ${prTool.detail}`));
+
+  console.log('');
+  if (provider === 'none') {
+    console.log('Recommendation: no remote is connected. Keep work local, use a semantic branch, and do not push or create a PR/MR until a remote is configured.');
+  } else if (prTool.status === 'missing' || prTool.status === 'manual') {
+    console.log('Recommendation: finish local validation, then authenticate/configure the provider tool or create the PR/MR manually.');
+  } else {
+    console.log('Recommendation: validate locally, push the semantic branch, then create the PR/MR with the detected provider tool.');
+  }
+
+  if (branchStatus.status === 'invalid' || branchStatus.status === 'protected' || conflictRisk.status === 'conflict') {
+    process.exitCode = 1;
+    console.log('Result: git workflow needs attention before agent work is ready for review.');
+    return;
+  }
+
+  console.log('Result: git workflow is usable.');
+}
+

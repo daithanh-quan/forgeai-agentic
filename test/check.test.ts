@@ -58,13 +58,13 @@ test('check suggests updating when installed harness is behind latest version', 
 
     const output = runTs(cli, ['--check'], {
       cwd: target,
-      env: { ...process.env, PATH: '', FORGEAI_TEST_LATEST_VERSION: '2.3.1' }
+      env: { ...process.env, PATH: '', FORGEAI_TEST_LATEST_VERSION: '2.4.0' }
     });
 
     assert.match(output, /ForgeAI update check/);
     assert.match(output, /outdated\s+installed harness: 1\.3\.0/);
-    assert.match(output, /ok\s+current CLI: 2\.3\.1/);
-    assert.match(output, /latest\s+forgeai-agentic-init@2\.3\.1/);
+    assert.match(output, /ok\s+current CLI: 2\.4\.0/);
+    assert.match(output, /latest\s+forgeai-agentic-init@2\.4\.0/);
     assert.match(output, /Recommendation: ask the human to run npx forgeai-agentic-init@latest --upgrade/);
     assert.match(output, /ForgeAI harness check/);
   } finally {
@@ -94,7 +94,7 @@ test('skip-update-check suppresses version preflight', () => {
 
     const output = runTs(cli, ['--check', '--skip-update-check'], {
       cwd: target,
-      env: { ...process.env, PATH: '', FORGEAI_TEST_LATEST_VERSION: '2.3.1' }
+      env: { ...process.env, PATH: '', FORGEAI_TEST_LATEST_VERSION: '2.4.0' }
     });
 
     assert.doesNotMatch(output, /ForgeAI update check/);

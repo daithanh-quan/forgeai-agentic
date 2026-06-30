@@ -148,6 +148,34 @@ session owns the shared files.
 Model tiers live in `.ai/model-routing.yaml`. Local CLI execution details live
 in `.ai/cli-adapters.json`.
 
+### Add your own model CLI
+
+Register a model CLI you already have (e.g. a GLM CLI) as a routable adapter
+without hand-editing config:
+
+```bash
+# Minimal one-liner (command defaults to the provider name).
+forgeai-init --add-model glm --model glm-4.6
+
+# Also repoint a routing tier (the only thing that edits model-routing.yaml).
+forgeai-init --add-model glm --model glm-4.6 --tier standard
+
+# Override the call shape for a non-standard CLI.
+forgeai-init --add-model zai --command zai-cli --input argv \
+  --args '["chat","--model","{model}","--message","{assignment}"]'
+```
+
+Defaults: `--command` = provider name, `--args` = `["--model","{model}"]`,
+`--input` = `stdin`, `--healthcheck-args` = `["--version"]`,
+`--healthcheck-timeout` = `5000`. Keep the `{model}` placeholder in `--args`;
+the router substitutes the real id at run time. Without `--tier`, only
+`.ai/cli-adapters.json` is changed and the provider is usable via
+`run-model.ts --provider <name> --model <id>`. Use `forgeai-init --list-models`
+and `forgeai-init --remove-model <name>` to inspect or remove adapters. These
+two config files are preserved across `forgeai-init --upgrade`, so custom
+adapters survive upgrades. Never store API keys here — use environment
+variables.
+
 Use the router when the current environment exposes delegated models through
 local CLI tools:
 
