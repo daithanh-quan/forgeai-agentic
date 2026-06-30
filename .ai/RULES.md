@@ -72,6 +72,30 @@ Only add a new package when:
   lint fix command, inspect the diff, and rerun the hook/validation.
 - Every PR/task should include summary and test evidence.
 
+## Model transparency rules
+
+The human must always be able to tell which model is doing the work. These
+rules are mandatory for the orchestrator and any delegated agent.
+
+- Before delegating, the orchestrator must print the routing table for the
+  subtasks, including the columns `Subtask`, `Total`, `Tier`, `Provider`,
+  `Model`, and `Reason`. Resolve `Provider`/`Model` from
+  `.ai/model-routing.yaml`, do not leave them as a tier name only.
+- At the start of each step, declare the active model inline using the format:
+  `[model: <provider>/<model> · tier: <tier> · execution: delegated|local-fallback]`.
+- Distinguish real delegation from fallback. If the selected provider CLI is
+  unavailable, fails healthcheck, or delegation is not supported, state
+  `execution: local-fallback` and name the model that actually ran the work
+  (usually the current orchestrator model), not the tier's configured model.
+- When a delegated session runs, record the real executing model in the
+  `Owner` column of `.ai/state/sessions.md`; mark fallback rows so the Owner
+  reflects who actually did the work.
+- In the final response, add a `## Models used` section listing each step, its
+  tier, the model that actually executed it, and whether it was delegated or a
+  local fallback.
+- Never present a tier label as proof that a different model ran the work. The
+  human relies on these declarations to audit cost and accountability.
+
 ## Token-output rules
 
 - Prefer compact shell output when it preserves enough evidence to make a
@@ -127,6 +151,9 @@ At the end of a task, the agent must return:
 ## Validation
 - Command run: result
 - Command not run: reason
+
+## Models used
+- `<step>`: <tier> -> <provider>/<model> (delegated|local-fallback)
 
 ## Risks / follow-up
 - Known risk or TODO
