@@ -107,6 +107,9 @@ export function isPreservedOnUpgrade(dest: string): boolean {
   if (/^\.ai\/state\/tasks\/.+\.md$/.test(relative) && relative !== '.ai/state/tasks/_template.md') {
     return true;
   }
+  if (/^\.ai\/state\/reviews\/.+\.md$/.test(relative) && relative !== '.ai/state/reviews/_template.md') {
+    return true;
+  }
   return false;
 }
 

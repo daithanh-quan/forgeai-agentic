@@ -196,3 +196,35 @@ test('review gate fails when there is no valid recommendation', () => {
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+test('check-all includes the review gate section', () => {
+  const target = initProject();
+  try {
+    let output = '';
+    try {
+      output = runTs(cli, ['--check-all'], { cwd: target, env: ENV });
+    } catch (error) {
+      output = String((error as ExecError).stdout ?? '');
+    }
+    assert.match(output, /ForgeAI review gate check/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('upgrade preserves a real scorecard but refreshes the template', () => {
+  const target = initProject();
+  try {
+    const id = 'TASK-20260701-profile-edit';
+    const reviewsDir = path.join(target, '.ai', 'state', 'reviews');
+    fs.mkdirSync(reviewsDir, { recursive: true });
+    fs.writeFileSync(path.join(reviewsDir, `${id}.md`), 'CUSTOM SCORECARD CONTENT\n');
+
+    runTs(cli, ['--upgrade'], { cwd: target, env: ENV });
+
+    assert.equal(fs.readFileSync(path.join(reviewsDir, `${id}.md`), 'utf8'), 'CUSTOM SCORECARD CONTENT\n');
+    assert.equal(fs.existsSync(path.join(reviewsDir, '_template.md')), true);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
