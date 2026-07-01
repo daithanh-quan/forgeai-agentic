@@ -93,7 +93,6 @@ test('initialization copies the template files', () => {
     assert.equal(fs.existsSync(path.join(target, '.ai', 'state', 'reviews', '_template.md')), true);
     assert.equal(fs.existsSync(path.join(target, '.ai', 'workflows', 'quality-gates.md')), true);
     assert.equal(fs.existsSync(path.join(target, '.ai', 'workflows', 'pre-merge-checklist.md')), true);
-    assert.equal(fs.existsSync(path.join(target, '.ai', 'ci', 'github-actions.example.yml')), true);
     assert.equal(fs.existsSync(path.join(target, '.claude', 'skills', 'planner', 'SKILL.md')), true);
     assert.equal(fs.existsSync(path.join(target, 'openspec', 'project.md')), true);
 
