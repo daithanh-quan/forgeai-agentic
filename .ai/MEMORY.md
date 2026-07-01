@@ -77,6 +77,23 @@ It is not part of the npm package because `package.json#files` only publishes
 - **Impact:** Agents should run `forgeai-init --check-lifecycle` before
   resuming paused work, handing off a task, or closing a task journal.
 
+### 2026-07-01 - Phase 4 dropped; Phase 6 quality gates delivered
+
+- **Decision:** Drop Phase 4 (plugin/marketplace layer). Deliver Phase 6
+  (quality gates) instead: `forgeai-init --check-review`, a reviewer scorecard
+  template, a quality-gates workflow, a pre-merge checklist, and a CI example.
+- **Why:** A Claude Code plugin would be vendor-specific (the harness is
+  model-agnostic) and its workflow skill would duplicate the `.ai/` markdown
+  that `CLAUDE.md` already points to, causing version drift. The review gate
+  closes the missing validate/review link in the lifecycle Phase 2 built and is
+  model-agnostic markdown + a Node checker.
+- **Impact:** The review gate requires real validation evidence and a completed
+  scorecard before a task journal in `review|revision|acceptance|delivery|
+  closed` can pass. It is part of `--check-all` and the CI example. Future work
+  should extend this gate (e.g. deeper OpenSpec validation) rather than adding a
+  competing review-state format. Plugin/marketplace work is deferred, not
+  scheduled.
+
 #### Phase 3: CodeGraph and legacy context discovery
 
 - Add a CodeGraph/context graph layer so agents can orient themselves in very
