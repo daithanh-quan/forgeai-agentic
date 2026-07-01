@@ -45,6 +45,9 @@
 
 - Files changed.
 - Concise summary.
-- Validation command and result.
-- Claude reviewer result: `Approve | Request changes | Needs human decision`.
+- Validation evidence (required): each command run and its result
+  (`pass | fail | skipped`). "Done" without a command and result is rejected
+  by the review gate (`forgeai-init --check-review`).
+- Reviewer result: `Approve | Request changes | Needs human decision`.
+- Unresolved blockers, or `none`.
 - Risks, assumptions, or unresolved questions.
