@@ -11,8 +11,8 @@ The review gate applies to any task journal in a gated lifecycle state:
 forgeai-init --check-review
 ```
 
-The gate is also part of `forgeai-init --check-all` and the CI example in
-`.ai/ci/github-actions.example.yml`.
+The gate is also part of `forgeai-init --check-all`; see "CI example" at the end
+of this file to run it automatically on every pull request.
 
 ## What the gate requires
 
@@ -49,3 +49,38 @@ If the reviewer returns `Request changes`, send the concrete findings back to
 the implementing model once. If the second attempt still fails, the current
 model fixes the issue locally or escalates the remaining decision to the human.
 Do not set the verdict to `Approve` while blockers remain unresolved.
+
+## CI example
+
+Copy this into `.github/workflows/forgeai.yml` (or your provider's equivalent)
+to run the quality gates on every pull request. Adjust the lint/test steps.
+
+```yaml
+name: ForgeAI Quality Gates
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: ForgeAI harness + review gate
+        run: npx forgeai-agentic-init@latest --check-all --skip-update-check
+      - name: ForgeAI git state
+        run: npx forgeai-agentic-init@latest --check-git --skip-update-check
+      # - name: Lint
+      #   run: npm run lint
+      # - name: Typecheck
+      #   run: npm run typecheck
+      # - name: Tests
+      #   run: npm test
+```
