@@ -16,6 +16,7 @@ export function usage(): string {
   forgeai-init --check-codegraph [--strict]
   forgeai-init --check-profile
   forgeai-init --check-all
+  forgeai-init --check-review
   forgeai-init --list-profiles
   forgeai-init --add-model <provider> [--model <id>] [options]
   forgeai-init --list-models
@@ -43,6 +44,9 @@ Options:
                 Validate the installed profile against detected project signals.
   --check-all   Run the harness, CodeGraph (strict), lifecycle, and profile
                 checks together and return one aggregated exit code.
+  --check-review
+                Validate that gated task journals carry real validation
+                evidence and a completed reviewer scorecard before merge.
   --skip-update-check
                 Skip the npm latest-version preflight check.
   --list-profiles
@@ -101,6 +105,9 @@ export function isPreservedOnUpgrade(dest: string): boolean {
   const relative = path.relative(root, dest).split(path.sep).join('/');
   if (PRESERVE_ON_UPGRADE_FILES.has(relative)) return true;
   if (/^\.ai\/state\/tasks\/.+\.md$/.test(relative) && relative !== '.ai/state/tasks/_template.md') {
+    return true;
+  }
+  if (/^\.ai\/state\/reviews\/.+\.md$/.test(relative) && relative !== '.ai/state/reviews/_template.md') {
     return true;
   }
   return false;

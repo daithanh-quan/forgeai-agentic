@@ -1,0 +1,29 @@
+# Example GitHub Actions workflow that runs the ForgeAI quality gates.
+# Copy to .github/workflows/forgeai.yml and adjust the lint/test steps.
+name: ForgeAI Quality Gates
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: ForgeAI harness + review gate
+        run: npx forgeai-agentic-init@latest --check-all --skip-update-check
+      - name: ForgeAI git state
+        run: npx forgeai-agentic-init@latest --check-git --skip-update-check
+      # - name: Lint
+      #   run: npm run lint
+      # - name: Typecheck
+      #   run: npm run typecheck
+      # - name: Tests
+      #   run: npm test
