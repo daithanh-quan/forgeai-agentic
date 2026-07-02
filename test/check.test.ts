@@ -21,6 +21,8 @@ test('check validates a freshly initialized harness', () => {
     assert.match(output, /ok\s+\.ai\/codegraph\/graph\.json/);
     assert.match(output, /ok\s+\.ai\/codegraph\/hotspots\.md/);
     assert.match(output, /ok\s+\.ai\/workflows\/codegraph-context\.md/);
+    assert.match(output, /ok\s+\.ai\/security-policy\.yaml/);
+    assert.match(output, /ok\s+\.ai\/workflows\/supply-chain-safety\.md/);
     assert.match(output, /ok\s+\.ai\/state\/lifecycle\.md/);
     assert.match(output, /ok\s+\.ai\/state\/tasks\/_template\.md/);
     assert.match(output, /ok\s+\.ai\/workflows\/lifecycle-management\.md/);

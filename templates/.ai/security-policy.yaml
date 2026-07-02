@@ -1,0 +1,32 @@
+# Supply-chain safety policy. Shared source of truth for agents (see
+# .ai/RULES.md) and the forgeai-init --check-security checker.
+# The checker ships with these same values as built-in defaults, so a
+# missing or partial file degrades gracefully instead of disabling the gate.
+
+# Official registries installs may use.
+trusted_registries:
+  - https://registry.npmjs.org
+  - https://registry.yarnpkg.com
+  - https://pypi.org
+  - https://rubygems.org
+
+# Command prefixes considered safe installs.
+allowed_install_commands:
+  - npm install
+  - npm ci
+  - pnpm install
+  - yarn install
+  - bun install
+  - pip install
+
+# Regexes the checker flags in scripts and CI/Docker/Make files.
+blocked_shell_patterns:
+  - 'curl\s+[^|]*\|\s*(sudo\s+)?(ba)?sh'
+  - 'wget\s+[^|]*\|\s*(sudo\s+)?(ba)?sh'
+  - 'iwr\s+[^|]*\|\s*iex'
+  - 'Invoke-WebRequest[^|]*\|\s*Invoke-Expression'
+  - 'base64\s+-d[^|]*\|\s*(ba)?sh'
+
+# Off-registry dependencies a human has explicitly reviewed and approved.
+# List them by package name to suppress the off-registry finding.
+allowed_dependency_exceptions: []
