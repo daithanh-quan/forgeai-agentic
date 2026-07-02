@@ -94,6 +94,22 @@ It is not part of the npm package because `package.json#files` only publishes
   competing review-state format. Plugin/marketplace work is deferred, not
   scheduled.
 
+### 2026-07-02 - Phase 7 pivoted to supply-chain safety
+
+- **Decision:** Drop the original Phase 7 (external workflow connectors:
+  Jira/Linear/board issue intake). Deliver a supply-chain & untrusted-source
+  safety gate instead: hardened `RULES.md`, `.ai/security-policy.yaml`,
+  `.ai/workflows/supply-chain-safety.md`, and `forgeai-init --check-security`
+  (aggregated into `--check-all`).
+- **Why:** Users prompt the agent with their own task descriptions, so board
+  connectors add integration surface without clear value. Meanwhile an
+  autonomous agent installing packages and reading the open web can bring
+  malicious code onto the machine — a real, present risk with no machine
+  check today. Mirrors the earlier Phase 4 drop.
+- **Impact:** `--check-security` fails on pipe-to-shell installs, off-registry
+  or unpinned dependencies, suspicious install scripts, and committed private
+  keys, unless an exception is recorded in `.ai/security-policy.yaml`.
+
 #### Phase 3: CodeGraph and legacy context discovery
 
 - Add a CodeGraph/context graph layer so agents can orient themselves in very

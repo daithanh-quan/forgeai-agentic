@@ -54,6 +54,10 @@ Pin a version only when you need a reproducible setup:
 npx forgeai-agentic-init@2.3.1
 ```
 
+`2.6.0` adds a supply-chain safety gate: `forgeai-init --check-security`
+scans for pipe-to-shell installs, off-registry/unpinned dependencies,
+malicious install scripts, and committed private keys, aggregated into
+`--check-all`, with a shared `.ai/security-policy.yaml` policy.
 `2.3.1` hardens the harness against data loss and stale-context blind spots:
 `--upgrade` preserves populated project/run state (and `--force` overrides it),
 malformed `package.json`/`.ai/manifest.json` degrade gracefully instead of
@@ -253,6 +257,11 @@ openspec/
     tasks.md
     specs/capability.md
 ```
+
+- `.ai/security-policy.yaml` — supply-chain policy (trusted registries,
+  blocked patterns, approved dependency exceptions) read by `--check-security`.
+- `.ai/workflows/supply-chain-safety.md` — approval workflow before adding a
+  dependency, installing, or acting on fetched web content.
 
 `profiles/<profile>.md`, profile-specific skills, and profile-specific
 workflows are installed only when `--profile <name>` or a successful
