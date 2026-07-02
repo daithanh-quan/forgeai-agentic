@@ -8,6 +8,7 @@ import { runCheckCodeGraph } from './codegraph.js';
 import { runCheckLifecycle } from './lifecycle.js';
 import { runCheckProfile } from './profiles.js';
 import { runCheckReview } from './review.js';
+import { runCheckSecurity } from './security.js';
 
 const requiredHarnessFiles = listFilesRecursive(templateDir);
 const bootstrapFiles = ['.ai/PROJECT.md', '.ai/MEMORY.md', '.ai/AGENT_REGISTRY.md'];
@@ -115,4 +116,6 @@ export function runCheckAll(): void {
   runCheckProfile();
   separator();
   runCheckReview();
+  separator();
+  runCheckSecurity();
 }

@@ -216,3 +216,20 @@ test('check-all exits non-zero while the CodeGraph is still a template', () => {
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+test('check-all runs the supply-chain safety gate', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-checkall-security-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    let stdout = '';
+    try {
+      stdout = runTs(cli, ['--check-all'], { cwd: target, env: { ...process.env, PATH: '' } });
+    } catch (error) {
+      stdout = String((error as ExecError).stdout ?? '');
+    }
+    assert.match(stdout, /ForgeAI supply-chain safety check/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
