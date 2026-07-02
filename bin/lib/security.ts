@@ -31,7 +31,7 @@ const DEFAULT_POLICY: SecurityPolicy = {
 };
 
 const SKIP_DIRS = new Set([
-  'node_modules', '.git', '.ai', 'dist', 'build', 'out', '.next', 'coverage', 'vendor', '.venv', 'venv'
+  'node_modules', '.git', '.ai', 'dist', 'build', 'out', '.next', 'coverage', 'vendor', '.venv', 'venv', '.superpowers'
 ]);
 const BINARY_EXT = new Set([
   '.png', '.jpg', '.jpeg', '.gif', '.pdf', '.zip', '.gz', '.tgz', '.lockb',
@@ -40,6 +40,10 @@ const BINARY_EXT = new Set([
 const SHELL_EXT = new Set(['.sh', '.bash', '.zsh', '.ps1', '.bat', '.cmd']);
 const MAX_SCAN_BYTES = 512 * 1024;
 const PRIVATE_KEY_HEADER = /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY-----/;
+// Matches a shell shebang line (bash, zsh, dash, ksh, sh).
+const SHELL_SHEBANG = /^#!.*\b(ba|z|da|k)?sh\b/;
+// Matches a bare GitHub-style user/repo shorthand (e.g. "attacker/repo", "user/repo#branch").
+const BARE_GITHUB_SPEC = /^[\w.-]+\/[\w.-]+(#.+)?$/;
 
 // Read the list items under a top-level `key:` in a minimal, flat YAML file.
 // Matches the hand-rolled style used elsewhere (no YAML dependency). Returns
@@ -84,6 +88,20 @@ export function loadPolicy(): SecurityPolicy {
   };
 }
 
+// Build compiled RegExp list from policy patterns once so it can be reused by
+// both the dependency-script check and the file-scan check without re-compiling.
+function compileBlockedPatterns(policy: SecurityPolicy): RegExp[] {
+  const regexes: RegExp[] = [];
+  for (const pattern of policy.blockedShellPatterns) {
+    try {
+      regexes.push(new RegExp(pattern, 'i'));
+    } catch {
+      // Skip an invalid policy regex rather than crashing the whole check.
+    }
+  }
+  return regexes;
+}
+
 // Recursively collect scannable files as repo-relative paths, skipping heavy
 // and harness-owned directories.
 function collectFiles(directory: string, base: string, out: string[]): void {
@@ -126,7 +144,7 @@ function readText(relative: string): string | null {
   }
 }
 
-function scanDependencies(policy: SecurityPolicy): Finding[] {
+function scanDependencies(policy: SecurityPolicy, blockedRegexes: RegExp[]): Finding[] {
   const findings: Finding[] = [];
   const absolute = path.join(root, 'package.json');
   if (!fs.existsSync(absolute)) return findings;
@@ -149,9 +167,14 @@ function scanDependencies(policy: SecurityPolicy): Finding[] {
       const spec = String(rawSpec);
       hasDeps = true;
       if (exceptions.has(name)) continue;
-      if (/^(git\+https?:|git:|https?:)/.test(spec) || /^file:(\/|\.\.)/.test(spec)) {
+      // Off-registry: git protocols, VCS shorthands, and bare user/repo GitHub shorthands.
+      if (
+        /^(git\+https?:|git\+ssh:|git\+file:|git:|github:|gitlab:|bitbucket:|https?:)/.test(spec) ||
+        /^file:(\/|\.\.)/.test(spec) ||
+        BARE_GITHUB_SPEC.test(spec)
+      ) {
         findings.push({ location: 'package.json', detail: `off-registry dependency ${name} -> ${spec}` });
-      } else if (['*', 'latest', 'x', ''].includes(spec.trim()) || /^https?:\/\//.test(spec)) {
+      } else if (['*', 'latest', 'x', ''].includes(spec.trim())) {
         findings.push({ location: 'package.json', detail: `unpinned dependency version ${name} -> ${spec || '(empty)'}` });
       }
     }
@@ -161,7 +184,9 @@ function scanDependencies(policy: SecurityPolicy): Finding[] {
   if (scripts && typeof scripts === 'object') {
     for (const hook of ['preinstall', 'install', 'postinstall']) {
       const command = (scripts as Record<string, unknown>)[hook];
-      if (typeof command === 'string' && /\|\s*(sudo\s+)?(ba)?sh|curl|wget|iex/i.test(command)) {
+      // Use the same compiled blockedShellPatterns (which require a pipe-to-shell) to avoid
+      // false positives from bare curl/wget invocations without a pipe.
+      if (typeof command === 'string' && blockedRegexes.some((re) => re.test(command))) {
         findings.push({ location: 'package.json', detail: `suspicious ${hook} script: ${command}` });
       }
     }
@@ -177,21 +202,17 @@ function scanDependencies(policy: SecurityPolicy): Finding[] {
   return findings;
 }
 
-function scanShellPatterns(policy: SecurityPolicy, files: string[]): Finding[] {
+function scanShellPatterns(files: string[], blockedRegexes: RegExp[]): Finding[] {
   const findings: Finding[] = [];
-  const regexes: RegExp[] = [];
-  for (const pattern of policy.blockedShellPatterns) {
-    try {
-      regexes.push(new RegExp(pattern, 'i'));
-    } catch {
-      // Skip an invalid policy regex rather than crashing the whole check.
-    }
-  }
   for (const relative of files) {
-    if (!isShellSurface(relative)) continue;
+    // Read text first (skips binary extensions and large files).
     const text = readText(relative);
     if (text === null) continue;
-    for (const regex of regexes) {
+    // Scan shell surfaces by extension/name/CI path, and also extensionless
+    // scripts that declare a shell interpreter via a shebang line.
+    const firstLine = text.split('\n')[0] ?? '';
+    if (!isShellSurface(relative) && !SHELL_SHEBANG.test(firstLine)) continue;
+    for (const regex of blockedRegexes) {
       if (regex.test(text)) {
         findings.push({ location: relative, detail: 'pipe-to-shell / remote-exec pattern' });
         break;
@@ -213,8 +234,15 @@ function scanSecrets(files: string[]): Finding[] {
   const envAbsolute = path.join(root, '.env');
   if (fs.existsSync(envAbsolute)) {
     const gitignoreAbsolute = path.join(root, '.gitignore');
-    const ignored = fs.existsSync(gitignoreAbsolute)
-      && /^\s*\.env\s*$/m.test(fs.readFileSync(gitignoreAbsolute, 'utf8'));
+    let ignored = false;
+    if (fs.existsSync(gitignoreAbsolute)) {
+      try {
+        // Also accept `/.env` and `.env*` entries in addition to an exact `.env` line.
+        ignored = /^\s*\/?\.env\*?\s*$/m.test(fs.readFileSync(gitignoreAbsolute, 'utf8'));
+      } catch {
+        // Fail soft: unreadable .gitignore is treated as "not ignored".
+      }
+    }
     if (!ignored) {
       findings.push({ location: '.env', detail: '.env is present but not ignored by .gitignore' });
     }
@@ -229,10 +257,12 @@ export function runCheckSecurity(): void {
   const policy = loadPolicy();
   const files: string[] = [];
   collectFiles(root, root, files);
+  // Compile blocked patterns once and share between dependency-script and file-scan checks.
+  const blockedRegexes = compileBlockedPatterns(policy);
 
   const findings = [
-    ...scanDependencies(policy),
-    ...scanShellPatterns(policy, files),
+    ...scanDependencies(policy, blockedRegexes),
+    ...scanShellPatterns(files, blockedRegexes),
     ...scanSecrets(files)
   ];
 

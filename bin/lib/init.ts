@@ -43,8 +43,9 @@ Options:
                 Add --strict to exit non-zero when the graph is still a template.
   --check-profile
                 Validate the installed profile against detected project signals.
-  --check-all   Run the harness, CodeGraph (strict), lifecycle, and profile
-                checks together and return one aggregated exit code.
+  --check-all   Run the harness, CodeGraph (strict), lifecycle, profile,
+                review, and security checks together and return one
+                aggregated exit code.
   --check-review
                 Validate that gated task journals carry real validation
                 evidence and a completed reviewer scorecard before merge.

