@@ -21,6 +21,8 @@ test('check validates a freshly initialized harness', () => {
     assert.match(output, /ok\s+\.ai\/codegraph\/graph\.json/);
     assert.match(output, /ok\s+\.ai\/codegraph\/hotspots\.md/);
     assert.match(output, /ok\s+\.ai\/workflows\/codegraph-context\.md/);
+    assert.match(output, /ok\s+\.ai\/security-policy\.yaml/);
+    assert.match(output, /ok\s+\.ai\/workflows\/supply-chain-safety\.md/);
     assert.match(output, /ok\s+\.ai\/state\/lifecycle\.md/);
     assert.match(output, /ok\s+\.ai\/state\/tasks\/_template\.md/);
     assert.match(output, /ok\s+\.ai\/workflows\/lifecycle-management\.md/);
@@ -210,6 +212,23 @@ test('check-all exits non-zero while the CodeGraph is still a template', () => {
         return true;
       }
     );
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-all runs the supply-chain safety gate', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-checkall-security-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    let stdout = '';
+    try {
+      stdout = runTs(cli, ['--check-all'], { cwd: target, env: { ...process.env, PATH: '' } });
+    } catch (error) {
+      stdout = String((error as ExecError).stdout ?? '');
+    }
+    assert.match(stdout, /ForgeAI supply-chain safety check/);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }

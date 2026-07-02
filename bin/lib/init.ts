@@ -17,6 +17,7 @@ export function usage(): string {
   forgeai-init --check-profile
   forgeai-init --check-all
   forgeai-init --check-review
+  forgeai-init --check-security
   forgeai-init --list-profiles
   forgeai-init --add-model <provider> [--model <id>] [options]
   forgeai-init --list-models
@@ -42,11 +43,15 @@ Options:
                 Add --strict to exit non-zero when the graph is still a template.
   --check-profile
                 Validate the installed profile against detected project signals.
-  --check-all   Run the harness, CodeGraph (strict), lifecycle, and profile
-                checks together and return one aggregated exit code.
+  --check-all   Run the harness, CodeGraph (strict), lifecycle, profile,
+                review, and security checks together and return one
+                aggregated exit code.
   --check-review
                 Validate that gated task journals carry real validation
                 evidence and a completed reviewer scorecard before merge.
+  --check-security
+                Scan for supply-chain risks (pipe-to-shell installs,
+                off-registry/unpinned deps, install scripts, private keys)
   --skip-update-check
                 Skip the npm latest-version preflight check.
   --list-profiles
