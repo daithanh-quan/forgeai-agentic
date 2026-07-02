@@ -26,6 +26,7 @@ export const checkCodeGraph = args.has('--check-codegraph');
 export const checkProfile = args.has('--check-profile');
 export const checkAll = args.has('--check-all');
 export const checkReview = args.has('--check-review');
+export const checkSecurity = args.has('--check-security');
 export const strict = args.has('--strict');
 export const listProfiles = args.has('--list-profiles');
 export const checkUpdates = args.has('--check-updates');

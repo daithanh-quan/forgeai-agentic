@@ -10,6 +10,7 @@ import {
   checkProfile,
   checkAll,
   checkReview,
+  checkSecurity,
   check,
   checkUpdates,
   addModel,
@@ -27,6 +28,7 @@ import { runCheckCodeGraph } from './lib/codegraph.js';
 import { runCheckGit } from './lib/git.js';
 import { runCheck, runCheckAll } from './lib/check.js';
 import { runCheckReview } from './lib/review.js';
+import { runCheckSecurity } from './lib/security.js';
 import { usage, runInit } from './lib/init.js';
 
 runUpdatePreflight();
@@ -40,6 +42,7 @@ else if (checkLifecycle) runCheckLifecycle();
 else if (checkCodeGraph) runCheckCodeGraph({ strict });
 else if (checkProfile) runCheckProfile();
 else if (checkReview) runCheckReview();
+else if (checkSecurity) runCheckSecurity();
 else if (checkAll) runCheckAll();
 else if (check) runCheck();
 else if (checkUpdates) console.log('Update check complete.');

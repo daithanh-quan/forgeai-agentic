@@ -17,6 +17,7 @@ export function usage(): string {
   forgeai-init --check-profile
   forgeai-init --check-all
   forgeai-init --check-review
+  forgeai-init --check-security
   forgeai-init --list-profiles
   forgeai-init --add-model <provider> [--model <id>] [options]
   forgeai-init --list-models
@@ -47,6 +48,9 @@ Options:
   --check-review
                 Validate that gated task journals carry real validation
                 evidence and a completed reviewer scorecard before merge.
+  --check-security
+                Scan for supply-chain risks (pipe-to-shell installs,
+                off-registry/unpinned deps, install scripts, private keys)
   --skip-update-check
                 Skip the npm latest-version preflight check.
   --list-profiles
