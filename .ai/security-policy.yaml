@@ -35,4 +35,6 @@ allowed_dependency_exceptions: []
 # private-key or pipe-to-shell pattern (e.g. test fixtures, docs quoting an
 # attack). Use a repo-relative file path, or a directory prefix ending in "/"
 # to cover everything under it. Does not affect dependency findings.
-allowed_path_exceptions: []
+allowed_path_exceptions:
+  - test/security.test.ts   # checker's own test fixtures contain dummy key headers and pipe-to-shell strings
+  - docs/superpowers/plans/2026-07-02-phase-7-supply-chain-safety.md   # plan doc quotes the detected patterns

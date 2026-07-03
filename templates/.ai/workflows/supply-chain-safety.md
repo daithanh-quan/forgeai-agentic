@@ -34,6 +34,20 @@ allowed_dependency_exceptions:
   - internal-tool   # approved by <human> on <date>: private mirror, audited
 ```
 
+If `--check-security` flags a file the human has reviewed and accepted — a
+test fixture containing a dummy private key, or documentation quoting an
+attack pattern — record a path exception instead. Use an exact repo-relative
+path, or a directory prefix ending in `/`:
+
+```yaml
+allowed_path_exceptions:
+  - test/fixtures/dummy-key.pem   # approved by <human> on <date>: test fixture
+  - docs/security-examples/       # approved by <human> on <date>: quoted attacks
+```
+
+Path exceptions never suppress dependency findings. As with dependency
+exceptions, never add one on your own authority.
+
 ## Verify
 
 Run `forgeai-init --check-security` (or `--check-all`) and confirm it passes

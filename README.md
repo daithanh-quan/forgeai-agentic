@@ -259,7 +259,8 @@ openspec/
 ```
 
 - `.ai/security-policy.yaml` — supply-chain policy (trusted registries,
-  blocked patterns, approved dependency exceptions) read by `--check-security`.
+  blocked patterns, approved dependency and file-path exceptions) read by
+  `--check-security`.
 - `.ai/workflows/supply-chain-safety.md` — approval workflow before adding a
   dependency, installing, or acting on fetched web content.
 
