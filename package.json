@@ -4,19 +4,19 @@
   "description": "AI project initialization kit for agentic coding workflows.",
   "type": "module",
   "bin": {
-    "forgeai-init": "bin/forgeai-init.ts"
+    "forgeai-init": "dist/forgeai-init.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "npm run typecheck && npm run build && node --import tsx --test test/*.test.ts",
     "prepublishOnly": "npm test"
   },
   "files": [
-    "bin",
+    "dist",
     "profiles",
     "templates",
-    "README.md",
-    "tsconfig.json"
+    "README.md"
   ],
   "repository": {
     "type": "git",
@@ -42,9 +42,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.0.0",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.3"
-  },
-  "dependencies": {
-    "tsx": "^4.22.4"
   }
 }

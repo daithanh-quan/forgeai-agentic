@@ -36,6 +36,24 @@ test('upgrade preserves populated project context and state files', () => {
   }
 });
 
+test('upgrade preserves a tuned security policy with approved exceptions', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-policy-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const policyPath = path.join(target, '.ai', 'security-policy.yaml');
+    fs.appendFileSync(policyPath, '\nallowed_path_exceptions:\n  - test/fixtures/dummy-key.pem\n');
+
+    const output = runTs(cli, ['--upgrade'], { cwd: target });
+
+    assert.match(fs.readFileSync(policyPath, 'utf8'), /test\/fixtures\/dummy-key\.pem/);
+    assert.match(output, /preserved \.ai\/security-policy\.yaml/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('upgrade still refreshes framework template files', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-refresh-'));
 
