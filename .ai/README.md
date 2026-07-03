@@ -26,9 +26,11 @@ tell the agent:
 6. `MODEL_ROUTING.md`, `model-routing.yaml`, `cli-adapters.json`, and
    `router/run-model.ts` — scoring, model tiers, CLI adapters, token
    budgets, delegation, and fallbacks.
-7. `WORKFLOW.md`, `workflows/lifecycle-management.md`, and
-   `workflows/codegraph-context.md` — flow from task intake through closure,
-   memory update, stale-task handling, and graph-guided context selection.
+7. `WORKFLOW.md`, `workflows/lifecycle-management.md`,
+   `workflows/codegraph-context.md`, `workflows/quality-gates.md`, and
+   `workflows/pre-merge-checklist.md` — flow from task intake through closure,
+   memory update, stale-task handling, graph-guided context selection, and the
+   enforceable review gate before merge.
 8. `state/lifecycle.md` — lifecycle states, transition rules, stale-task
    detection, and closure rules.
 9. If `.ai/profiles/<profile>.md` exists, read it after `WORKFLOW.md` and
@@ -38,7 +40,8 @@ tell the agent:
    hotspots, and context-pack rules for legacy or broad changes.
 11. `state/CURRENT.md` — current project state and active focus.
 12. `state/sessions.md` — active session read/write scopes for parallel work.
-13. `state/tasks/_template.md` — task journal format for resumable work.
+13. `state/tasks/_template.md` and `state/reviews/_template.md` — task journal
+   and review scorecard formats for resumable, gated work.
 14. `workflows/task-types/*.md` — lifecycle templates for bugs, features,
    refactors, research, audits, incidents, releases, and dependency upgrades.
 15. `agents/*.md` — per-role templates (responsibilities, inputs, outputs,

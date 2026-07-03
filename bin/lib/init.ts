@@ -87,7 +87,8 @@ Options:
 
 // Files/dirs that hold project- or run-specific content populated by the
 // agent or human, plus user-tuned routing config (cli-adapters.json,
-// model-routing.yaml) that may carry custom providers added via --add-model.
+// model-routing.yaml) that may carry custom providers added via --add-model,
+// and the security policy that may carry human-approved exceptions.
 // On --upgrade they are preserved if they already exist so an upgrade never
 // clobbers a populated CodeGraph, project context, run state, or custom models.
 // They remain overwritable with explicit --force.
@@ -97,6 +98,7 @@ export const PRESERVE_ON_UPGRADE_FILES = new Set([
   '.ai/AGENT_REGISTRY.md',
   '.ai/cli-adapters.json',
   '.ai/model-routing.yaml',
+  '.ai/security-policy.yaml',
   '.ai/codegraph/graph.json',
   '.ai/codegraph/hotspots.md',
   '.ai/state/CURRENT.md',

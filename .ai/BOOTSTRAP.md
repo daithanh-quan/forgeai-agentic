@@ -49,6 +49,12 @@ never from assumptions:
   graph when the repository is large, legacy, or cross-module work is likely.
   Keep `generated_at` as `YYYY-MM-DD`, record confidence, and include only
   modules that help future agents choose context.
+  **Stay shallow at bootstrap.** Map only top-level modules/packages and the
+  obvious relationships you can see from the directory layout, entrypoints, and
+  manifests — do **not** read source files exhaustively just to populate the
+  graph. Mark uncertain nodes/edges with `confidence: low`. Expand a node only
+  when a real task touches that area, refreshing `generated_at` then. The goal
+  is a navigation aid, not a complete code map.
 - **`.ai/codegraph/hotspots.md`** — record risky shared areas, contracts, and
   required checks discovered from the current repository. Leave TODOs only
   where evidence is unavailable.

@@ -268,6 +268,12 @@ findings back to the implementing model once. If the second attempt still
 fails, the current model fixes the issue locally or escalates the remaining
 decision to the human.
 
+Before moving a task from `review` to `acceptance` or `closed`, complete a
+review scorecard (`.ai/state/reviews/<task-id>.md`, copied from
+`.ai/state/reviews/_template.md`), record real validation evidence in the task
+journal, and run `forgeai-init --check-review`. See
+`.ai/workflows/quality-gates.md` and `.ai/workflows/pre-merge-checklist.md`.
+
 ## 9. Human approval
 
 The final result should be easy for a human to review:
