@@ -54,7 +54,7 @@ Pin a version only when you need a reproducible setup:
 npx forgeai-agentic-init@2.3.1
 ```
 
-`2.6.0` adds a supply-chain safety gate: `forgeai-init --check-security`
+`2.7.0` adds a supply-chain safety gate: `forgeai-init --check-security`
 scans for pipe-to-shell installs, off-registry/unpinned dependencies,
 malicious install scripts, and committed private keys, aggregated into
 `--check-all`, with a shared `.ai/security-policy.yaml` policy.
