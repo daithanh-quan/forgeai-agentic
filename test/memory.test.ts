@@ -263,3 +263,28 @@ test('check-memory warns on malformed decision entries', () => {
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+test('freshly initialized template passes check-memory with only warns', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-memory-fresh-'));
+
+  try {
+    runTs(cli, [], { cwd: target, env: { ...process.env, PATH: '' } });
+
+    const { output, failed } = runCheckMemoryCli(target);
+
+    assert.equal(failed, false);
+    assert.match(output, /unfilled TODO placeholder/);
+    assert.match(output, /Result: memory check passed with warnings\./);
+
+    const template = fs.readFileSync(path.join(target, '.ai', 'MEMORY.md'), 'utf8');
+    assert.match(template, /<!-- forgeai-memory: max-age-days=180 -->/);
+    assert.match(template, /## Recurring bugs & pitfalls/);
+    assert.match(template, /## Commands/);
+    assert.match(template, /## Test strategy/);
+    assert.match(template, /## Ownership/);
+    assert.match(template, /## Deployment notes/);
+    assert.doesNotMatch(template, /Jira|Trello|External integrations/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
