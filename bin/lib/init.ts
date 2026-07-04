@@ -45,7 +45,7 @@ Options:
   --check-profile
                 Validate the installed profile against detected project signals.
   --check-all   Run the harness, CodeGraph (strict), lifecycle, profile,
-                review, and security checks together and return one
+                review, security, and memory checks together and return one
                 aggregated exit code.
   --check-review
                 Validate that gated task journals carry real validation

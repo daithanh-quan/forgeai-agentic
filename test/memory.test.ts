@@ -288,3 +288,22 @@ test('freshly initialized template passes check-memory with only warns', () => {
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+test('check-all includes the memory check', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-memory-checkall-'));
+
+  try {
+    runTs(cli, [], { cwd: target, env: { ...process.env, PATH: '' } });
+
+    let output = '';
+    try {
+      output = runTs(cli, ['--check-all'], { cwd: target, env: { ...process.env, PATH: '' } });
+    } catch (error) {
+      output = String((error as ExecError).stdout ?? '');
+    }
+
+    assert.match(output, /ForgeAI memory check/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
