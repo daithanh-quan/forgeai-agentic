@@ -27,10 +27,11 @@ tell the agent:
    `router/run-model.ts` — scoring, model tiers, CLI adapters, token
    budgets, delegation, and fallbacks.
 7. `WORKFLOW.md`, `workflows/lifecycle-management.md`,
-   `workflows/codegraph-context.md`, `workflows/quality-gates.md`, and
-   `workflows/pre-merge-checklist.md` — flow from task intake through closure,
-   memory update, stale-task handling, graph-guided context selection, and the
-   enforceable review gate before merge.
+   `workflows/codegraph-context.md`, `workflows/quality-gates.md`,
+   `workflows/pre-merge-checklist.md`, and
+   `workflows/memory-management.md` — flow from task intake through closure,
+   memory update, stale-task handling, graph-guided context selection, the
+   enforceable review gate before merge, and stale-memory hygiene.
 8. `state/lifecycle.md` — lifecycle states, transition rules, stale-task
    detection, and closure rules.
 9. If `.ai/profiles/<profile>.md` exists, read it after `WORKFLOW.md` and
