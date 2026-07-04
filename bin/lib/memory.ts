@@ -6,8 +6,11 @@ import { formatStatus } from './utils.js';
 export type MemoryFinding = { severity: 'fail' | 'warn'; location: string; detail: string };
 
 export const MEMORY_RELATIVE_PATH = '.ai/MEMORY.md';
+export const DEFAULT_MAX_AGE_DAYS = 180;
+export const DATED_HEADING = /^###\s+(\d{4}-\d{2}-\d{2})\s+[—-]\s+(.+)$/;
 
 const PATH_EXTENSIONS = /\.(ts|tsx|js|jsx|mjs|cjs|json|md|ya?ml|py|rb|go|rs|java|kt|swift|sh|bash|zsh|ps1|css|scss|html|sql|toml|txt)$/i;
+const DIRECTIVE_PATTERN = /<!--\s*forgeai-memory:\s*([^>]*?)\s*-->/;
 
 // A token counts as a repo path only when it has a known source extension or
 // a trailing slash (directory reference). Everything ambiguous is skipped so
@@ -41,10 +44,62 @@ export function findDeadPathRefs(text: string, rootDir: string): MemoryFinding[]
   return findings;
 }
 
-// Tasks 2-4 extend this with the individual stale-memory signals.
+export function parseMaxAgeDays(text: string): { maxAgeDays: number; warning: string | null } {
+  const directive = text.match(DIRECTIVE_PATTERN);
+  if (!directive) return { maxAgeDays: DEFAULT_MAX_AGE_DAYS, warning: null };
+  const value = directive[1].match(/max-age-days\s*=\s*(\S+)/);
+  if (!value) return { maxAgeDays: DEFAULT_MAX_AGE_DAYS, warning: null };
+  const parsed = Number(value[1]);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return {
+      maxAgeDays: DEFAULT_MAX_AGE_DAYS,
+      warning: `invalid forgeai-memory max-age-days value "${value[1]}"; using default ${DEFAULT_MAX_AGE_DAYS}`
+    };
+  }
+  return { maxAgeDays: parsed, warning: null };
+}
+
+export function findTodoPlaceholders(text: string): MemoryFinding[] {
+  const findings: MemoryFinding[] = [];
+  text.split(/\r?\n/).forEach((line, index) => {
+    if (/\bTODO\b/.test(line)) {
+      findings.push({
+        severity: 'warn',
+        location: `${MEMORY_RELATIVE_PATH}:${index + 1}`,
+        detail: 'unfilled TODO placeholder'
+      });
+    }
+  });
+  return findings;
+}
+
+export function findStaleEntries(text: string, maxAgeDays: number, now: Date): MemoryFinding[] {
+  const findings: MemoryFinding[] = [];
+  const cutoff = now.getTime() - maxAgeDays * 24 * 60 * 60 * 1000;
+  text.split(/\r?\n/).forEach((line, index) => {
+    const heading = line.match(DATED_HEADING);
+    if (!heading) return;
+    const entryTime = Date.parse(heading[1]);
+    if (Number.isNaN(entryTime) || entryTime >= cutoff) return;
+    findings.push({
+      severity: 'warn',
+      location: `${MEMORY_RELATIVE_PATH}:${index + 1}`,
+      detail: `entry dated ${heading[1]} is older than ${maxAgeDays} days; re-validate or prune`
+    });
+  });
+  return findings;
+}
+
+// Aggregates the stale-memory signals in report order.
 export function collectFindings(text: string, rootDir: string): MemoryFinding[] {
   const findings: MemoryFinding[] = [];
-  findings.push(...findDeadPathRefs(text, rootDir));
+  const { maxAgeDays, warning } = parseMaxAgeDays(text);
+  if (warning) findings.push({ severity: 'warn', location: MEMORY_RELATIVE_PATH, detail: warning });
+  findings.push(
+    ...findDeadPathRefs(text, rootDir),
+    ...findTodoPlaceholders(text),
+    ...findStaleEntries(text, maxAgeDays, new Date())
+  );
   return findings;
 }
 

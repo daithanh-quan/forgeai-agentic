@@ -101,3 +101,125 @@ test('check-memory accepts existing paths and skips non-path tokens', () => {
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+test('check-memory warns on TODO placeholders without failing', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-memory-todo-'));
+
+  try {
+    writeMemory(target, '# Project Memory\n\n## Business rules\n\n- TODO: Rule that must not be broken.\n');
+
+    const { output, failed } = runCheckMemoryCli(target);
+
+    assert.equal(failed, false);
+    assert.match(output, /warn\s+\.ai\/MEMORY\.md:5: unfilled TODO placeholder/);
+    assert.match(output, /Result: memory check passed with warnings\./);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-memory warns on entries older than the age threshold', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-memory-stale-'));
+
+  try {
+    writeMemory(
+      target,
+      [
+        '# Project Memory',
+        '',
+        '## Architecture decisions',
+        '',
+        '### 2020-01-01 — Ancient decision',
+        '',
+        '- **Decision:** Something old.',
+        '- **Why:** Reasons.',
+        '- **Impact:** Still assumed.',
+        ''
+      ].join('\n')
+    );
+
+    const { output, failed } = runCheckMemoryCli(target);
+
+    assert.equal(failed, false);
+    assert.match(output, /warn\s+\.ai\/MEMORY\.md:5: entry dated 2020-01-01 is older than 180 days/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-memory respects the max-age-days directive', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-memory-directive-'));
+
+  try {
+    writeMemory(
+      target,
+      [
+        '<!-- forgeai-memory: max-age-days=100000 -->',
+        '# Project Memory',
+        '',
+        '## Architecture decisions',
+        '',
+        '### 2020-01-01 — Ancient but accepted',
+        '',
+        '- **Decision:** Something old.',
+        '- **Why:** Reasons.',
+        '- **Impact:** Still assumed.',
+        ''
+      ].join('\n')
+    );
+
+    const { output, failed } = runCheckMemoryCli(target);
+
+    assert.equal(failed, false);
+    assert.doesNotMatch(output, /is older than/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-memory warns and falls back on an invalid directive value', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-memory-badvalue-'));
+
+  try {
+    writeMemory(
+      target,
+      '<!-- forgeai-memory: max-age-days=soon -->\n# Project Memory\n\n## Commands\n\n- Build: standard.\n'
+    );
+
+    const { output, failed } = runCheckMemoryCli(target);
+
+    assert.equal(failed, false);
+    assert.match(output, /warn\s+\.ai\/MEMORY\.md: invalid forgeai-memory max-age-days value "soon"; using default 180/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-memory treats hyphen-separated dated headings as stale too', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-memory-hyphen-'));
+
+  try {
+    writeMemory(
+      target,
+      [
+        '# Project Memory',
+        '',
+        '## Architecture decisions',
+        '',
+        '### 2020-01-01 - Ancient decision with hyphen',
+        '',
+        '- **Decision:** Something old.',
+        '- **Why:** Reasons.',
+        '- **Impact:** Still assumed.',
+        ''
+      ].join('\n')
+    );
+
+    const { output, failed } = runCheckMemoryCli(target);
+
+    assert.equal(failed, false);
+    assert.match(output, /warn\s+\.ai\/MEMORY\.md:5: entry dated 2020-01-01 is older than 180 days/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
