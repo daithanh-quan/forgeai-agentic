@@ -90,6 +90,55 @@ export function findStaleEntries(text: string, maxAgeDays: number, now: Date): M
   return findings;
 }
 
+export function findMalformedEntries(text: string): MemoryFinding[] {
+  const findings: MemoryFinding[] = [];
+  const lines = text.split(/\r?\n/);
+  let inDecisions = false;
+  let entryStart = -1;
+  let entryBody: string[] = [];
+
+  const flushEntry = () => {
+    if (entryStart === -1) return;
+    const body = entryBody.join('\n');
+    for (const field of ['Decision', 'Why', 'Impact']) {
+      if (!body.includes(`**${field}:**`)) {
+        findings.push({
+          severity: 'warn',
+          location: `${MEMORY_RELATIVE_PATH}:${entryStart + 1}`,
+          detail: `decision entry is missing **${field}:**`
+        });
+      }
+    }
+    entryStart = -1;
+    entryBody = [];
+  };
+
+  lines.forEach((line, index) => {
+    if (/^##\s/.test(line)) {
+      flushEntry();
+      inDecisions = /^##\s+Architecture decisions\b/.test(line);
+      return;
+    }
+    if (!inDecisions) return;
+    if (/^###\s/.test(line)) {
+      flushEntry();
+      if (!DATED_HEADING.test(line)) {
+        findings.push({
+          severity: 'warn',
+          location: `${MEMORY_RELATIVE_PATH}:${index + 1}`,
+          detail: 'decision heading does not match "### YYYY-MM-DD — Title"'
+        });
+        return;
+      }
+      entryStart = index;
+      return;
+    }
+    if (entryStart !== -1) entryBody.push(line);
+  });
+  flushEntry();
+  return findings;
+}
+
 // Aggregates the stale-memory signals in report order.
 export function collectFindings(text: string, rootDir: string): MemoryFinding[] {
   const findings: MemoryFinding[] = [];
@@ -98,7 +147,8 @@ export function collectFindings(text: string, rootDir: string): MemoryFinding[] 
   findings.push(
     ...findDeadPathRefs(text, rootDir),
     ...findTodoPlaceholders(text),
-    ...findStaleEntries(text, maxAgeDays, new Date())
+    ...findStaleEntries(text, maxAgeDays, new Date()),
+    ...findMalformedEntries(text)
   );
   return findings;
 }

@@ -223,3 +223,43 @@ test('check-memory treats hyphen-separated dated headings as stale too', () => {
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+test('check-memory warns on malformed decision entries', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-memory-malformed-'));
+
+  try {
+    writeMemory(
+      target,
+      [
+        '# Project Memory',
+        '',
+        '## Architecture decisions',
+        '',
+        '### We picked a database',
+        '',
+        '- We use SQLite.',
+        '',
+        '### 2026-07-01 — Missing fields',
+        '',
+        '- **Decision:** Use SQLite.',
+        '',
+        '## Commands',
+        '',
+        '### No date needed here',
+        '',
+        '- Build: standard.',
+        ''
+      ].join('\n')
+    );
+
+    const { output, failed } = runCheckMemoryCli(target);
+
+    assert.equal(failed, false);
+    assert.match(output, /warn\s+\.ai\/MEMORY\.md:5: decision heading does not match "### YYYY-MM-DD — Title"/);
+    assert.match(output, /warn\s+\.ai\/MEMORY\.md:9: decision entry is missing \*\*Why:\*\*/);
+    assert.match(output, /warn\s+\.ai\/MEMORY\.md:9: decision entry is missing \*\*Impact:\*\*/);
+    assert.doesNotMatch(output, /:15:/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
