@@ -18,6 +18,7 @@ export function usage(): string {
   forgeai-init --check-all
   forgeai-init --check-review
   forgeai-init --check-security
+  forgeai-init --check-memory
   forgeai-init --list-profiles
   forgeai-init --add-model <provider> [--model <id>] [options]
   forgeai-init --list-models
@@ -44,7 +45,7 @@ Options:
   --check-profile
                 Validate the installed profile against detected project signals.
   --check-all   Run the harness, CodeGraph (strict), lifecycle, profile,
-                review, and security checks together and return one
+                review, security, and memory checks together and return one
                 aggregated exit code.
   --check-review
                 Validate that gated task journals carry real validation
@@ -52,6 +53,10 @@ Options:
   --check-security
                 Scan for supply-chain risks (pipe-to-shell installs,
                 off-registry/unpinned deps, install scripts, private keys)
+  --check-memory
+                Validate .ai/MEMORY.md for stale knowledge (dead path
+                references, leftover TODOs, over-age entries, malformed
+                decision entries).
   --skip-update-check
                 Skip the npm latest-version preflight check.
   --list-profiles

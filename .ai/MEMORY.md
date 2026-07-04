@@ -1,3 +1,4 @@
+<!-- forgeai-memory: max-age-days=180 -->
 # Project Memory
 
 This file stores durable memory for the ForgeAI Agentic Init repository itself.
@@ -42,6 +43,15 @@ carry no new number.
   human-approved dependency and path exceptions. Artifacts:
   `.ai/security-policy.yaml`, `.ai/workflows/supply-chain-safety.md`,
   `bin/lib/security.ts`.
+- **Phase 7 — memory and knowledge management** (old Phase 8, narrowed).
+  Structured `templates/.ai/MEMORY.md` template (decisions, conventions, business rules,
+  recurring bugs, commands, test strategy, ownership, deployment notes) and
+  a `--check-memory` stale-memory gate (dead path refs fail; TODOs, over-age
+  entries, malformed decision entries warn), configured by an inline
+  `forgeai-memory: max-age-days` directive and aggregated into
+  `--check-all`. Context diffing was dropped (covered by git); import/export
+  guidance was deferred. Artifacts: `templates/.ai/MEMORY.md`,
+  `.ai/workflows/memory-management.md`, `bin/lib/memory.ts`.
 
 ### Dropped
 
@@ -57,15 +67,6 @@ carry no new number.
 
 ### Upcoming
 
-- **Phase 7 — memory and knowledge management** (old Phase 8).
-  - Structured memory sections for architecture decisions, recurring bugs,
-    commands, test strategy, ownership, and deployment notes.
-  - Stale-memory checks so agents can flag outdated assumptions instead of
-    blindly following them.
-  - Project context diffing so teams can review how `.ai/PROJECT.md`,
-    `.ai/RULES.md`, and `.ai/MEMORY.md` evolve over time.
-  - Import/export guidance for sharing stable knowledge across related
-    repositories.
 - **Phase 8 — advanced agentic orchestration** (old Phase 9).
   - Explicit multi-agent worktree strategy for parallel implementation,
     review, and conflict resolution.
@@ -156,7 +157,7 @@ carry no new number.
 
 - **Decision:** Drop the original Phase 7 (external workflow connectors:
   Jira/Linear/board issue intake). Deliver a supply-chain & untrusted-source
-  safety gate instead: hardened `RULES.md`, `.ai/security-policy.yaml`,
+  safety gate instead: hardened `.ai/RULES.md`, `.ai/security-policy.yaml`,
   `.ai/workflows/supply-chain-safety.md`, and `forgeai-init --check-security`
   (aggregated into `--check-all`).
 - **Why:** Users prompt the agent with their own task descriptions, so board
@@ -185,3 +186,15 @@ carry no new number.
   the dated entries only for rationale. New phases get the next free number;
   dropped work is recorded under Dropped with a one-line reason instead of a
   full spec.
+
+### 2026-07-03 - Phase 7 memory gate is convention-first and warn-biased
+
+- **Decision:** `--check-memory` ships with hardcoded defaults plus a single
+  inline directive (`forgeai-memory: max-age-days`) instead of a policy
+  file; only dead path references fail, all structural signals warn.
+- **Why:** `--upgrade` preserves populated `.ai/MEMORY.md` files, so upgraded
+  repos keep old formats forever — a hard-failing format gate would block
+  them. A policy file (the `.ai/security-policy.yaml` route) adds a template and
+  an upgrade-preserve rule for one knob most repos never tune.
+- **Impact:** New config needs for the memory gate should extend the
+  directive, not add files. Structural checks must stay warn-only.

@@ -54,6 +54,12 @@ Pin a version only when you need a reproducible setup:
 npx forgeai-agentic-init@2.3.1
 ```
 
+`2.8.0` adds memory and knowledge management: a restructured `MEMORY.md`
+template (decisions, recurring bugs, commands, test strategy, ownership,
+deployment notes) and `forgeai-init --check-memory`, which fails on dead
+path references and warns on TODO placeholders, over-age entries (tunable
+via an inline `forgeai-memory: max-age-days` directive), and malformed
+decision entries, aggregated into `--check-all`.
 `2.7.0` adds a supply-chain safety gate: `forgeai-init --check-security`
 scans for pipe-to-shell installs, off-registry/unpinned dependencies,
 malicious install scripts, and committed private keys, aggregated into
