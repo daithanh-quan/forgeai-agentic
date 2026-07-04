@@ -10,7 +10,8 @@ export const DEFAULT_MAX_AGE_DAYS = 180;
 export const DATED_HEADING = /^###\s+(\d{4}-\d{2}-\d{2})\s+[—-]\s+(.+)$/;
 
 const PATH_EXTENSIONS = /\.(ts|tsx|js|jsx|mjs|cjs|json|md|ya?ml|py|rb|go|rs|java|kt|swift|sh|bash|zsh|ps1|css|scss|html|sql|toml|txt)$/i;
-const DIRECTIVE_PATTERN = /<!--\s*forgeai-memory:\s*([^>]*?)\s*-->/;
+// Bound to a single line to prevent ReDoS on unterminated directives.
+const DIRECTIVE_PATTERN = /<!--[^\S\n]*forgeai-memory:([^>\n]*)-->/;
 
 // A token counts as a repo path only when it has a known source extension or
 // a trailing slash (directory reference). Everything ambiguous is skipped so
@@ -33,6 +34,9 @@ export function findDeadPathRefs(text: string, rootDir: string): MemoryFinding[]
       if (!looksLikeRepoPath(token)) continue;
       const cleaned = token.replace(/^\.\//, '').replace(/:\d+([-,]\d+)?$/, '');
       if (!fs.existsSync(path.join(rootDir, cleaned))) {
+        // MEMORY.md lives in .ai/, so references are commonly written .ai-relative;
+        // upgrade-preserved files from older templates use that form.
+        if (fs.existsSync(path.join(rootDir, '.ai', cleaned))) continue;
         findings.push({
           severity: 'fail',
           location: `${MEMORY_RELATIVE_PATH}:${index + 1}`,

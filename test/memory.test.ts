@@ -289,6 +289,70 @@ test('freshly initialized template passes check-memory with only warns', () => {
   }
 });
 
+test('check-memory accepts .ai-relative path references (upgrade regression guard)', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-memory-airel-'));
+
+  try {
+    fs.mkdirSync(path.join(target, '.ai', 'state'), { recursive: true });
+    fs.writeFileSync(path.join(target, '.ai', 'state', 'CURRENT.md'), '# stub\n');
+    writeMemory(target, '# Project Memory\n\n## Commands\n\n- Use `state/CURRENT.md` for temporary notes.\n');
+
+    const { output, failed } = runCheckMemoryCli(target);
+
+    assert.equal(failed, false);
+    assert.doesNotMatch(output, /references missing path/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-memory treats unterminated directive as absent (uses default 180-day threshold)', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-memory-unterminated-'));
+
+  try {
+    writeMemory(
+      target,
+      [
+        '<!-- forgeai-memory: max-age-days=100000',
+        '# Project Memory',
+        '',
+        '## Architecture decisions',
+        '',
+        '### 2020-01-01 — Old',
+        '',
+        '- **Decision:** Something old.',
+        '- **Why:** Reasons.',
+        '- **Impact:** Still assumed.',
+        ''
+      ].join('\n')
+    );
+
+    const { output, failed } = runCheckMemoryCli(target);
+
+    assert.equal(failed, false);
+    assert.match(output, /is older than/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-memory completes quickly on a large unterminated directive (ReDoS guard)', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-memory-redos-'));
+
+  try {
+    const content = '<!-- forgeai-memory:' + ' '.repeat(50000) + '\n# Project Memory\n';
+    writeMemory(target, content);
+
+    const start = Date.now();
+    runCheckMemoryCli(target);
+    const elapsed = Date.now() - start;
+
+    assert.ok(elapsed < 5000, `check-memory took ${elapsed}ms on unterminated directive — ReDoS suspected`);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('check-all includes the memory check', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-memory-checkall-'));
 
