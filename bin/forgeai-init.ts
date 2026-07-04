@@ -11,6 +11,7 @@ import {
   checkAll,
   checkReview,
   checkSecurity,
+  checkMemory,
   check,
   checkUpdates,
   addModel,
@@ -29,6 +30,7 @@ import { runCheckGit } from './lib/git.js';
 import { runCheck, runCheckAll } from './lib/check.js';
 import { runCheckReview } from './lib/review.js';
 import { runCheckSecurity } from './lib/security.js';
+import { runCheckMemory } from './lib/memory.js';
 import { usage, runInit } from './lib/init.js';
 
 runUpdatePreflight();
@@ -43,6 +45,7 @@ else if (checkCodeGraph) runCheckCodeGraph({ strict });
 else if (checkProfile) runCheckProfile();
 else if (checkReview) runCheckReview();
 else if (checkSecurity) runCheckSecurity();
+else if (checkMemory) runCheckMemory();
 else if (checkAll) runCheckAll();
 else if (check) runCheck();
 else if (checkUpdates) console.log('Update check complete.');

@@ -1,0 +1,103 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import test from 'node:test';
+import { cli, type ExecError, runTs } from './helpers.js';
+
+// Writes a .ai/MEMORY.md fixture without running a full init.
+export function writeMemory(target: string, content: string): void {
+  fs.mkdirSync(path.join(target, '.ai'), { recursive: true });
+  fs.writeFileSync(path.join(target, '.ai', 'MEMORY.md'), content);
+}
+
+export function runCheckMemoryCli(target: string): { output: string; failed: boolean } {
+  try {
+    const output = runTs(cli, ['--check-memory'], {
+      cwd: target,
+      env: { ...process.env, PATH: '' }
+    });
+    return { output, failed: false };
+  } catch (error) {
+    const execError = error as ExecError;
+    return { output: String(execError.stdout ?? ''), failed: true };
+  }
+}
+
+test('check-memory passes on a minimal populated memory file', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-memory-ok-'));
+
+  try {
+    writeMemory(target, '# Project Memory\n\n## Commands\n\n- Build: run the standard build.\n');
+
+    const { output, failed } = runCheckMemoryCli(target);
+
+    assert.equal(failed, false);
+    assert.match(output, /ForgeAI memory check/);
+    assert.match(output, /ok\s+no stale-memory signals detected/);
+    assert.match(output, /Result: memory check passed\./);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-memory fails when .ai/MEMORY.md is missing', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-memory-missing-'));
+
+  try {
+    const { output, failed } = runCheckMemoryCli(target);
+
+    assert.equal(failed, true);
+    assert.match(output, /fail\s+\.ai\/MEMORY\.md not found/);
+    assert.match(output, /Result: memory check failed\./);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-memory fails on a dead path reference', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-memory-deadpath-'));
+
+  try {
+    writeMemory(target, '# Project Memory\n\n## Coding conventions\n\n- API clients live in `src/api/client.ts`.\n');
+
+    const { output, failed } = runCheckMemoryCli(target);
+
+    assert.equal(failed, true);
+    assert.match(output, /fail\s+\.ai\/MEMORY\.md:5: references missing path `src\/api\/client\.ts`/);
+    assert.match(output, /Result: memory check failed\./);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-memory accepts existing paths and skips non-path tokens', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-memory-livepath-'));
+
+  try {
+    fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(target, 'src', 'index.ts'), 'export {};\n');
+    writeMemory(
+      target,
+      [
+        '# Project Memory',
+        '',
+        '## Coding conventions',
+        '',
+        '- Entry point is `src/index.ts:1`.',
+        '- Feature APIs follow `src/features/*/*Api.ts`.',
+        '- Placeholders like `<service-name>` and `TODO.md` patterns are skipped.',
+        '- Packages like `@types/node` and URLs like `https://example.com/a.ts` are skipped.',
+        '- Commands like `npm run build` are skipped.',
+        ''
+      ].join('\n')
+    );
+
+    const { output, failed } = runCheckMemoryCli(target);
+
+    assert.equal(failed, false);
+    assert.doesNotMatch(output, /references missing path/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
