@@ -19,6 +19,9 @@ export function usage(): string {
   forgeai-init --check-review
   forgeai-init --check-security
   forgeai-init --check-memory
+  forgeai-init --check-approval
+  forgeai-init --check-evaluation
+  forgeai-init --decompose --objective "<description>" [--output <file>]
   forgeai-init --list-profiles
   forgeai-init --add-model <provider> [--model <id>] [options]
   forgeai-init --list-models
@@ -45,8 +48,8 @@ Options:
   --check-profile
                 Validate the installed profile against detected project signals.
   --check-all   Run the harness, CodeGraph (strict), lifecycle, profile,
-                review, security, and memory checks together and return one
-                aggregated exit code.
+                review, security, memory, approval, and evaluation checks
+                together and return one aggregated exit code.
   --check-review
                 Validate that gated task journals carry real validation
                 evidence and a completed reviewer scorecard before merge.
@@ -57,6 +60,16 @@ Options:
                 Validate .ai/MEMORY.md for stale knowledge (dead path
                 references, leftover TODOs, over-age entries, malformed
                 decision entries).
+  --check-approval
+                Fail when high-risk task journals in gated lifecycle states
+                (review, revision, acceptance, delivery, closed) lack an
+                ## Approval section with a human sign-off date.
+  --check-evaluation
+                Validate evaluation run files in .ai/evaluation/ for required
+                fields (Run ID, Date, Task, Mode, Outcome).
+  --decompose   Emit a scored task decomposition template for an objective.
+                Requires --objective "<description>". Use --output <file> to
+                write to a file instead of stdout.
   --skip-update-check
                 Skip the npm latest-version preflight check.
   --list-profiles

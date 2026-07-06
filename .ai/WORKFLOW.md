@@ -132,6 +132,9 @@ owns the shared files.
 
 ## 5a. Branch and worktree naming
 
+For parallel multi-agent worktree setup, conflict detection, and merge-back
+rules, see `.ai/workflows/worktree-strategy.md`.
+
 When the workflow requires a branch or worktree, use a semantic branch name
 based on the task type, not the agent identity:
 

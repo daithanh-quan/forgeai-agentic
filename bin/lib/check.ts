@@ -10,6 +10,8 @@ import { runCheckProfile } from './profiles.js';
 import { runCheckReview } from './review.js';
 import { runCheckSecurity } from './security.js';
 import { runCheckMemory } from './memory.js';
+import { runCheckApproval } from './approval.js';
+import { runCheckEvaluation } from './evaluation.js';
 
 const requiredHarnessFiles = listFilesRecursive(templateDir);
 const bootstrapFiles = ['.ai/PROJECT.md', '.ai/MEMORY.md', '.ai/AGENT_REGISTRY.md'];
@@ -121,4 +123,8 @@ export function runCheckAll(): void {
   runCheckSecurity();
   separator();
   runCheckMemory();
+  separator();
+  runCheckApproval();
+  separator();
+  runCheckEvaluation();
 }

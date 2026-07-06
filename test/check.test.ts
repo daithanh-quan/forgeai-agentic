@@ -193,6 +193,8 @@ test('check-all runs harness, codegraph, lifecycle, and profile checks', () => {
     assert.match(output, /ForgeAI CodeGraph check/);
     assert.match(output, /ForgeAI lifecycle check/);
     assert.match(output, /ForgeAI profile check/);
+    assert.match(output, /ForgeAI approval gate check/);
+    assert.match(output, /ForgeAI evaluation check/);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }

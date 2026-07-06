@@ -45,7 +45,7 @@ tiers:
 
   standard:
     provider: codex
-    model: gpt-5.5
+    model: o4-mini
     score_range: [3, 5]
     token_budget: 8000
     use_for:
@@ -56,7 +56,7 @@ tiers:
 
   strong:
     provider: codex
-    model: gpt-5.5
+    model: o4-mini
     score_range: [6, 8]
     token_budget: 16000
     use_for:
