@@ -54,6 +54,15 @@ Pin a version only when you need a reproducible setup:
 npx forgeai-agentic-init@2.3.1
 ```
 
+`2.9.0` adds Phase 8 — advanced agentic orchestration: `--decompose` emits
+a scored task decomposition template with tier routing and acceptance criteria;
+`--check-approval` fails when high-risk task journals (auth, security,
+migration, dependency-upgrade) in gated lifecycle states lack a human
+sign-off section; `--check-evaluation` validates evaluation run files in
+`.ai/evaluation/`; `--fail-on-fallback` lets callers detect delegation
+failure via exit code; and a new `worktree-strategy.md` workflow covers
+parallel multi-agent setup, conflict detection, and merge-back rules. All
+new checks are aggregated into `--check-all`.
 `2.8.0` adds memory and knowledge management: a restructured `MEMORY.md`
 template (decisions, recurring bugs, commands, test strategy, ownership,
 deployment notes) and `forgeai-init --check-memory`, which fails on dead
