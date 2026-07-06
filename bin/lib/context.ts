@@ -34,6 +34,9 @@ export const checkUpdates = args.has('--check-updates');
 export const addModel = args.has('--add-model');
 export const listModels = args.has('--list-models');
 export const removeModel = args.has('--remove-model');
+export const decompose = args.has('--decompose');
+export const checkApproval = args.has('--check-approval');
+export const checkEvaluation = args.has('--check-evaluation');
 export const skipUpdateCheck = args.has('--skip-update-check') || process.env.FORGEAI_SKIP_UPDATE_CHECK === '1';
 
 export function getArgValue(name: string): string | null {

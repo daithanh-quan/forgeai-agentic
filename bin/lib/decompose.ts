@@ -1,0 +1,103 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { root, getArgValue } from './context.js';
+import { formatStatus } from './utils.js';
+
+const TODAY = new Date().toISOString().slice(0, 10);
+
+const SCORING_GUIDE = `
+Scoring dimensions:
+  C = complexity (0–3): 0 mechanical  1 localized  2 multi-file  3 architecture/concurrency
+  R = risk       (0–3): 0 docs/tests  1 reversible  2 API/data/broad  3 auth/security/payments/prod
+  A = ambiguity  (0–2): 0 explicit   1 assumptions bounded   2 unclear/conflicting
+  X = context    (0–2): 0 one file   1 one subsystem   2 broad/cross-system
+
+Tier routing (total score):
+  0–2  → fast     (agy, token_budget 4000)
+  3–5  → standard (codex, token_budget 8000)
+  6–8  → strong   (codex/current model, token_budget 16000)
+  9–10 → lead     (current orchestrator, token_budget 24000)
+
+Minimum-tier overrides (regardless of score):
+  architecture, auth/security, payments, destructive migrations → lead
+  public API changes → strong
+`.trim();
+
+export function buildDecompositionTemplate(objective: string): string {
+  return `# Task Decomposition
+
+- Objective: ${objective}
+- Scored by: orchestrator
+- Date: ${TODAY}
+
+## Scoring Table
+
+| Subtask | C | R | A | X | Total | Tier | Agent | Token budget |
+| --- | ---: | ---: | ---: | ---: | ---: | --- | --- | ---: |
+| TODO: describe subtask 1 | 0 | 0 | 0 | 0 | 0 | fast | agy | 4000 |
+| TODO: describe subtask 2 | 0 | 0 | 0 | 0 | 0 | fast | agy | 4000 |
+
+${SCORING_GUIDE}
+
+## Subtasks
+
+### Subtask 1
+- ID: TASK-01
+- Role: TODO (research | backend | frontend | reviewer)
+- Tier: fast
+- Token budget: 4000
+- Objective: TODO — one measurable outcome
+- Read scope: TODO (exact files or directories)
+- Write scope: TODO (exact files or directories)
+- Parallel safety: independent | sequential | needs-human-decision
+- Acceptance criteria:
+  - [ ] TODO
+- Validation command: TODO
+
+### Subtask 2
+- ID: TASK-02
+- Role: TODO
+- Tier: fast
+- Token budget: 4000
+- Objective: TODO
+- Read scope: TODO
+- Write scope: TODO
+- Parallel safety: independent
+- Acceptance criteria:
+  - [ ] TODO
+- Validation command: TODO
+
+## Session coordination
+
+Run before launching parallel subtasks:
+
+\`\`\`bash
+forgeai-init --check-sessions
+\`\`\`
+
+Record each active session in \`.ai/state/sessions.md\` with a narrow write scope
+before starting. See \`.ai/workflows/worktree-strategy.md\` for parallel worktree setup.
+`;
+}
+
+export function runDecompose(): void {
+  const objective = getArgValue('--objective');
+  const outputArg = getArgValue('--output');
+
+  if (!objective) {
+    process.stderr.write('Usage: forgeai-init --decompose --objective "<description>" [--output <file>]\n');
+    process.exitCode = 2;
+    return;
+  }
+
+  const content = buildDecompositionTemplate(objective);
+
+  if (outputArg) {
+    const outputPath = path.resolve(root, outputArg);
+    fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+    fs.writeFileSync(outputPath, content);
+    console.log(formatStatus('ok', `decomposition written to ${outputArg}`));
+  } else {
+    process.stdout.write(content);
+  }
+}

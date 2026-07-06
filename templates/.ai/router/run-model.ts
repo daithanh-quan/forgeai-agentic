@@ -81,6 +81,7 @@ Options:
   --routing <file>     Defaults to .ai/model-routing.yaml
   --adapters <file>    Defaults to .ai/cli-adapters.json
   --dry-run            Print the command that would run
+  --fail-on-fallback   Exit with code 1 on fallback instead of 0
 `;
 }
 
@@ -148,7 +149,7 @@ function detectFailureReason(result: SpawnSyncReturns<string>, adapter: Adapter)
   return result.status === 0 ? null : 'command_failed';
 }
 
-function fallback(reason: string, detail: string, context: FallbackContext): number {
+function fallback(reason: string, detail: string, context: FallbackContext, failOnFallback = false): number {
   const payload = {
     status: 'fallback',
     reason,
@@ -160,7 +161,8 @@ function fallback(reason: string, detail: string, context: FallbackContext): num
       'Delegated CLI could not run. The current model should execute this bounded assignment locally or escalate according to .ai/model-routing.yaml.'
   };
   process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
-  return 0;
+  // --fail-on-fallback: callers that cannot parse JSON can detect failure via exit code.
+  return failOnFallback ? 1 : 0;
 }
 
 const args = parseArgs(process.argv.slice(2));
@@ -168,6 +170,7 @@ if (args.help || (!args.tier && (!args.provider || !args.model))) {
   process.stderr.write(usage());
   process.exit(args.help ? 0 : 2);
 }
+const failOnFallback = args['fail-on-fallback'] === true;
 
 const tierArg = getStringArg(args, 'tier');
 const routingPath = path.resolve(getStringArg(args, 'routing') ?? defaults.routing);
@@ -195,7 +198,7 @@ if (!adapter) {
     fallback: fallbackConfig,
     provider,
     model
-  });
+  }, failOnFallback);
   process.exit();
 }
 
@@ -210,7 +213,7 @@ if (healthFailure) {
     fallback: fallbackConfig,
     provider,
     model
-  });
+  }, failOnFallback);
   process.exit();
 }
 
@@ -240,7 +243,7 @@ if (runFailure && fallbackConfig.on?.includes(runFailure)) {
     fallback: fallbackConfig,
     provider,
     model
-  });
+  }, failOnFallback);
   process.exit();
 }
 

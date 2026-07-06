@@ -17,6 +17,9 @@ import {
   addModel,
   listModels,
   removeModel,
+  decompose,
+  checkApproval,
+  checkEvaluation,
   strict
 } from './lib/context.js';
 import { getPackageVersion } from './lib/utils.js';
@@ -31,6 +34,9 @@ import { runCheck, runCheckAll } from './lib/check.js';
 import { runCheckReview } from './lib/review.js';
 import { runCheckSecurity } from './lib/security.js';
 import { runCheckMemory } from './lib/memory.js';
+import { runDecompose } from './lib/decompose.js';
+import { runCheckApproval } from './lib/approval.js';
+import { runCheckEvaluation } from './lib/evaluation.js';
 import { usage, runInit } from './lib/init.js';
 
 runUpdatePreflight();
@@ -52,4 +58,7 @@ else if (checkUpdates) console.log('Update check complete.');
 else if (addModel) runAddModel();
 else if (listModels) runListModels();
 else if (removeModel) runRemoveModel();
+else if (decompose) runDecompose();
+else if (checkApproval) runCheckApproval();
+else if (checkEvaluation) runCheckEvaluation();
 else runInit();
