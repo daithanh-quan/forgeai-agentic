@@ -38,6 +38,9 @@ export const decompose = args.has('--decompose');
 export const checkApproval = args.has('--check-approval');
 export const checkEvaluation = args.has('--check-evaluation');
 export const skipUpdateCheck = args.has('--skip-update-check') || process.env.FORGEAI_SKIP_UPDATE_CHECK === '1';
+export const watch = args.has('--watch');
+export const emit = args.has('--emit');
+export const emitPayload = getArgValue('--emit');
 
 export function getArgValue(name: string): string | null {
   for (let index = 0; index < rawArgs.length; index += 1) {

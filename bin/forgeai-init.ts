@@ -20,8 +20,12 @@ import {
   decompose,
   checkApproval,
   checkEvaluation,
-  strict
+  strict,
+  watch,
+  emit
 } from './lib/context.js';
+import { runWatch } from './lib/watch.js';
+import { runEmit } from './lib/emit.js';
 import { getPackageVersion } from './lib/utils.js';
 import { getAvailableProfiles, runCheckProfile } from './lib/profiles.js';
 import { runAddModel, runListModels, runRemoveModel } from './lib/model-routing.js';
@@ -61,4 +65,6 @@ else if (removeModel) runRemoveModel();
 else if (decompose) runDecompose();
 else if (checkApproval) runCheckApproval();
 else if (checkEvaluation) runCheckEvaluation();
+else if (watch) runWatch();
+else if (emit) runEmit();
 else runInit();
