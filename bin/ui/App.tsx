@@ -39,8 +39,8 @@ export default function App() {
       dispatch({ type: '_clear_log', ts: Date.now() / 1000 });
       return;
     }
-    if (key.upArrow) setScrollOffset((o) => Math.min(o + 1, 0));
-    if (key.downArrow) setScrollOffset((o) => Math.max(o - 1, -(state.logs.length)));
+    if (key.upArrow)   setScrollOffset((o) => Math.max(o - 1, -(state.logs.length)));
+    if (key.downArrow) setScrollOffset((o) => Math.min(o + 1, 0));
   });
 
   return (

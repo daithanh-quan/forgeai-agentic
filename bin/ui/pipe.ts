@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs, { constants } from 'node:fs';
 import net from 'node:net';
 import readline from 'node:readline';
@@ -14,7 +14,7 @@ export function createPipeReader(
   onLine: (line: string) => void,
 ): () => void {
   try {
-    execSync(`mkfifo "${pipePath}"`);
+    execFileSync('mkfifo', [pipePath]);
   } catch {
     // FIFO already exists — ok
   }
@@ -28,6 +28,7 @@ export function createPipeReader(
 
   // net.Socket uses kqueue/epoll — it handles SIGPIPE and cleanup correctly.
   const socket = new net.Socket({ fd, readable: true, writable: false, allowHalfOpen: true });
+  socket.on('error', () => { /* ignore I/O errors — TUI stays alive */ });
   const rl = readline.createInterface({ input: socket, crlfDelay: Infinity });
 
   rl.on('line', (line) => {
