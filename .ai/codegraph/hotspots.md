@@ -27,9 +27,10 @@ Track code areas that need extra caution before agent edits.
 - No YAML dependency by design: all YAML handling is minimal hand-rolled
   parsing that only supports the flat format shipped in templates. Do not
   introduce nested YAML into routed/policy files.
-- ESM-only (`"type": "module"`), Node >= 18.18. The published CLI is
+- ESM-only (`"type": "module"`), Node >= 20. The published CLI is
   compiled JS (`tsconfig.build.json` → `dist/`) with zero runtime
-  dependencies; tsx is dev-only (tests run the TS source through it).
+  dependencies outside the package runtime dependencies; tsx is dev-only
+  (tests run the TS source through it).
 - `package.json#files` publishes only `dist`, `profiles`, `templates`,
   `README.md` — repo-level `bin/` source, `.ai/`, `docs/`, `openspec/`
   are internal and never shipped.
@@ -40,6 +41,6 @@ Track code areas that need extra caution before agent edits.
 
 ## Refresh Notes
 
-- Last refreshed: 2026-07-03
-- Refreshed by: Claude (Fable 5) during production-readiness audit, reviewed by thanh
-- Evidence read: full `bin/lib/*` source, `templates/` tree, `test/` suite (82 tests), `--check-all` runs on this repo
+- Last refreshed: 2026-07-09
+- Refreshed by: Codex during 3.0.0 release-readiness audit
+- Evidence read: `bin/ui/*`, router auto-event flow, `templates/` package dry-run, `test/` suite (133 tests), `--check` on this repo
