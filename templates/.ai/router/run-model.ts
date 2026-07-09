@@ -45,6 +45,7 @@ type FallbackContext = {
 };
 
 const root = process.cwd();
+const DEFAULT_PIPE = '.forgeai.pipe';
 const defaults = {
   routing: path.join(root, '.ai', 'model-routing.yaml'),
   adapters: path.join(root, '.ai', 'cli-adapters.json')
@@ -149,6 +150,57 @@ function detectFailureReason(result: SpawnSyncReturns<string>, adapter: Adapter)
   return result.status === 0 ? null : 'command_failed';
 }
 
+function nowSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+function extractAssignmentValue(assignment: string, label: string): string | undefined {
+  const pattern = new RegExp(`^-\\s+${label}:\\s+\`?([^\\n\`]+)\`?\\s*$`, 'im');
+  const match = assignment.match(pattern);
+  return match?.[1]?.trim();
+}
+
+function inferAssignmentMetadata(
+  assignment: string,
+  assignmentPath: string | undefined,
+  provider: string,
+  tierName: string | undefined,
+): { agentId: string; role: string; task: string } {
+  const assignmentId = extractAssignmentValue(assignment, 'ID');
+  const sessionId = extractAssignmentValue(assignment, 'Session ID');
+  const role = extractAssignmentValue(assignment, 'Role') ?? tierName ?? provider;
+  const objective = extractAssignmentValue(assignment, 'Objective');
+  const fallbackTask = assignmentPath ? path.basename(assignmentPath) : 'stdin assignment';
+
+  return {
+    agentId: sessionId ?? assignmentId ?? `${provider}-${process.pid}`,
+    role,
+    task: objective ?? fallbackTask,
+  };
+}
+
+function emitWorkflowEvent(event: Record<string, unknown>): void {
+  const pipePath = path.resolve(root, process.env['FORGEAI_PIPE'] ?? DEFAULT_PIPE);
+  if (!fs.existsSync(pipePath)) return;
+
+  let fd: number | undefined;
+  try {
+    fd = fs.openSync(pipePath, fs.constants.O_WRONLY | fs.constants.O_NONBLOCK);
+    fs.writeSync(fd, `${JSON.stringify({ ts: nowSeconds(), ...event })}\n`);
+  } catch {
+    // The terminal UI is optional. Routing must never fail just because the
+    // watcher is not running or disconnected.
+  } finally {
+    if (fd !== undefined) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        // already closed
+      }
+    }
+  }
+}
+
 function fallback(reason: string, detail: string, context: FallbackContext, failOnFallback = false): number {
   const payload = {
     status: 'fallback',
@@ -176,8 +228,9 @@ const tierArg = getStringArg(args, 'tier');
 const routingPath = path.resolve(getStringArg(args, 'routing') ?? defaults.routing);
 const adaptersPath = path.resolve(getStringArg(args, 'adapters') ?? defaults.adapters);
 const assignmentArg = getStringArg(args, 'assignment');
+const assignmentPath = assignmentArg ? path.resolve(assignmentArg) : undefined;
 const assignment = assignmentArg
-  ? fs.readFileSync(path.resolve(assignmentArg), 'utf8')
+  ? fs.readFileSync(assignmentPath!, 'utf8')
   : fs.readFileSync(0, 'utf8');
 
 const adaptersConfig = JSON.parse(fs.readFileSync(adaptersPath, 'utf8')) as AdaptersConfig;
@@ -190,10 +243,24 @@ if (!provider || !model) {
   throw new Error('Missing provider/model. Use --tier or provide both --provider and --model.');
 }
 
+const agent = inferAssignmentMetadata(assignment, assignmentPath, provider, tierArg);
+emitWorkflowEvent({
+  type: 'agent.assigned',
+  agentId: agent.agentId,
+  role: agent.role,
+  task: agent.task,
+});
+
 const adapter = adaptersConfig.adapters?.[provider];
 const fallbackConfig = adaptersConfig.fallback ?? {};
 
 if (!adapter) {
+  emitWorkflowEvent({
+    type: 'agent.done',
+    agentId: agent.agentId,
+    status: 'fail',
+    message: `fallback: missing_adapter`,
+  });
   process.exitCode = fallback('missing_adapter', `No adapter configured for provider "${provider}".`, {
     fallback: fallbackConfig,
     provider,
@@ -209,6 +276,12 @@ const health = spawnSync(adapter.command, healthArgs, {
 });
 const healthFailure = detectFailureReason(health, adapter);
 if (healthFailure) {
+  emitWorkflowEvent({
+    type: 'agent.done',
+    agentId: agent.agentId,
+    status: 'fail',
+    message: `fallback: ${healthFailure}`,
+  });
   process.exitCode = fallback(healthFailure, health.stderr || health.error?.message || 'Healthcheck failed.', {
     fallback: fallbackConfig,
     provider,
@@ -225,6 +298,12 @@ const commandArgs = replacePlaceholders(adapter.args ?? [], {
 });
 
 if (args['dry-run']) {
+  emitWorkflowEvent({
+    type: 'agent.done',
+    agentId: agent.agentId,
+    status: 'success',
+    message: 'dry run complete',
+  });
   process.stdout.write(
     `${JSON.stringify({ command: adapter.command, args: commandArgs, input: adapter.input ?? 'stdin' }, null, 2)}\n`
   );
@@ -239,6 +318,12 @@ const result = spawnSync(adapter.command, commandArgs, {
 const runFailure = detectFailureReason(result, adapter);
 
 if (runFailure && fallbackConfig.on?.includes(runFailure)) {
+  emitWorkflowEvent({
+    type: 'agent.done',
+    agentId: agent.agentId,
+    status: 'fail',
+    message: `fallback: ${runFailure}`,
+  });
   process.exitCode = fallback(runFailure, result.stderr || result.stdout || 'Delegated CLI failed.', {
     fallback: fallbackConfig,
     provider,
@@ -249,4 +334,10 @@ if (runFailure && fallbackConfig.on?.includes(runFailure)) {
 
 if (result.stdout) process.stdout.write(result.stdout);
 if (result.stderr) process.stderr.write(result.stderr);
+emitWorkflowEvent({
+  type: 'agent.done',
+  agentId: agent.agentId,
+  status: result.status === 0 && !result.error ? 'success' : 'fail',
+  message: result.status === 0 && !result.error ? 'completed' : 'delegated command failed',
+});
 process.exit(result.status ?? (result.error ? 1 : 0));

@@ -25,6 +25,7 @@ test('agent.assigned adds agent with running status', () => {
   const s = reducer(initialState(), {
     type: 'agent.assigned', agentId: 'codex-1', role: 'implementer', task: 'Write auth.ts', ts,
   });
+  assert.equal(s.connected, true);
   assert.ok(s.agents['codex-1']);
   assert.equal(s.agents['codex-1']!.status, 'running');
   assert.equal(s.agents['codex-1']!.role, 'implementer');
@@ -98,4 +99,47 @@ test('unknown event type appends warn log entry', () => {
   const s = reducer(initialState(), { type: 'some.unknown.event', ts, raw: 'raw line here' });
   assert.equal(s.logs.length, 1);
   assert.equal(s.logs[0]!.level, 'warn');
+});
+
+// Issue 4: log cap
+test('logs are capped at 500 entries to prevent unbounded growth', () => {
+  let state = initialState();
+  for (let i = 0; i < 600; i++) {
+    state = reducer(state, { type: 'orchestrator.done', ts: i });
+  }
+  assert.ok(state.logs.length <= 500, `expected ≤500 logs, got ${state.logs.length}`);
+  assert.equal(state.logs.length, 500);
+});
+
+test('log cap keeps the most recent entries', () => {
+  let state = initialState();
+  for (let i = 0; i < 600; i++) {
+    state = reducer(state, { type: 'orchestrator.done', status: String(i), ts: i });
+  }
+  // oldest entries should have been dropped
+  assert.ok(state.logs[0]!.ts >= 100, 'earliest retained entry should not be from the very start');
+});
+
+// Issue 5: orchestrator agent card
+test('orchestrator.start adds orchestrator agent card', () => {
+  const s = reducer(initialState(), { type: 'orchestrator.start', task: 'Build X', ts });
+  assert.ok(s.agents['orchestrator'], 'orchestrator agent card should exist');
+  assert.equal(s.agents['orchestrator']!.role, 'orchestrator');
+  assert.equal(s.agents['orchestrator']!.status, 'running');
+  assert.equal(s.agents['orchestrator']!.task, 'Build X');
+});
+
+test('orchestrator.done marks orchestrator agent done with doneAt', () => {
+  const base = reducer(initialState(), { type: 'orchestrator.start', task: 'Build X', ts });
+  const s = reducer(base, { type: 'orchestrator.done', status: 'success', ts: ts + 100 });
+  assert.equal(s.agents['orchestrator']!.status, 'success');
+  assert.equal(s.agents['orchestrator']!.doneAt, ts + 100);
+});
+
+// Issue 2 (partial): _disconnected event
+test('_disconnected event sets disconnected flag in state', () => {
+  const base = reducer(initialState(), { type: 'orchestrator.start', task: 'x', ts });
+  const s = reducer(base, { type: '_disconnected', ts } as any);
+  assert.equal(s.disconnected, true);
+  assert.equal(s.logs[s.logs.length - 1]!.level, 'warn');
 });

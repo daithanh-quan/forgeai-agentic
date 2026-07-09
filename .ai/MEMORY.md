@@ -198,3 +198,18 @@ carry no new number.
   an upgrade-preserve rule for one knob most repos never tune.
 - **Impact:** New config needs for the memory gate should extend the
   directive, not add files. Structural checks must stay warn-only.
+
+### 2026-07-09 - Phase 9 TUI requires Node >=20 (deviation from plan)
+
+- **Decision:** The Phase 9 terminal UI monitor (Ink-based dashboard) ships
+  with `engines.node >= 20.0.0`, overriding the project's original `>=18.18.0`
+  floor.
+- **Why:** Ink 6.x (the chosen TUI library) declares `peerDependencies` on
+  React 19 and requires Node 20 for its internal ESM/hook stack. Pinning to
+  Ink 5.x to stay on Node 18 was evaluated but rejected because Ink 5 lacks
+  the `useInput` API shape used throughout `bin/ui/`. Ink 6 is the minimum
+  version that supports the required component model.
+- **Impact:** Any user or CI environment still on Node 18 or 19 must upgrade
+  before using `forgeai-init --watch`. New UI dependencies added in Phase 9+
+  should continue to target Node 20+ and must not re-introduce a Node 18
+  support claim.
