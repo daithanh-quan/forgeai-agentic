@@ -16,7 +16,7 @@ test('profile initialization installs stack-specific files and manifest', () => 
     assert.equal(fs.existsSync(path.join(target, '.ai', 'workflows', 'nextjs-change.md')), true);
 
     const manifest = JSON.parse(fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')) as HarnessManifest;
-    assert.equal(manifest.package_version, '3.0.0');
+    assert.equal(manifest.package_version, '3.0.1');
     assert.equal(manifest.profile, 'nextjs');
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
