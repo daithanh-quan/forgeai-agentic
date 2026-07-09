@@ -1,6 +1,6 @@
 {
   "name": "forgeai-agentic-init",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "AI project initialization kit for agentic coding workflows.",
   "type": "module",
   "bin": {
@@ -14,6 +14,7 @@
   },
   "files": [
     "dist",
+    "docs/assets/banner-readme-gray.png",
     "profiles",
     "templates",
     "README.md"
