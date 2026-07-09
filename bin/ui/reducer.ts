@@ -1,8 +1,11 @@
 import type { AgentState, AgentStatus, AppState, CheckStatus, ForgeEvent, LogEntry } from './types.js';
 
+const MAX_LOG = 500;
+
 export function initialState(): AppState {
   return {
     connected: false,
+    disconnected: false,
     task: null,
     agents: {},
     logs: [],
@@ -11,7 +14,12 @@ export function initialState(): AppState {
 }
 
 function appendLog(state: AppState, text: string, ts: number, level: LogEntry['level'] = 'info'): AppState {
-  return { ...state, logs: [...state.logs, { ts, text, level }] };
+  const logs = [...state.logs, { ts, text, level }];
+  return { ...state, logs: logs.length > MAX_LOG ? logs.slice(-MAX_LOG) : logs };
+}
+
+function markConnected(state: AppState): AppState {
+  return state.connected ? state : { ...state, connected: true };
 }
 
 function toAgentStatus(s: string | undefined): AgentStatus {
@@ -32,15 +40,29 @@ export function reducer(state: AppState, event: ForgeEvent): AppState {
   const { ts } = event;
 
   switch (event.type) {
-    case 'orchestrator.start':
+    case 'orchestrator.start': {
+      const orchAgent: AgentState = {
+        agentId: 'orchestrator',
+        role: 'orchestrator',
+        task: event.task ?? '',
+        status: 'running',
+        message: 'running...',
+        startedAt: ts,
+      };
       return appendLog(
-        { ...state, connected: true, task: event.task ?? null },
+        { ...state, connected: true, task: event.task ?? null, agents: { ...state.agents, orchestrator: orchAgent } },
         'orchestrator started',
         ts,
       );
+    }
 
-    case 'orchestrator.done':
-      return appendLog(state, `orchestrator ${event.status ?? 'done'}`, ts);
+    case 'orchestrator.done': {
+      const existing = state.agents['orchestrator'];
+      const updatedAgents = existing
+        ? { ...state.agents, orchestrator: { ...existing, status: toAgentStatus(event.status), doneAt: ts } }
+        : state.agents;
+      return appendLog({ ...state, agents: updatedAgents }, `orchestrator ${event.status ?? 'done'}`, ts);
+    }
 
     case 'agent.assigned': {
       const id = event.agentId ?? '';
@@ -53,7 +75,7 @@ export function reducer(state: AppState, event: ForgeEvent): AppState {
         startedAt: ts,
       };
       return appendLog(
-        { ...state, agents: { ...state.agents, [id]: agent } },
+        markConnected({ ...state, agents: { ...state.agents, [id]: agent } }),
         `assigned ${id} → ${event.role ?? 'agent'}`,
         ts,
       );
@@ -97,7 +119,7 @@ export function reducer(state: AppState, event: ForgeEvent): AppState {
         startedAt: ts,
       };
       return appendLog(
-        { ...state, agents: { ...state.agents, [id]: agent } },
+        markConnected({ ...state, agents: { ...state.agents, [id]: agent } }),
         `reviewer ${id} reviewing ${event.target ?? ''}`,
         ts,
       );
@@ -122,7 +144,7 @@ export function reducer(state: AppState, event: ForgeEvent): AppState {
 
     case 'check.run':
       return appendLog(
-        { ...state, checks: { ...state.checks, [event.name ?? '']: 'running' } },
+        markConnected({ ...state, checks: { ...state.checks, [event.name ?? '']: 'running' } }),
         `⟳ ${event.name} check...`,
         ts,
       );
@@ -131,7 +153,7 @@ export function reducer(state: AppState, event: ForgeEvent): AppState {
       const status = toCheckStatus(event.status);
       const icon = status === 'pass' ? '✓' : status === 'fail' ? '✗' : '⚠';
       return appendLog(
-        { ...state, checks: { ...state.checks, [event.name ?? '']: status } },
+        markConnected({ ...state, checks: { ...state.checks, [event.name ?? '']: status } }),
         `${icon} ${event.name} ${event.status ?? ''}`,
         ts,
       );
@@ -139,6 +161,9 @@ export function reducer(state: AppState, event: ForgeEvent): AppState {
 
     case '_clear_log':
       return { ...state, logs: [] };
+
+    case '_disconnected':
+      return appendLog({ ...state, disconnected: true }, '[!] connection lost', ts, 'warn');
 
     default:
       return appendLog(

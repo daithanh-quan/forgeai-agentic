@@ -22,6 +22,8 @@ export function usage(): string {
   forgeai-init --check-approval
   forgeai-init --check-evaluation
   forgeai-init --decompose --objective "<description>" [--output <file>]
+  forgeai-init --watch
+  forgeai-init --emit '<json>'
   forgeai-init --list-profiles
   forgeai-init --add-model <provider> [--model <id>] [options]
   forgeai-init --list-models
@@ -70,6 +72,11 @@ Options:
   --decompose   Emit a scored task decomposition template for an objective.
                 Requires --objective "<description>". Use --output <file> to
                 write to a file instead of stdout.
+  --watch       Start the terminal orchestration monitor. It reads NDJSON
+                workflow events from .forgeai.pipe or FORGEAI_PIPE.
+  --emit <json> Write one manual workflow event to the terminal monitor pipe.
+                Router-based delegation emits assignment lifecycle events
+                automatically when the monitor is running.
   --skip-update-check
                 Skip the npm latest-version preflight check.
   --list-profiles

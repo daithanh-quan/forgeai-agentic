@@ -54,6 +54,13 @@ Pin a version only when you need a reproducible setup:
 npx forgeai-agentic-init@2.3.1
 ```
 
+`3.0.0` adds Phase 9 — terminal orchestration monitoring: `forgeai-init
+--watch` starts an Ink TUI that shows agent assignments, reviewer/check
+progress, and task status from `.forgeai.pipe`; `forgeai-init --emit '<json>'`
+is available for manual events; and the installed delegation router
+automatically emits `agent.assigned` / `agent.done` events whenever the
+orchestrator routes an assignment through `.ai/router/run-model.ts`. If the
+watcher is not running, routing continues normally with no error.
 `2.9.0` adds Phase 8 — advanced agentic orchestration: `--decompose` emits
 a scored task decomposition template with tier routing and acceptance criteria;
 `--check-approval` fails when high-risk task journals (auth, security,
@@ -109,6 +116,7 @@ npx forgeai-agentic-init@latest --check-lifecycle
 npx forgeai-agentic-init@latest --check-codegraph
 npx forgeai-agentic-init@latest --check-codegraph --strict
 npx forgeai-agentic-init@latest --upgrade
+npx forgeai-agentic-init@latest --watch
 npx forgeai-agentic-init@latest --list-profiles
 ```
 
@@ -430,6 +438,10 @@ When delegation is available through local CLIs, invoke a tier with:
 ```bash
 npx tsx .ai/router/run-model.ts --tier standard --assignment .ai/state/assignments/TASK-01.md
 ```
+
+When `forgeai-init --watch` is running in another terminal from the same
+project root, the router automatically sends assignment lifecycle events to
+the TUI. No extra `--emit` command is required for normal routed assignments.
 
 ### Register your own model CLI
 

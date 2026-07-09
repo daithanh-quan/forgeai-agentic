@@ -19,6 +19,7 @@ export type LogEntry = {
 
 export type AppState = {
   connected: boolean;
+  disconnected: boolean;
   task: string | null;
   agents: Record<string, AgentState>;
   logs: LogEntry[];

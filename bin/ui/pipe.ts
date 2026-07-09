@@ -12,6 +12,7 @@ export function getPipePath(): string {
 export function createPipeReader(
   pipePath: string,
   onLine: (line: string) => void,
+  onError?: (err: Error) => void,
 ): () => void {
   try {
     execFileSync('mkfifo', [pipePath]);
@@ -28,7 +29,7 @@ export function createPipeReader(
 
   // net.Socket uses kqueue/epoll — it handles SIGPIPE and cleanup correctly.
   const socket = new net.Socket({ fd, readable: true, writable: false, allowHalfOpen: true });
-  socket.on('error', () => { /* ignore I/O errors — TUI stays alive */ });
+  socket.on('error', (err) => { onError?.(err); });
   const rl = readline.createInterface({ input: socket, crlfDelay: Infinity });
 
   rl.on('line', (line) => {
@@ -53,7 +54,18 @@ export function emitToPipe(pipePath: string, json: string): void {
     );
   }
   const fd = fs.openSync(pipePath, constants.O_WRONLY | constants.O_NONBLOCK);
-  const buf = Buffer.from(json + '\n');
-  fs.writeSync(fd, buf);
-  fs.closeSync(fd);
+  try {
+    const buf = Buffer.from(json + '\n');
+    fs.writeSync(fd, buf);
+  } catch (err) {
+    // Re-throw EAGAIN with a descriptive message so callers can surface it.
+    // The auto-emit path in run-model.ts silently ignores write errors;
+    // the runEmit CLI path will print the message and exit 1.
+    if ((err as NodeJS.ErrnoException).code === 'EAGAIN') {
+      throw new Error('ForgeAI TUI pipe buffer is full — event dropped');
+    }
+    throw err;
+  } finally {
+    fs.closeSync(fd);
+  }
 }

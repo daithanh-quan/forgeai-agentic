@@ -17,15 +17,21 @@ export default function App() {
 
   useEffect(() => {
     const pipePath = getPipePath();
-    const cleanup = createPipeReader(pipePath, (line) => {
-      let event: ForgeEvent;
-      try {
-        event = JSON.parse(line) as ForgeEvent;
-      } catch {
-        event = { type: '_unknown', ts: Date.now() / 1000, raw: line };
-      }
-      dispatch(event);
-    });
+    const cleanup = createPipeReader(
+      pipePath,
+      (line) => {
+        let event: ForgeEvent;
+        try {
+          event = JSON.parse(line) as ForgeEvent;
+        } catch {
+          event = { type: '_unknown', ts: Date.now() / 1000, raw: line };
+        }
+        dispatch(event);
+      },
+      () => {
+        dispatch({ type: '_disconnected', ts: Date.now() / 1000 });
+      },
+    );
     return cleanup;
   }, []);
 
@@ -45,7 +51,7 @@ export default function App() {
 
   return (
     <Box flexDirection="column">
-      <Header connected={state.connected} />
+      <Header connected={state.connected} disconnected={state.disconnected} />
       <TaskBar task={state.task} />
       <Box flexDirection="row">
         <AgentPanel agents={state.agents} />
