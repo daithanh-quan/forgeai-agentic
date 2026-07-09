@@ -1,7 +1,7 @@
 <div align="center">
 
 <p align="center">
-  <img src="docs/assets/banner.png" alt="ForgeAI Agentic Init" width="720" />
+  <img src="docs/assets/banner-readme.png" alt="ForgeAI Agentic Init" width="720" />
 </p>
 
 ### A G E N T I C &nbsp;&nbsp; I N I T
