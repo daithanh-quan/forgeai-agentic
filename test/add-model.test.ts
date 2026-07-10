@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { cli, type ExecError, parseRouterPayload, projectRoot, runTs } from './helpers.js';
 
-const router = path.join(projectRoot, '.ai/router/run-model.ts');
+const router = path.join(projectRoot, 'templates', '.ai', 'router', 'run-model.ts');
 
 function initHarness(prefix: string): string {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
