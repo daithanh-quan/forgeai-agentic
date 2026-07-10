@@ -62,6 +62,16 @@ function writeGraph(target: string, generatedAt: string): void {
   );
 }
 
+function runContextPackCli(target: string, extraArgs: string[] = []): { output: string; failed: boolean } {
+  try {
+    const output = runTs(cli, ['--context-pack', ...extraArgs], { cwd: target });
+    return { output, failed: false };
+  } catch (error) {
+    const execError = error as ExecError;
+    return { output: `${String(execError.stdout ?? '')}${String(execError.stderr ?? '')}`, failed: true };
+  }
+}
+
 test('codegraph check reports freshly installed template needs bootstrap', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-codegraph-template-'));
 
@@ -93,6 +103,60 @@ test('codegraph check validates populated graph metadata and edges', () => {
     assert.match(output, /ok\s+2 graph nodes/);
     assert.match(output, /ok\s+1 graph edge/);
     assert.match(output, /Result: CodeGraph is usable for graph-guided context selection\./);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('context-pack emits relevant CodeGraph nodes for an objective', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-context-pack-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    writeGraph(target, new Date().toISOString().slice(0, 10));
+
+    const { output, failed } = runContextPackCli(target, ['--objective', 'update CLI diagnostics']);
+
+    assert.equal(failed, false);
+    assert.match(output, /CodeGraph Context Pack/);
+    assert.match(output, /Objective: update CLI diagnostics/);
+    assert.match(output, /\| cli \| bin\/forgeai-init\.ts \|/);
+    assert.match(output, /Required Files to Read Before Editing/);
+    assert.match(output, /Context Budget/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('context-pack writes output to a file', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-context-pack-file-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    writeGraph(target, new Date().toISOString().slice(0, 10));
+
+    const outputFile = '.ai/codegraph/context-packs/cli-diagnostics.md';
+    const { failed } = runContextPackCli(target, ['--objective', 'update CLI diagnostics', '--output', outputFile]);
+
+    assert.equal(failed, false);
+    const written = fs.readFileSync(path.join(target, outputFile), 'utf8');
+    assert.match(written, /CodeGraph Context Pack/);
+    assert.match(written, /bin\/forgeai-init\.ts/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('context-pack fails when CodeGraph is still the template', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-context-pack-template-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const { output, failed } = runContextPackCli(target, ['--objective', 'update CLI diagnostics']);
+
+    assert.equal(failed, true);
+    assert.match(output, /still contains template TODOs/);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }

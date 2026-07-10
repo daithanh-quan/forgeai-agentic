@@ -80,9 +80,52 @@ before starting. See \`.ai/workflows/worktree-strategy.md\` for parallel worktre
 `;
 }
 
+export function buildCompactDecompositionTemplate(objective: string): string {
+  return `# Compact Assignment Plan
+
+- Objective: ${objective}
+- Date: ${TODAY}
+- Rule: split only when subtasks have distinct write scopes.
+
+## Scoring
+
+| Subtask | C | R | A | X | Total | Tier | Token budget |
+| --- | ---: | ---: | ---: | ---: | ---: | --- | ---: |
+| TODO: subtask 1 | 0 | 0 | 0 | 0 | 0 | fast | 4000 |
+
+## Assignment Template
+
+- ID: TASK-01
+- Role: TODO
+- Objective: TODO: one measurable outcome
+- Tier: fast
+- Token budget: 4000
+- Allowed context:
+  - TODO: exact files or context-pack nodes
+- Write scope:
+  - TODO: exact files only
+- Acceptance criteria:
+  - [ ] TODO
+- Validation:
+  - TODO: command or manual check
+- Return format:
+  - Files changed
+  - Summary
+  - Validation evidence
+  - Risks / unresolved questions
+
+## Context Budget
+
+- Start from \`forgeai-init --context-pack --objective "${objective.replace(/"/g, '\\"')}"\`.
+- Send delegated models only this assignment, selected files/excerpts, and validation requirements.
+- Do not send full harness docs or broad repository output unless the context pack proves it is needed.
+`;
+}
+
 export function runDecompose(): void {
   const objective = getArgValue('--objective');
   const outputArg = getArgValue('--output');
+  const compact = process.argv.includes('--compact');
 
   if (!objective) {
     process.stderr.write('Usage: forgeai-init --decompose --objective "<description>" [--output <file>]\n');
@@ -90,7 +133,7 @@ export function runDecompose(): void {
     return;
   }
 
-  const content = buildDecompositionTemplate(objective);
+  const content = compact ? buildCompactDecompositionTemplate(objective) : buildDecompositionTemplate(objective);
 
   if (outputArg) {
     const outputPath = path.resolve(root, outputArg);

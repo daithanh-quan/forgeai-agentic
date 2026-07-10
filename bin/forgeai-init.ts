@@ -18,8 +18,12 @@ import {
   listModels,
   removeModel,
   decompose,
+  contextPack,
   checkApproval,
   checkEvaluation,
+  statusSummary,
+  diffSummary,
+  testSummary,
   strict,
   watch,
   emit
@@ -39,6 +43,8 @@ import { runCheckReview } from './lib/review.js';
 import { runCheckSecurity } from './lib/security.js';
 import { runCheckMemory } from './lib/memory.js';
 import { runDecompose } from './lib/decompose.js';
+import { runContextPack } from './lib/context-pack.js';
+import { runStatusSummary, runDiffSummary, runTestSummary } from './lib/diagnostics.js';
 import { runCheckApproval } from './lib/approval.js';
 import { runCheckEvaluation } from './lib/evaluation.js';
 import { usage, runInit } from './lib/init.js';
@@ -63,8 +69,12 @@ else if (addModel) runAddModel();
 else if (listModels) runListModels();
 else if (removeModel) runRemoveModel();
 else if (decompose) runDecompose();
+else if (contextPack) runContextPack();
 else if (checkApproval) runCheckApproval();
 else if (checkEvaluation) runCheckEvaluation();
+else if (statusSummary) runStatusSummary();
+else if (diffSummary) runDiffSummary();
+else if (testSummary) runTestSummary();
 else if (watch) runWatch();
 else if (emit) runEmit();
 else runInit();

@@ -24,9 +24,21 @@ Required fields (validated by `forgeai-init --check-evaluation`):
 | Mode | `single-agent` or `multi-agent` |
 | Outcome | `pass`, `fail`, or `partial` |
 
-Optional fields (not validated, record what is useful):
+Efficiency fields (validated when present):
 
-- Latency, Token cost, Correctness, Agents used, Notes
+| Field | Values |
+| --- | --- |
+| Latency | `HH:MM:SS` |
+| Token cost | non-negative integer |
+| Input tokens | non-negative integer |
+| Output tokens | non-negative integer |
+| Model calls | non-negative integer |
+| Files read | non-negative integer |
+| Context files | non-negative integer |
+
+Optional descriptive fields:
+
+- Correctness, Agents used, Notes
 
 ## When to record a run
 

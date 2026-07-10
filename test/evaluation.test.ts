@@ -48,13 +48,44 @@ test('check-evaluation passes with a valid run file', () => {
       '- Mode: multi-agent',
       '- Outcome: pass',
       '- Correctness: high',
+      '- Latency: 00:00:30',
+      '- Token cost: 1200',
+      '- Model calls: 2',
+      '- Files read: 5',
       '- Notes: Gemini fast tier completed research in under 30s.'
     ].join('\n'));
 
     const { output, failed } = runCheckEvaluationCli(target);
     assert.equal(failed, false);
     assert.match(output, /ok\s+\.ai\/evaluation\/eval-001\.md \(multi-agent \/ pass\)/);
+    assert.match(output, /metric\s+1 run include efficiency metrics/);
+    assert.match(output, /metric\s+token cost total: 1200/);
     assert.match(output, /Result: evaluation check passed \(1 run validated\)\./);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('check-evaluation fails on invalid efficiency metric values', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-eval-invalid-metric-'));
+
+  try {
+    writeEvalRun(target, 'eval-004.md', [
+      '# Evaluation Run',
+      '',
+      '- Run ID: eval-004',
+      '- Date: 2026-07-06',
+      '- Task: compact context test',
+      '- Mode: multi-agent',
+      '- Outcome: partial',
+      '- Latency: 30 seconds',
+      '- Files read: many'
+    ].join('\n'));
+
+    const { output, failed } = runCheckEvaluationCli(target);
+    assert.equal(failed, true);
+    assert.match(output, /invalid\s+.*Latency must use HH:MM:SS/);
+    assert.match(output, /invalid\s+.*Files read must be a non-negative integer/);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }

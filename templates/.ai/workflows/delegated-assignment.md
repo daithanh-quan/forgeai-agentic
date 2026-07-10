@@ -17,6 +17,8 @@
 - `path/to/file`
 - `path/to/directory/`
 - Relevant contract or decision: `...`
+- Prefer a compact context pack generated with
+  `forgeai-init --context-pack --objective "<task>"`.
 
 ## Coordination Scope
 
@@ -51,3 +53,9 @@
 - Reviewer result: `Approve | Request changes | Needs human decision`.
 - Unresolved blockers, or `none`.
 - Risks, assumptions, or unresolved questions.
+
+## Token Discipline
+
+- Do not send full harness docs or broad command output to delegated models.
+- Use `forgeai-init --decompose --compact --objective "<task>"` for a small assignment plan.
+- Use the context pack to justify any file added to the read scope.

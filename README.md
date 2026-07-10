@@ -166,6 +166,57 @@ You can also emit a manual event:
 forgeai-init --emit '{"type":"orchestrator.start","task":"Build auth flow","ts":1720000000}'
 ```
 
+### Compact Delegation Context
+
+For large tasks, generate a small assignment plan and graph-guided context pack
+before routing work to another model:
+
+```bash
+forgeai-init --decompose --compact --objective "refactor router fallback"
+forgeai-init --context-pack --objective "refactor router fallback"
+```
+
+Use the resulting allowed context, write scope, and validation plan as the
+delegated assignment boundary. Record token cost, model calls, files read, and
+latency in `.ai/evaluation/<run-id>.md` so future routing decisions are based
+on measured efficiency rather than guesswork.
+
+## RTK Integration
+
+[RTK (Read Tool Kit)](https://github.com/nahco314/rtk) is an optional tool
+that wraps noisy shell commands so large output is filtered before it reaches
+model context. ForgeAI's agent templates treat it as the preferred path for
+high-output operations.
+
+### When to use each RTK command
+
+| Command | Use when |
+| --- | --- |
+| `rtk git status` | Checking working tree state before committing or delegating |
+| `rtk git diff` | Reviewing unstaged or staged changes — output can be very large |
+| `rtk grep "pattern" .` | Searching the codebase for symbols, strings, or patterns |
+| `rtk read path/to/file` | Reading a file whose content may exceed useful context size |
+| `rtk test <cmd>` | Running tests or validation where output is expected to be large |
+
+### Fallback: built-in compact diagnostics
+
+If RTK is not installed, ForgeAI's CLI provides machine-readable markdown
+equivalents that agents can use directly:
+
+```bash
+forgeai-init --status-summary   # branch, staged/unstaged/untracked counts, file list
+forgeai-init --diff-summary     # changed files table, net insertions/deletions
+forgeai-init --test-summary     # auto-detects typecheck/lint/test/build, reports pass/fail
+```
+
+These flags are also useful for scripting and CI pipelines where RTK is not
+available. Both RTK and the built-in flags honour the same principle: agents
+should read the least output that still provides enough evidence to make a
+correct engineering decision.
+
+The template guidance in `.ai/RULES.md` and `.ai/WORKFLOW.md` explains when
+each command is required during implementation and validation.
+
 ## Model Routing
 
 ForgeAI ships with routing policy in:

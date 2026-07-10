@@ -21,7 +21,11 @@ export function usage(): string {
   forgeai-init --check-memory
   forgeai-init --check-approval
   forgeai-init --check-evaluation
-  forgeai-init --decompose --objective "<description>" [--output <file>]
+  forgeai-init --decompose --objective "<description>" [--compact] [--output <file>]
+  forgeai-init --context-pack --objective "<description>" [--output <file>]
+  forgeai-init --status-summary
+  forgeai-init --diff-summary
+  forgeai-init --test-summary
   forgeai-init --watch
   forgeai-init --emit '<json>'
   forgeai-init --list-profiles
@@ -70,8 +74,26 @@ Options:
                 Validate evaluation run files in .ai/evaluation/ for required
                 fields (Run ID, Date, Task, Mode, Outcome).
   --decompose   Emit a scored task decomposition template for an objective.
+                Requires --objective "<description>". Add --compact for a
+                smaller delegation-ready assignment plan. Use --output <file>
+                to write to a file instead of stdout.
+  --context-pack
+                Emit a compact CodeGraph-based context pack for an objective.
                 Requires --objective "<description>". Use --output <file> to
                 write to a file instead of stdout.
+  --status-summary
+                Emit a compact markdown summary of git status (branch, last
+                commit, staged/unstaged/untracked counts, file list). Fallback
+                for environments without rtk.
+  --diff-summary
+                Emit a compact markdown summary of git diff --stat HEAD
+                (changed files table, net insertions/deletions). Fallback for
+                environments without rtk.
+  --test-summary
+                Auto-detect scripts from package.json (typecheck, lint, test,
+                build), run each in order, and emit a compact markdown report
+                with per-script pass/fail and duration. Stops at first failure.
+                Fallback for environments without rtk.
   --watch       Start the terminal orchestration monitor. It reads NDJSON
                 workflow events from .forgeai.pipe or FORGEAI_PIPE.
   --emit <json> Write one manual workflow event to the terminal monitor pipe.
