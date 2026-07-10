@@ -7,6 +7,15 @@ const EVALUATION_DIR = '.ai/evaluation';
 const REQUIRED_FIELDS = ['Run ID', 'Date', 'Task', 'Mode', 'Outcome'];
 const VALID_MODES = new Set(['single-agent', 'multi-agent']);
 const VALID_OUTCOMES = new Set(['pass', 'fail', 'partial']);
+const INTEGER_METRICS = ['Token cost', 'Input tokens', 'Output tokens', 'Model calls', 'Files read', 'Context files'];
+
+function isNonNegativeInteger(value: string): boolean {
+  return /^\d+$/.test(value);
+}
+
+function isDuration(value: string): boolean {
+  return /^\d{1,2}:\d{2}:\d{2}$/.test(value);
+}
 
 export function parseEvaluationRun(content: string): Record<string, string> {
   const fields: Record<string, string> = {};
@@ -43,6 +52,10 @@ export function runCheckEvaluation(): void {
   }
 
   let failures = 0;
+  let totalTokenCost = 0;
+  let totalModelCalls = 0;
+  let totalFilesRead = 0;
+  let runsWithEfficiencyMetrics = 0;
 
   for (const fileName of runFiles) {
     const filePath = path.join(evalDir, fileName);
@@ -70,8 +83,26 @@ export function runCheckEvaluation(): void {
       console.log(formatStatus('invalid', `${relative} Outcome must be pass, fail, or partial (got: ${fields['Outcome']})`));
     }
 
+    if (fields['Latency'] && !isDuration(fields['Latency'])) {
+      fileFailures += 1;
+      console.log(formatStatus('invalid', `${relative} Latency must use HH:MM:SS (got: ${fields['Latency']})`));
+    }
+
+    for (const metric of INTEGER_METRICS) {
+      if (fields[metric] && !isNonNegativeInteger(fields[metric])) {
+        fileFailures += 1;
+        console.log(formatStatus('invalid', `${relative} ${metric} must be a non-negative integer (got: ${fields[metric]})`));
+      }
+    }
+
     if (fileFailures === 0) {
       console.log(formatStatus('ok', `${relative} (${fields['Mode'] ?? 'unknown'} / ${fields['Outcome'] ?? 'unknown'})`));
+      if (fields['Token cost'] || fields['Model calls'] || fields['Files read']) {
+        runsWithEfficiencyMetrics += 1;
+        totalTokenCost += Number(fields['Token cost'] ?? 0);
+        totalModelCalls += Number(fields['Model calls'] ?? 0);
+        totalFilesRead += Number(fields['Files read'] ?? 0);
+      }
     }
 
     failures += fileFailures;
@@ -82,6 +113,13 @@ export function runCheckEvaluation(): void {
     console.log('Result: evaluation check failed. Fix the invalid run files listed above.');
     process.exitCode = 1;
     return;
+  }
+
+  if (runsWithEfficiencyMetrics > 0) {
+    console.log(formatStatus('metric', `${runsWithEfficiencyMetrics} run${runsWithEfficiencyMetrics === 1 ? '' : 's'} include efficiency metrics`));
+    console.log(formatStatus('metric', `token cost total: ${totalTokenCost}`));
+    console.log(formatStatus('metric', `model calls total: ${totalModelCalls}`));
+    console.log(formatStatus('metric', `files read total: ${totalFilesRead}`));
   }
 
   console.log(`Result: evaluation check passed (${runFiles.length} run${runFiles.length === 1 ? '' : 's'} validated).`);

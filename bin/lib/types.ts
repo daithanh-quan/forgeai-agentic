@@ -51,6 +51,12 @@ export type CodeGraphNode = {
   path?: string;
   type?: string;
   summary?: string;
+  owners?: string[];
+  entrypoints?: string[];
+  public_contracts?: string[];
+  dependencies?: string[];
+  dependents?: string[];
+  tags?: string[];
   confidence?: string;
 };
 

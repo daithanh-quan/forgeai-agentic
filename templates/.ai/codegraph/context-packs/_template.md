@@ -27,6 +27,12 @@ TODO: One concise paragraph describing the requested change or investigation.
 
 - TODO
 
+## Context Budget
+
+- Start with the files above before broad repository search.
+- Add files only when a caller, dependency, failing test, or public contract proves they are needed.
+- Send delegated models only the selected files/excerpts plus acceptance criteria and validation commands.
+
 ## Contracts and Callers to Preserve
 
 - TODO

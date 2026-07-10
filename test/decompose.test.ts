@@ -48,6 +48,22 @@ test('decompose writes output to a file when --output is specified', () => {
   }
 });
 
+test('decompose compact emits delegation-ready context budget', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-decompose-compact-'));
+
+  try {
+    const { output, failed } = runDecomposeCli(target, ['--objective', 'refactor router fallback', '--compact']);
+
+    assert.equal(failed, false);
+    assert.match(output, /Compact Assignment Plan/);
+    assert.match(output, /Allowed context/);
+    assert.match(output, /Context Budget/);
+    assert.match(output, /forgeai-init --context-pack --objective "refactor router fallback"/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('decompose exits with code 2 when --objective is missing', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-decompose-no-obj-'));
 
