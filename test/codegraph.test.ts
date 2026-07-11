@@ -128,6 +128,25 @@ test('context-pack emits relevant CodeGraph nodes for an objective', () => {
   }
 });
 
+test('context-pack does not select high-confidence nodes when the objective does not match', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-context-pack-no-match-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    writeGraph(target, new Date().toISOString().slice(0, 10));
+
+    const { output, failed } = runContextPackCli(target, ['--objective', 'migrate database schema']);
+
+    assert.equal(failed, false);
+    assert.match(output, /\| none \| none \| no matching graph nodes \| n\/a \|/);
+    assert.match(output, /No graph node matched the objective/);
+    assert.doesNotMatch(output, /bin\/forgeai-init\.ts/);
+    assert.doesNotMatch(output, /test\/\*\.test\.ts/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('context-pack writes output to a file', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-context-pack-file-'));
 

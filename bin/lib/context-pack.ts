@@ -57,11 +57,6 @@ export function scoreNodeForObjective(node: CodeGraphNode, terms: string[]): Sco
     }
   }
 
-  if (score === 0 && node.confidence === 'high') {
-    score = 1;
-    reasons.add('fallback high-confidence node');
-  }
-
   return { node, score, reasons: Array.from(reasons) };
 }
 
@@ -91,11 +86,7 @@ export function buildContextPack(objective: string, graph: CodeGraph): string {
     .sort((a, b) => b.score - a.score || (a.node.id ?? '').localeCompare(b.node.id ?? ''))
     .slice(0, MAX_NODES);
 
-  const relevant = scored.length > 0 ? scored : nodes.slice(0, Math.min(MAX_NODES, nodes.length)).map((node) => ({
-    node,
-    score: 0,
-    reasons: ['fallback first graph nodes']
-  }));
+  const relevant = scored;
 
   const rows = relevant
     .map(({ node, score, reasons }) => `| ${node.id ?? 'unknown'} | ${node.path ?? 'unknown'} | ${reasons.join('; ')} (score ${score}) | ${node.confidence ?? 'unknown'} |`)
@@ -125,15 +116,15 @@ export function buildContextPack(objective: string, graph: CodeGraph): string {
 
 | Node ID | Paths | Why relevant | Confidence |
 | --- | --- | --- | --- |
-${rows || '| none | none | no graph nodes available | low |'}
+${rows || '| none | none | no matching graph nodes | n/a |'}
 
 ## Required Files to Read Before Editing
 
-${readFiles || '- TODO: bootstrap CodeGraph nodes first'}
+${readFiles || '- none selected; refine the objective or inspect the graph before choosing files'}
 
 ## Likely Write Scope
 
-${readFiles || '- TODO: define write scope after CodeGraph bootstrap'}
+${readFiles || '- none selected; define write scope after a targeted follow-up search'}
 
 ## Contracts and Entrypoints to Preserve
 
@@ -145,6 +136,7 @@ ${entrypoints ? `\n${entrypoints}` : ''}
 - Start with the files above before broad repository search.
 - Add files only when a caller, dependency, failing test, or public contract proves they are needed.
 - Keep delegated assignments limited to the selected paths plus explicit validation evidence.
+${relevant.length === 0 ? '- No graph node matched the objective. Do not infer relevance from confidence alone.' : ''}
 
 ## Unknowns / Follow-Up Reads
 

@@ -4,14 +4,13 @@ This document defines how the lead agent scores and delegates work using
 `.ai/model-routing.yaml`. The YAML file is the editable routing policy; this
 file defines the operating protocol.
 
-Model routing reduces token usage only when subtasks are small, independent,
-and receive limited context. Delegating a vague task with the full repository
-usually increases cost.
+Model routing reduces per-call context only when subtasks are small,
+independent, and receive bounded input. Delegating a vague task with the full
+repository usually increases total context across all calls.
 
-RTK can further reduce token usage by filtering noisy shell command output
-before it reaches the model context. RTK is optional and sits below model
-routing: it optimizes command output, while this document decides which model
-should perform the work.
+RTK filters noisy shell command output before it reaches the model context.
+RTK is optional and sits below model routing: it controls command output scope,
+while this document decides which model should perform the work.
 
 ## Orchestrator model
 
@@ -225,9 +224,9 @@ should keep the same task boundaries and execute the assignment locally.
 Never place API keys or access tokens in `model-routing.yaml` or any committed
 file.
 
-## RTK token optimization
+## RTK output filtering
 
-When RTK is installed, agents should prefer compact command wrappers for
+When RTK is installed, agents should prefer filtered command wrappers for
 high-output diagnostics:
 
 ```bash

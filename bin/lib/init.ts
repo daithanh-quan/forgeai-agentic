@@ -86,8 +86,8 @@ Options:
                 commit, staged/unstaged/untracked counts, file list). Fallback
                 for environments without rtk.
   --diff-summary
-                Emit a compact markdown summary of git diff --stat HEAD
-                (changed files table, net insertions/deletions). Fallback for
+                Emit a structured Markdown summary of git diff --numstat HEAD
+                (changed files table, exact insertions/deletions). Fallback for
                 environments without rtk.
   --test-summary
                 Auto-detect scripts from package.json (typecheck, lint, test,

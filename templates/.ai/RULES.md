@@ -106,15 +106,15 @@ policy in `.ai/security-policy.yaml`.
   lint fix command, inspect the diff, and rerun the hook/validation.
 - Every PR/task should include summary and test evidence.
 
-## Token-output rules
+## Shell output rules
 
-- Prefer compact shell output when it preserves enough evidence to make a
+- Prefer filtered shell output when it preserves enough evidence to make a
   correct engineering decision.
 - If `rtk` is installed, use it for noisy commands such as `git status`,
   `git diff`, repository search, file reads through shell, and test runners.
-- If `rtk` is missing or its output is too compact for the task, use the
+- If `rtk` is missing or its filtered output omits needed evidence, use the
   original command and document the relevant result.
-- Never let token optimization hide failing tests, security issues, migration
+- Never let output filtering hide failing tests, security issues, migration
   risk, or reviewer findings.
 
 ## Validation order
