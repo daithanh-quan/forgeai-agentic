@@ -112,6 +112,46 @@ test('--diff-summary shows changed files table when diff exists', () => {
   }
 });
 
+test('--diff-summary reports exact integer insertion and deletion counts', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-diff-exact-'));
+  try {
+    initGit(target);
+    // Commit a file with 5 lines
+    fs.writeFileSync(path.join(target, 'src.ts'), 'a\nb\nc\nd\ne\n');
+    makeCommit(target, 'initial');
+    // Replace with 3 lines: net -2 deletions, +3 insertions, -5 deletions vs original
+    // git diff --numstat shows lines added and removed relative to HEAD
+    fs.writeFileSync(path.join(target, 'src.ts'), 'x\ny\nz\n');
+
+    const { output, failed } = runCli('--diff-summary', target);
+    assert.equal(failed, false);
+    // numstat should report exactly 3 insertions and 5 deletions
+    assert.match(output, /Insertions: \+3/);
+    assert.match(output, /Deletions: -5/);
+    assert.match(output, /\| src\.ts \| \+3 \| -5 \|/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--diff-summary shows binary label for binary files', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-diff-binary-'));
+  try {
+    initGit(target);
+    // Commit a binary file (non-UTF-8 bytes)
+    fs.writeFileSync(path.join(target, 'image.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x01, 0x02, 0x03]));
+    makeCommit(target, 'add binary');
+    // Modify it
+    fs.writeFileSync(path.join(target, 'image.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe, 0xfd, 0xfc]));
+
+    const { output, failed } = runCli('--diff-summary', target);
+    assert.equal(failed, false);
+    assert.match(output, /image\.png.*binary.*binary/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('--test-summary reports no scripts when package.json is absent', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-test-nopkg-'));
   try {

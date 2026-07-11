@@ -200,7 +200,7 @@ Agents should work in small steps. Each step should have a checkpoint:
 - Why was it needed?
 - What should be tested?
 
-## 6a. Token-efficient shell usage
+## 6a. Controlled shell output
 
 When `rtk` is installed, prefer RTK wrappers for high-output shell commands so
 large command output is filtered before it enters model context:
@@ -213,7 +213,7 @@ rtk read path/to/file
 rtk test npm test
 ```
 
-If `rtk` is not installed, run the original command. Token optimization must
+If `rtk` is not installed, run the original command. Output filtering must
 not block implementation, validation, or review.
 
 ## 7. Validation

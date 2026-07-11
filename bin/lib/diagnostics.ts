@@ -79,46 +79,62 @@ ${entries.length === 0 ? '\nWorking tree is clean.' : `\n## Changed Files\n\n${f
 }
 
 export function buildDiffSummary(): string {
-  const diffStat = runGit(['diff', '--stat', 'HEAD']);
+  const diffNumstat = runGit(['diff', '--numstat', 'HEAD']);
 
-  if (diffStat.status !== 0) {
-    const shortDiff = runGit(['diff', '--stat']);
+  if (diffNumstat.status !== 0) {
+    const shortDiff = runGit(['diff', '--numstat']);
     if (shortDiff.status !== 0) {
-      return `# Diff Summary\n\n- Error: ${diffStat.stderr.trim() || 'git diff failed'}\n`;
+      return `# Diff Summary\n\n- Error: ${diffNumstat.stderr.trim() || 'git diff failed'}\n`;
     }
-    return formatDiffOutput(shortDiff.stdout, '(unstaged only — no HEAD commit)');
+    return formatNumstatOutput(shortDiff.stdout, '(unstaged only — no HEAD commit)');
   }
 
-  return formatDiffOutput(diffStat.stdout, '');
+  return formatNumstatOutput(diffNumstat.stdout, '');
 }
 
-function formatDiffOutput(raw: string, note: string): string {
-  const lines = raw.trim().split(/\r?\n/).filter(Boolean);
-  if (lines.length === 0) {
+type NumstatEntry = { ins: number; del: number; file: string; binary: boolean };
+
+function parseNumstat(raw: string): NumstatEntry[] {
+  return raw
+    .trim()
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line.split('\t');
+      const binary = parts[0] === '-';
+      return {
+        ins: binary ? 0 : Number(parts[0] ?? 0),
+        del: binary ? 0 : Number(parts[1] ?? 0),
+        file: parts[2] ?? '',
+        binary
+      };
+    });
+}
+
+function formatNumstatOutput(raw: string, note: string): string {
+  const all = parseNumstat(raw);
+  if (all.length === 0) {
     return `# Diff Summary\n\n- No changes detected.\n`;
   }
 
-  const summaryLine = lines.at(-1) ?? '';
-  const fileLines = lines.slice(0, -1).slice(0, MAX_DIFF_FILES);
-  const truncated = lines.length - 1 > MAX_DIFF_FILES;
+  const entries = all.slice(0, MAX_DIFF_FILES);
+  const truncated = all.length > MAX_DIFF_FILES;
+  const totalIns = all.reduce((sum, e) => sum + e.ins, 0);
+  const totalDel = all.reduce((sum, e) => sum + e.del, 0);
 
-  const tableRows = fileLines
-    .map((line) => {
-      const match = line.match(/^\s*(.+?)\s*\|\s*(\d+)\s*([\+\-]*)$/);
-      if (!match) return `| ${line.trim()} | — | — |`;
-      const [, file, count, bars] = match;
-      const ins = (bars?.match(/\+/g) ?? []).length;
-      const del = (bars?.match(/-/g) ?? []).length;
-      const total = Number(count);
-      return `| ${file?.trim()} | +${ins > 0 ? Math.round((ins / (ins + del)) * total) : 0} | -${del > 0 ? Math.round((del / (ins + del)) * total) : 0} |`;
-    })
+  const tableRows = entries
+    .map(({ ins, del, file, binary }) =>
+      binary ? `| ${file} | binary | binary |` : `| ${file} | +${ins} | -${del} |`
+    )
     .join('\n');
 
   return `# Diff Summary
 ${note ? `\n> ${note}\n` : ''}
 - Generated: ${TODAY}
-- Summary: ${summaryLine}
-${truncated ? `- (showing first ${MAX_DIFF_FILES} of ${lines.length - 1} files)\n` : ''}
+- Files changed: ${all.length}
+- Insertions: +${totalIns}
+- Deletions: -${totalDel}
+${truncated ? `- (showing first ${MAX_DIFF_FILES} of ${all.length} files)\n` : ''}
 ## Changed Files
 
 | File | Insertions | Deletions |

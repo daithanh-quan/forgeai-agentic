@@ -168,8 +168,8 @@ forgeai-init --emit '{"type":"orchestrator.start","task":"Build auth flow","ts":
 
 ### Compact Delegation Context
 
-For large tasks, generate a small assignment plan and graph-guided context pack
-before routing work to another model:
+For large tasks, generate a bounded assignment plan and graph-guided context
+pack before routing work to another model:
 
 ```bash
 forgeai-init --decompose --compact --objective "refactor router fallback"
@@ -177,9 +177,11 @@ forgeai-init --context-pack --objective "refactor router fallback"
 ```
 
 Use the resulting allowed context, write scope, and validation plan as the
-delegated assignment boundary. Record token cost, model calls, files read, and
-latency in `.ai/evaluation/<run-id>.md` so future routing decisions are based
-on measured efficiency rather than guesswork.
+delegated assignment boundary. This controls scope and keeps delegation
+consistent; it does not by itself guarantee lower token usage. Record token
+cost, model calls, files read, and latency in `.ai/evaluation/<run-id>.md` so
+future routing decisions can be based on measured evidence rather than
+assumptions.
 
 ## RTK Integration
 
@@ -200,19 +202,19 @@ high-output operations.
 
 ### Fallback: built-in compact diagnostics
 
-If RTK is not installed, ForgeAI's CLI provides machine-readable markdown
+If RTK is not installed, ForgeAI's CLI provides structured Markdown
 equivalents that agents can use directly:
 
 ```bash
 forgeai-init --status-summary   # branch, staged/unstaged/untracked counts, file list
-forgeai-init --diff-summary     # changed files table, net insertions/deletions
+forgeai-init --diff-summary     # changed files table, exact insertions/deletions
 forgeai-init --test-summary     # auto-detects typecheck/lint/test/build, reports pass/fail
 ```
 
 These flags are also useful for scripting and CI pipelines where RTK is not
-available. Both RTK and the built-in flags honour the same principle: agents
-should read the least output that still provides enough evidence to make a
-correct engineering decision.
+available. Both RTK and the built-in flags help control diagnostic scope and
+present consistent evidence to agents. They do not guarantee lower total token
+usage for a completed task.
 
 The template guidance in `.ai/RULES.md` and `.ai/WORKFLOW.md` explains when
 each command is required during implementation and validation.
