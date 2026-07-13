@@ -8,6 +8,9 @@ human-readable summaries and JSON for machine-checkable relationships.
 
 - `graph.json` — canonical machine-readable graph of important modules,
   ownership, dependencies, and confidence.
+- `dependency-graph.json` — generated file-level TypeScript/JavaScript import
+  graph. Create or refresh it with `forgeai-init --refresh-codegraph`; do not
+  edit it manually.
 - `hotspots.md` — high-risk areas, churn, fragile contracts, and files that
   deserve extra review.
 - `context-packs/_template.md` — template for task-specific context packs.
@@ -32,5 +35,7 @@ Use CodeGraph before editing when any of these are true:
 - Record confidence honestly: `high`, `medium`, or `low`.
 - Leave `TODO` only when the repository cannot answer the question yet.
 - Refresh stale graph data before planning risky edits.
+- Treat a source fingerprint mismatch as stale even when the graph was created
+  recently. `forgeai-init --context-pack` refuses stale generated graphs.
 - Do not use CodeGraph as a substitute for reading the actual files before
   changing them.

@@ -7,6 +7,7 @@ import {
   checkSessions,
   checkLifecycle,
   checkCodeGraph,
+  refreshCodeGraph,
   checkProfile,
   checkAll,
   checkReview,
@@ -19,6 +20,7 @@ import {
   removeModel,
   decompose,
   contextPack,
+  compileContext,
   checkApproval,
   checkEvaluation,
   statusSummary,
@@ -37,6 +39,7 @@ import { runUpdatePreflight } from './lib/update-check.js';
 import { runCheckSessions } from './lib/sessions.js';
 import { runCheckLifecycle } from './lib/lifecycle.js';
 import { runCheckCodeGraph } from './lib/codegraph.js';
+import { runRefreshCodeGraph } from './lib/dependency-graph.js';
 import { runCheckGit } from './lib/git.js';
 import { runCheck, runCheckAll } from './lib/check.js';
 import { runCheckReview } from './lib/review.js';
@@ -44,6 +47,7 @@ import { runCheckSecurity } from './lib/security.js';
 import { runCheckMemory } from './lib/memory.js';
 import { runDecompose } from './lib/decompose.js';
 import { runContextPack } from './lib/context-pack.js';
+import { runCompileContext } from './lib/context-compiler.js';
 import { runStatusSummary, runDiffSummary, runTestSummary } from './lib/diagnostics.js';
 import { runCheckApproval } from './lib/approval.js';
 import { runCheckEvaluation } from './lib/evaluation.js';
@@ -58,6 +62,7 @@ else if (checkGit) runCheckGit();
 else if (checkSessions) runCheckSessions();
 else if (checkLifecycle) runCheckLifecycle();
 else if (checkCodeGraph) runCheckCodeGraph({ strict });
+else if (refreshCodeGraph) runRefreshCodeGraph();
 else if (checkProfile) runCheckProfile();
 else if (checkReview) runCheckReview();
 else if (checkSecurity) runCheckSecurity();
@@ -70,6 +75,7 @@ else if (listModels) runListModels();
 else if (removeModel) runRemoveModel();
 else if (decompose) runDecompose();
 else if (contextPack) runContextPack();
+else if (compileContext) runCompileContext();
 else if (checkApproval) runCheckApproval();
 else if (checkEvaluation) runCheckEvaluation();
 else if (statusSummary) runStatusSummary();

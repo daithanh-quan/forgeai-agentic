@@ -173,15 +173,57 @@ pack before routing work to another model:
 
 ```bash
 forgeai-init --decompose --compact --objective "refactor router fallback"
+forgeai-init --refresh-codegraph
 forgeai-init --context-pack --objective "refactor router fallback"
 ```
 
-Use the resulting allowed context, write scope, and validation plan as the
+The refresh command parses local TypeScript and JavaScript imports, exports,
+literal dynamic imports, and CommonJS `require` calls. The context pack starts
+from objective-matched paths, exported symbols, or curated CodeGraph metadata,
+then follows recorded dependencies and dependents. Every selected file includes
+a graph-path explanation.
+
+`--context-pack` refuses a missing, invalid, or stale dependency graph. It does
+not silently rewrite project state; refresh explicitly after source files
+change. Traversal defaults to depth 2 and 12 files and can be bounded further:
+
+```bash
+forgeai-init --context-pack \
+  --objective "refactor router fallback" \
+  --max-depth 1 \
+  --max-nodes 8
+```
+
+Compile the selected files into syntax-aware excerpts before sending context to
+a model:
+
+```bash
+forgeai-init --compile-context \
+  --objective "refactor router fallback" \
+  --budget 6000 \
+  --output .ai/state/context/router-fallback.json
+```
+
+The JSON file is the deterministic source of truth. ForgeAI also writes a
+Markdown rendering beside it for human inspection. Functions, classes,
+interfaces, types, imports, and directly related tests retain source-line
+provenance. Complete syntax nodes are included when they fit; oversized
+functions and classes fall back to signatures instead of being truncated in
+the middle. Mandatory and task-applicable sections from `.ai/RULES.md`, compact
+git status/diff evidence, and available validation scripts are packed into the
+same artifact, so a consumer does not need to reopen the full rules file.
+
+The budget estimate is deterministic (`characters / 4`) and applies
+to the serialized JSON artifact, not to the optional Markdown rendering or a
+provider's exact tokenizer.
+
+Use the resulting read scope, write scope, and validation plan as the
 delegated assignment boundary. This controls scope and keeps delegation
 consistent; it does not by itself guarantee lower token usage. Record token
 cost, model calls, files read, and latency in `.ai/evaluation/<run-id>.md` so
 future routing decisions can be based on measured evidence rather than
-assumptions.
+assumptions. Exact provider token savings remain an evaluation claim, not a
+guarantee of the compiler's deterministic estimate.
 
 ## RTK Integration
 

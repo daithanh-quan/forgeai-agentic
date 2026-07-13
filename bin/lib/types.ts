@@ -81,6 +81,119 @@ export type CodeGraph = {
   edges?: CodeGraphEdge[];
 };
 
+export type DependencyGraphNode = {
+  id: string;
+  path: string;
+  hash: string;
+  exports: string[];
+};
+
+export type DependencyEdgeKind = 'static_import' | 'dynamic_import' | 'require';
+
+export type DependencyGraphEdge = {
+  from: string;
+  to: string;
+  kind: DependencyEdgeKind;
+  specifier: string;
+};
+
+export type UnresolvedDependency = {
+  from: string;
+  kind: DependencyEdgeKind;
+  specifier: string;
+  reason: 'dynamic_expression' | 'external_package' | 'unresolved_local';
+};
+
+export type DependencyGraph = {
+  schema_version: 1;
+  generated_at: string;
+  source: 'forgeai-static-analysis';
+  repository: {
+    root: '.';
+    revision: string | null;
+    fingerprint: string;
+  };
+  settings: {
+    extensions: string[];
+    ignored_directories: string[];
+  };
+  nodes: DependencyGraphNode[];
+  edges: DependencyGraphEdge[];
+  unresolved: UnresolvedDependency[];
+};
+
+export type CompiledContextExcerpt = {
+  path: string;
+  kind: 'import' | 'function' | 'class' | 'interface' | 'type' | 'enum' | 'variable' | 'test';
+  name: string;
+  reason: string;
+  source_start_line: number;
+  source_end_line: number;
+  mode: 'full' | 'signature';
+  content: string;
+};
+
+export type CompiledRuleSection = {
+  path: '.ai/RULES.md';
+  heading: string;
+  reason: string;
+  source_start_line: number;
+  source_end_line: number;
+  content: string;
+};
+
+export type CompiledDiagnostics = {
+  git: {
+    available: boolean;
+    branch: string | null;
+    revision: string | null;
+    staged: number;
+    unstaged: number;
+    untracked: number;
+    changed_files: Array<{ path: string; state: string }>;
+    changed_files_truncated: boolean;
+    diff: Array<{ path: string; insertions: number | null; deletions: number | null; binary: boolean }>;
+    diff_truncated: boolean;
+    error: string | null;
+  };
+  validation: {
+    package_manager: 'npm' | 'pnpm' | 'yarn' | 'bun' | null;
+    scripts: Array<{ name: string; command: string }>;
+  };
+};
+
+export type CompiledContextArtifact = {
+  schema_version: 1;
+  kind: 'forgeai_compiled_context';
+  objective: string;
+  repository: {
+    revision: string | null;
+    fingerprint: string;
+  };
+  budget: {
+    limit_tokens: number;
+    estimated_tokens: number;
+    estimator: 'characters_divided_by_4';
+    exhausted: boolean;
+  };
+  selection: {
+    max_depth: number;
+    max_nodes: number;
+    files: Array<{
+      path: string;
+      depth: number;
+      reason: string;
+      graph_path: string;
+    }>;
+  };
+  rules: CompiledRuleSection[];
+  diagnostics: CompiledDiagnostics;
+  contracts: string[];
+  entrypoints: string[];
+  excerpts: CompiledContextExcerpt[];
+  omitted_candidates: number;
+};
+
 export type PackageJson = {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;

@@ -89,6 +89,7 @@ test('initialization copies the template files', () => {
     assert.equal(fs.existsSync(path.join(target, '.ai', 'workflows', 'delegated-assignment.md')), true);
     assert.equal(fs.existsSync(path.join(target, '.ai', 'workflows', 'lifecycle-management.md')), true);
     assert.equal(fs.existsSync(path.join(target, '.ai', 'workflows', 'codegraph-context.md')), true);
+    assert.equal(fs.existsSync(path.join(target, '.ai', 'workflows', 'context-compilation.md')), true);
     assert.equal(fs.existsSync(path.join(target, '.ai', 'workflows', 'task-types', 'feature.md')), true);
     assert.equal(fs.existsSync(path.join(target, '.ai', 'state', 'reviews', '_template.md')), true);
     assert.equal(fs.existsSync(path.join(target, '.ai', 'workflows', 'quality-gates.md')), true);
@@ -99,7 +100,7 @@ test('initialization copies the template files', () => {
     const routing = fs.readFileSync(path.join(target, '.ai', 'model-routing.yaml'), 'utf8');
     const manifest = JSON.parse(fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')) as HarnessManifest;
 
-    assert.equal(manifest.package_version, '3.1.1');
+    assert.equal(manifest.package_version, '3.2.0');
     assert.equal(manifest.profile, 'base');
     assert.match(routing, /provider: agy/);
     assert.match(routing, /score_range: \[0, 2\]/);
@@ -124,10 +125,11 @@ test('help and version report CLI metadata', () => {
   assert.match(helpOutput, /forgeai-init --check-sessions/);
   assert.match(helpOutput, /forgeai-init --check-lifecycle/);
   assert.match(helpOutput, /forgeai-init --check-codegraph/);
+  assert.match(helpOutput, /forgeai-init --compile-context/);
   assert.match(helpOutput, /forgeai-init --check-profile/);
   assert.match(helpOutput, /--profile\s+Apply an optional stack profile/);
   assert.match(helpOutput, /--version\s+Print the package version/);
-  assert.equal(versionOutput.trim(), '3.1.1');
+  assert.equal(versionOutput.trim(), '3.2.0');
 });
 
 test('lifecycle check passes with no real task journals', () => {
@@ -252,7 +254,7 @@ test('upgrade overwrites harness files and preserves installed profile', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')) as HarnessManifest;
     const readme = fs.readFileSync(path.join(target, '.ai', 'README.md'), 'utf8');
 
-    assert.equal(manifest.package_version, '3.1.1');
+    assert.equal(manifest.package_version, '3.2.0');
     assert.equal(manifest.profile, 'nextjs');
     assert.match(readme, /# AI Project Harness/);
     assert.equal(fs.existsSync(path.join(target, '.ai', 'profiles', 'nextjs.md')), true);

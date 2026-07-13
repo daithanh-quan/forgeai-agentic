@@ -14,6 +14,7 @@ export function usage(): string {
   forgeai-init --check-sessions
   forgeai-init --check-lifecycle
   forgeai-init --check-codegraph [--strict]
+  forgeai-init --refresh-codegraph
   forgeai-init --check-profile
   forgeai-init --check-all
   forgeai-init --check-review
@@ -22,7 +23,8 @@ export function usage(): string {
   forgeai-init --check-approval
   forgeai-init --check-evaluation
   forgeai-init --decompose --objective "<description>" [--compact] [--output <file>]
-  forgeai-init --context-pack --objective "<description>" [--output <file>]
+  forgeai-init --context-pack --objective "<description>" [--max-depth <0-5>] [--max-nodes <1-50>] [--output <file>]
+  forgeai-init --compile-context --objective "<description>" [--budget <tokens>] [--output <json>]
   forgeai-init --status-summary
   forgeai-init --diff-summary
   forgeai-init --test-summary
@@ -51,6 +53,10 @@ Options:
   --check-codegraph
                 Validate CodeGraph artifacts for graph-guided context selection.
                 Add --strict to exit non-zero when the graph is still a template.
+  --refresh-codegraph
+                Parse TypeScript and JavaScript source files and write a
+                deterministic dependency graph. This is the only command that
+                updates .ai/codegraph/dependency-graph.json.
   --check-profile
                 Validate the installed profile against detected project signals.
   --check-all   Run the harness, CodeGraph (strict), lifecycle, profile,
@@ -78,9 +84,16 @@ Options:
                 smaller delegation-ready assignment plan. Use --output <file>
                 to write to a file instead of stdout.
   --context-pack
-                Emit a compact CodeGraph-based context pack for an objective.
-                Requires --objective "<description>". Use --output <file> to
-                write to a file instead of stdout.
+                Emit a dependency-aware context pack for an objective. Refuses
+                missing or stale generated graphs. Requires --objective.
+                Defaults: --max-depth 2 and --max-nodes 12. Use --output <file>
+                to write to a file instead of stdout.
+  --compile-context
+                Compile selected TypeScript/JavaScript syntax nodes into a
+                bounded JSON artifact. Requires a fresh dependency graph and
+                --objective. Defaults: --budget 6000, --max-depth 2,
+                --max-nodes 12. With --output, also writes a Markdown rendering;
+                override its path with --markdown-output <file>.
   --status-summary
                 Emit a compact markdown summary of git status (branch, last
                 commit, staged/unstaged/untracked counts, file list). Fallback
@@ -147,6 +160,7 @@ export const PRESERVE_ON_UPGRADE_FILES = new Set([
   '.ai/model-routing.yaml',
   '.ai/security-policy.yaml',
   '.ai/codegraph/graph.json',
+  '.ai/codegraph/dependency-graph.json',
   '.ai/codegraph/hotspots.md',
   '.ai/state/CURRENT.md',
   '.ai/state/sessions.md'

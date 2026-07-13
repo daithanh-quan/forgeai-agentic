@@ -116,7 +116,9 @@ export function buildCompactDecompositionTemplate(objective: string): string {
 
 ## Context Budget
 
+- Run \`forgeai-init --check-codegraph\`; if the dependency graph is missing or stale, run \`forgeai-init --refresh-codegraph\`.
 - Start from \`forgeai-init --context-pack --objective "${objective.replace(/"/g, '\\"')}"\`.
+- For delegated execution, compile bounded excerpts with \`forgeai-init --compile-context --objective "${objective.replace(/"/g, '\\"')}" --budget <tokens>\`.
 - Send delegated models only this assignment, selected files/excerpts, and validation requirements.
 - Do not send full harness docs or broad repository output unless the context pack proves it is needed.
 `;
