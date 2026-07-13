@@ -15,6 +15,7 @@ export type RouterPayload = {
 export type ExecError = Error & {
   stdout?: string | Buffer;
   stderr?: string | Buffer;
+  status?: number;
 };
 
 export type HarnessManifest = {

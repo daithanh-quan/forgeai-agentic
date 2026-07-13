@@ -4,6 +4,7 @@ import type { CodeGraph } from './types.js';
 import { root } from './context.js';
 import { formatStatus, getErrorMessage } from './utils.js';
 import { parseDateOnly, daysSince } from './lifecycle.js';
+import { checkDependencyGraphHealth, DEPENDENCY_GRAPH_PATH, readDependencyGraph } from './dependency-graph.js';
 
 export function isTodoValue(value: unknown): boolean {
   return typeof value === 'string' && /\bTODO\b/i.test(value);
@@ -67,11 +68,26 @@ export function runCheckCodeGraph(options: { strict?: boolean } = {}): void {
 
   if (isTemplateCodeGraph(graph)) {
     console.log(formatStatus('needs bootstrap', '.ai/codegraph/graph.json still contains template TODOs'));
+    const dependencyHealth = checkDependencyGraphHealth(root);
+    console.log(formatStatus(dependencyHealth.status, dependencyHealth.status === 'ok'
+      ? `${DEPENDENCY_GRAPH_PATH} matches current source`
+      : dependencyHealth.detail));
     console.log(formatStatus('next', 'populate graph.json before using CodeGraph for risky edits'));
     console.log('');
     console.log('Result: CodeGraph installed, but repository graph still needs bootstrap.');
     if (options.strict) process.exitCode = 1;
     return;
+  }
+
+  const dependencyGraph = readDependencyGraph(root);
+  const dependencyHealth = checkDependencyGraphHealth(root, dependencyGraph);
+  if (dependencyHealth.status !== 'ok') {
+    failures += 1;
+    console.log(formatStatus(dependencyHealth.status, dependencyHealth.detail));
+  } else {
+    console.log(formatStatus('ok', `${dependencyGraph!.nodes.length} dependency graph nodes`));
+    console.log(formatStatus('ok', `${dependencyGraph!.edges.length} dependency graph edges`));
+    console.log(formatStatus('ok', `${DEPENDENCY_GRAPH_PATH} matches current source`));
   }
 
   if (graph.schema_version !== 1) {
@@ -184,4 +200,3 @@ export function runCheckCodeGraph(options: { strict?: boolean } = {}): void {
 
   console.log('Result: CodeGraph is usable for graph-guided context selection.');
 }
-

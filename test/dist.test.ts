@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import type { CompiledContextArtifact } from '../bin/lib/types.js';
 import { projectRoot } from './helpers.js';
 
 const distCli = path.join(projectRoot, 'dist', 'forgeai-init.js');
@@ -38,6 +39,47 @@ test('compiled dist CLI initializes a harness and passes --check', () => {
     assert.ok(fs.existsSync(path.join(target, '.ai', 'RULES.md')));
     const output = runDist(['--check'], target);
     assert.match(output, /Result: harness installed/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('compiled dist CLI refreshes a dependency graph without tsx', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-dist-codegraph-'));
+  try {
+    runDist([], target);
+    fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(target, 'src', 'dependency.ts'), 'export const value = 1;\n');
+    fs.writeFileSync(path.join(target, 'src', 'entry.ts'), "export { value } from './dependency.js';\n");
+
+    const output = runDist(['--refresh-codegraph'], target);
+
+    assert.match(output, /2 source files/);
+    assert.ok(fs.existsSync(path.join(target, '.ai', 'codegraph', 'dependency-graph.json')));
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('compiled dist CLI creates a bounded context artifact without tsx', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-dist-compile-'));
+  try {
+    runDist([], target);
+    fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(target, 'src', 'dependency.ts'), 'export const value = 1;\n');
+    fs.writeFileSync(
+      path.join(target, 'src', 'entry.ts'),
+      "import { value } from './dependency.js';\nexport function readValue() { return value; }\n"
+    );
+    runDist(['--refresh-codegraph'], target);
+
+    const artifact = JSON.parse(runDist([
+      '--compile-context', '--objective', 'change readValue', '--budget', '2000'
+    ], target)) as CompiledContextArtifact;
+
+    assert.equal(artifact.kind, 'forgeai_compiled_context');
+    assert.ok(artifact.excerpts.some((excerpt) => excerpt.name === 'readValue'));
+    assert.ok(artifact.budget.estimated_tokens <= 2000);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }

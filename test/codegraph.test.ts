@@ -62,6 +62,29 @@ function writeGraph(target: string, generatedAt: string): void {
   );
 }
 
+function writeSourceFixture(target: string): void {
+  fs.mkdirSync(path.join(target, 'bin', 'lib'), { recursive: true });
+  fs.mkdirSync(path.join(target, 'test'), { recursive: true });
+  fs.writeFileSync(
+    path.join(target, 'bin', 'forgeai-init.ts'),
+    "import { formatDiagnostics } from './lib/diagnostics.js';\nexport const runCli = () => formatDiagnostics();\n"
+  );
+  fs.writeFileSync(
+    path.join(target, 'bin', 'lib', 'diagnostics.ts'),
+    "import { sharedValue } from './shared.js';\nexport const formatDiagnostics = () => sharedValue;\n"
+  );
+  fs.writeFileSync(path.join(target, 'bin', 'lib', 'shared.ts'), 'export const sharedValue = 42;\n');
+  fs.writeFileSync(
+    path.join(target, 'test', 'cli.test.ts'),
+    "import { runCli } from '../bin/forgeai-init.js';\nexport const result = runCli();\n"
+  );
+  fs.writeFileSync(path.join(target, 'unrelated.ts'), 'export const unrelatedFeature = true;\n');
+}
+
+function refreshDependencyGraph(target: string): string {
+  return runTs(cli, ['--refresh-codegraph'], { cwd: target });
+}
+
 function runContextPackCli(target: string, extraArgs: string[] = []): { output: string; failed: boolean } {
   try {
     const output = runTs(cli, ['--context-pack', ...extraArgs], { cwd: target });
@@ -96,12 +119,15 @@ test('codegraph check validates populated graph metadata and edges', () => {
   try {
     runTs(cli, [], { cwd: target });
     writeGraph(target, new Date().toISOString().slice(0, 10));
+    writeSourceFixture(target);
+    refreshDependencyGraph(target);
 
     const output = runTs(cli, ['--check-codegraph'], { cwd: target });
 
     assert.match(output, /ok\s+schema_version: 1/);
     assert.match(output, /ok\s+2 graph nodes/);
     assert.match(output, /ok\s+1 graph edge/);
+    assert.match(output, /ok\s+5 dependency graph nodes/);
     assert.match(output, /Result: CodeGraph is usable for graph-guided context selection\./);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
@@ -114,13 +140,18 @@ test('context-pack emits relevant CodeGraph nodes for an objective', () => {
   try {
     runTs(cli, [], { cwd: target });
     writeGraph(target, new Date().toISOString().slice(0, 10));
+    writeSourceFixture(target);
+    refreshDependencyGraph(target);
 
-    const { output, failed } = runContextPackCli(target, ['--objective', 'update CLI diagnostics']);
+    const { output, failed } = runContextPackCli(target, ['--objective', 'change runCli implementation']);
 
     assert.equal(failed, false);
     assert.match(output, /CodeGraph Context Pack/);
-    assert.match(output, /Objective: update CLI diagnostics/);
-    assert.match(output, /\| cli \| bin\/forgeai-init\.ts \|/);
+    assert.match(output, /Objective: change runCli implementation/);
+    assert.match(output, /\| bin\/forgeai-init\.ts \| 0 \| seed:/);
+    assert.match(output, /\| bin\/lib\/diagnostics\.ts \| 1 \| dependency of bin\/forgeai-init\.ts/);
+    assert.match(output, /\| test\/cli\.test\.ts \| 1 \| test validating bin\/forgeai-init\.ts/);
+    assert.doesNotMatch(output, /unrelated\.ts \|/);
     assert.match(output, /Required Files to Read Before Editing/);
     assert.match(output, /Context Budget/);
   } finally {
@@ -134,12 +165,14 @@ test('context-pack does not select high-confidence nodes when the objective does
   try {
     runTs(cli, [], { cwd: target });
     writeGraph(target, new Date().toISOString().slice(0, 10));
+    writeSourceFixture(target);
+    refreshDependencyGraph(target);
 
     const { output, failed } = runContextPackCli(target, ['--objective', 'migrate database schema']);
 
     assert.equal(failed, false);
-    assert.match(output, /\| none \| none \| no matching graph nodes \| n\/a \|/);
-    assert.match(output, /No graph node matched the objective/);
+    assert.match(output, /\| none \| n\/a \| no objective-matched source seed \| n\/a \|/);
+    assert.match(output, /No source node matched the objective/);
     assert.doesNotMatch(output, /bin\/forgeai-init\.ts/);
     assert.doesNotMatch(output, /test\/\*\.test\.ts/);
   } finally {
@@ -153,6 +186,8 @@ test('context-pack writes output to a file', () => {
   try {
     runTs(cli, [], { cwd: target });
     writeGraph(target, new Date().toISOString().slice(0, 10));
+    writeSourceFixture(target);
+    refreshDependencyGraph(target);
 
     const outputFile = '.ai/codegraph/context-packs/cli-diagnostics.md';
     const { failed } = runContextPackCli(target, ['--objective', 'update CLI diagnostics', '--output', outputFile]);
@@ -166,7 +201,7 @@ test('context-pack writes output to a file', () => {
   }
 });
 
-test('context-pack fails when CodeGraph is still the template', () => {
+test('context-pack does not silently create a missing dependency graph', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-context-pack-template-'));
 
   try {
@@ -175,7 +210,150 @@ test('context-pack fails when CodeGraph is still the template', () => {
     const { output, failed } = runContextPackCli(target, ['--objective', 'update CLI diagnostics']);
 
     assert.equal(failed, true);
-    assert.match(output, /still contains template TODOs/);
+    assert.match(output, /dependency graph is missing/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('context-pack works from generated source evidence before curated graph bootstrap', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-context-pack-generated-only-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    writeSourceFixture(target);
+    refreshDependencyGraph(target);
+
+    const { output, failed } = runContextPackCli(target, ['--objective', 'change runCli implementation']);
+
+    assert.equal(failed, false);
+    assert.match(output, /bin\/forgeai-init\.ts/);
+    assert.match(output, /bin\/lib\/diagnostics\.ts/);
+    assert.match(output, /test\/cli\.test\.ts/);
+    assert.doesNotMatch(output, /template TODO/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('refresh-codegraph parses static, dynamic, re-export, and require edges', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-dependency-refresh-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(target, 'src', 'shared.ts'), 'export const shared = true;\n');
+    fs.writeFileSync(path.join(target, 'src', 'lazy.ts'), 'export const lazy = true;\n');
+    fs.writeFileSync(path.join(target, 'src', 'legacy.cjs'), 'module.exports = true;\n');
+    fs.writeFileSync(
+      path.join(target, 'src', 'component.tsx'),
+      "import { shared } from './shared.js';\nexport const Component = () => <div>{String(shared)}</div>;\n"
+    );
+    fs.writeFileSync(
+      path.join(target, 'src', 'entry.ts'),
+      [
+        "import { shared } from './shared.js';",
+        "export { shared as publicShared } from './shared.js';",
+        "const lazy = import('./lazy.js');",
+        "const legacy = require('./legacy.cjs');",
+        "import React from 'react';",
+        "// require('./ignored.cjs');",
+        "const pattern = /require\\('.\\/also-ignored.cjs'\\)/;",
+        'export { lazy, legacy, shared };',
+        ''
+      ].join('\n')
+    );
+
+    const output = refreshDependencyGraph(target);
+    const graph = JSON.parse(fs.readFileSync(path.join(target, '.ai', 'codegraph', 'dependency-graph.json'), 'utf8')) as {
+      nodes: Array<{ path: string; hash: string; exports: string[] }>;
+      edges: Array<{ from: string; to: string; kind: string }>;
+      unresolved: Array<{ specifier: string; reason: string }>;
+    };
+
+    assert.match(output, /5 source files/);
+    assert.deepEqual(
+      graph.edges.map((edge) => [edge.from, edge.to, edge.kind]),
+      [
+        ['src/component.tsx', 'src/shared.ts', 'static_import'],
+        ['src/entry.ts', 'src/lazy.ts', 'dynamic_import'],
+        ['src/entry.ts', 'src/legacy.cjs', 'require'],
+        ['src/entry.ts', 'src/shared.ts', 'static_import']
+      ]
+    );
+    assert.equal(graph.nodes.every((node) => /^[a-f0-9]{64}$/.test(node.hash)), true);
+    assert.equal(graph.unresolved.some((entry) => entry.specifier === 'react' && entry.reason === 'external_package'), true);
+    assert.equal(graph.unresolved.some((entry) => entry.specifier.includes('ignored')), false);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('refresh-codegraph keeps the previous graph when parsing fails', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-dependency-atomic-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.writeFileSync(path.join(target, 'entry.ts'), 'export const valid = true;\n');
+    refreshDependencyGraph(target);
+    const graphPath = path.join(target, '.ai', 'codegraph', 'dependency-graph.json');
+    const previous = fs.readFileSync(graphPath, 'utf8');
+    fs.writeFileSync(path.join(target, 'entry.ts'), "import { broken from './missing.js';\n");
+
+    assert.throws(
+      () => refreshDependencyGraph(target),
+      (error: unknown) => {
+        assert.match(String((error as ExecError).stderr ?? ''), /refresh failed/);
+        return true;
+      }
+    );
+    assert.equal(fs.readFileSync(graphPath, 'utf8'), previous);
+    assert.equal(fs.readdirSync(path.dirname(graphPath)).some((file) => file.includes('.tmp-')), false);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('context-pack refuses a stale dependency graph after source changes', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-context-pack-stale-source-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    writeGraph(target, new Date().toISOString().slice(0, 10));
+    writeSourceFixture(target);
+    refreshDependencyGraph(target);
+    fs.appendFileSync(path.join(target, 'bin', 'forgeai-init.ts'), 'export const changedAfterRefresh = true;\n');
+
+    const { output, failed } = runContextPackCli(target, ['--objective', 'update CLI diagnostics']);
+
+    assert.equal(failed, true);
+    assert.match(output, /dependency graph is stale/);
+    assert.match(output, /source file set or contents changed/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('context-pack enforces traversal depth and node bounds', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-context-pack-bounds-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    writeGraph(target, new Date().toISOString().slice(0, 10));
+    writeSourceFixture(target);
+    refreshDependencyGraph(target);
+
+    const depthZero = runContextPackCli(target, [
+      '--objective', 'update CLI diagnostics', '--max-depth', '0', '--max-nodes', '2'
+    ]);
+    assert.equal(depthZero.failed, false);
+    assert.match(depthZero.output, /Traversal bounds: depth 0, nodes 2/);
+    assert.match(depthZero.output, /bin\/forgeai-init\.ts/);
+    assert.doesNotMatch(depthZero.output, /bin\/lib\/diagnostics\.ts \|/);
+
+    const invalid = runContextPackCli(target, ['--objective', 'update CLI diagnostics', '--max-nodes', '0']);
+    assert.equal(invalid.failed, true);
+    assert.match(invalid.output, /--max-nodes must be between 1 and 50/);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }
@@ -187,6 +365,8 @@ test('codegraph check rejects stale graph metadata', () => {
   try {
     runTs(cli, [], { cwd: target });
     writeGraph(target, '2000-01-01');
+    writeSourceFixture(target);
+    refreshDependencyGraph(target);
 
     assert.throws(
       () => runTs(cli, ['--check-codegraph'], { cwd: target }),

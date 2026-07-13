@@ -28,6 +28,7 @@ tell the agent:
    budgets, delegation, and fallbacks.
 7. `WORKFLOW.md`, `workflows/lifecycle-management.md`,
    `workflows/codegraph-context.md`, `workflows/quality-gates.md`,
+   `workflows/context-compilation.md`,
    `workflows/pre-merge-checklist.md`, and
    `workflows/memory-management.md` — flow from task intake through closure,
    memory update, stale-task handling, graph-guided context selection, the
@@ -58,6 +59,8 @@ tell the agent:
 - Reviewer check: `.ai/state/assignments/TASK-REVIEWER-SMOKE.md`
 - Session overlap check: the orchestrator runs `forgeai-init --check-sessions`
 - CodeGraph health check: the orchestrator runs `forgeai-init --check-codegraph`
+- Bounded context compilation: after refreshing CodeGraph, the orchestrator
+  runs `forgeai-init --compile-context --objective "<task>" --budget <tokens>`
 
 For the reviewer check, the orchestrator invokes the configured reviewer on
 the smoke-test assignment. In Claude Code, it uses the reviewer

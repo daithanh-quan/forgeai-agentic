@@ -25,7 +25,18 @@ before relying on it for task planning.
 
 ## 3. Refresh the Graph
 
-Read repository evidence first:
+Generate the file-level dependency graph first:
+
+```bash
+forgeai-init --refresh-codegraph
+```
+
+This is an explicit write. Context-pack creation never refreshes the graph
+silently. The generated graph records source hashes and a repository
+fingerprint, so any added, removed, or changed TypeScript/JavaScript file makes
+the graph stale.
+
+For the curated `graph.json`, read repository evidence:
 
 - package/build config and workspace boundaries
 - top-level directories and entrypoints
@@ -39,12 +50,16 @@ required checks.
 
 ## 4. Build a Task Context Pack
 
-Copy `.ai/codegraph/context-packs/_template.md` to
-`.ai/codegraph/context-packs/TASK-YYYYMMDD-short-slug.md`.
+Generate a dependency-aware context pack:
+
+```bash
+forgeai-init --context-pack --objective "<task objective>" \
+  --output .ai/codegraph/context-packs/TASK-YYYYMMDD-short-slug.md
+```
 
 Fill only task-relevant context:
 
-- relevant graph nodes and paths
+- objective-matched seeds and justified dependency paths
 - files that must be read before editing
 - likely write scope
 - contracts and callers to preserve
@@ -52,6 +67,18 @@ Fill only task-relevant context:
 - unknowns that still need direct inspection
 
 ## 5. Use the Pack During Work
+
+For delegated or context-sensitive work, compile the selected files before
+routing:
+
+```bash
+forgeai-init --compile-context --objective "<task objective>" \
+  --budget 6000 \
+  --output .ai/state/context/TASK-ID.json
+```
+
+Inspect the sibling Markdown file, but treat JSON as the source of truth. See
+`.ai/workflows/context-compilation.md` for budget and expansion rules.
 
 Read every required file listed in the context pack before editing it. Keep
 the task journal write scope aligned with the context pack and session table.
