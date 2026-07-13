@@ -34,6 +34,7 @@ export function parseRouterPayload(output: string): RouterPayload {
 
 export function runTs(file: string, args: string[], options: Parameters<typeof execFileSync>[2] = {}): string {
   return execFileSync(process.execPath, ['--import', tsxLoader, file, ...args], {
+    stdio: ['ignore', 'pipe', 'pipe'],
     ...options,
     encoding: 'utf8'
   }) as string;
