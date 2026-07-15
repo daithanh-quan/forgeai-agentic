@@ -100,7 +100,7 @@ test('initialization copies the template files', () => {
     const routing = fs.readFileSync(path.join(target, '.ai', 'model-routing.yaml'), 'utf8');
     const manifest = JSON.parse(fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')) as HarnessManifest;
 
-    assert.equal(manifest.package_version, '3.2.0');
+    assert.equal(manifest.package_version, '3.3.0');
     assert.equal(manifest.profile, 'base');
     assert.match(routing, /provider: agy/);
     assert.match(routing, /score_range: \[0, 2\]/);
@@ -129,7 +129,7 @@ test('help and version report CLI metadata', () => {
   assert.match(helpOutput, /forgeai-init --check-profile/);
   assert.match(helpOutput, /--profile\s+Apply an optional stack profile/);
   assert.match(helpOutput, /--version\s+Print the package version/);
-  assert.equal(versionOutput.trim(), '3.2.0');
+  assert.equal(versionOutput.trim(), '3.3.0');
 });
 
 test('lifecycle check passes with no real task journals', () => {
@@ -216,6 +216,18 @@ test('lifecycle check rejects closed journals without memory decision', () => {
   }
 });
 
+test('help text contains three Phase 11 commands', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-help-phase11-'));
+  try {
+    const output = runTs(cli, ['--help'], { cwd: target });
+    assert.match(output, /--validate-artifact/);
+    assert.match(output, /--route/);
+    assert.match(output, /--expand-context/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('list-profiles reports supported profiles', () => {
   const output = runTs(cli, ['--list-profiles']);
 
@@ -254,7 +266,7 @@ test('upgrade overwrites harness files and preserves installed profile', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')) as HarnessManifest;
     const readme = fs.readFileSync(path.join(target, '.ai', 'README.md'), 'utf8');
 
-    assert.equal(manifest.package_version, '3.2.0');
+    assert.equal(manifest.package_version, '3.3.0');
     assert.equal(manifest.profile, 'nextjs');
     assert.match(readme, /# AI Project Harness/);
     assert.equal(fs.existsSync(path.join(target, '.ai', 'profiles', 'nextjs.md')), true);

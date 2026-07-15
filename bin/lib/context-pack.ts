@@ -52,7 +52,7 @@ export type ContextPackOptions = {
   maxDepth?: number;
 };
 
-function tokenize(value: string): string[] {
+export function tokenizeObjective(value: string): string[] {
   return Array.from(
     new Set(
       value
@@ -112,18 +112,20 @@ function scoreGeneratedNode(node: DependencyGraphNode, terms: string[]): Seed | 
   return score > 0 ? { id: node.id, score, reasons: Array.from(reasons) } : null;
 }
 
-function globMatches(pattern: string, candidate: string): boolean {
+export function globMatches(pattern: string, candidate: string): boolean {
   const normalized = pattern.replace(/\\/g, '/').replace(/^\.\//, '');
   const expression = normalized
     .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*\*/g, '\0')
-    .replace(/\*/g, '[^/]*')
-    .replace(/\0/g, '.*');
+    .replace(/\/\*\*\//g, '\0')       // /**/ → NUL: zero-or-more segments between separators
+    .replace(/\*\*/g, '\x01')          // remaining ** → SOH: any chars (held until after * pass)
+    .replace(/\*/g, '[^/]*')           // single * → any non-separator chars
+    .replace(/\0/g, '/(?:.+/)?')       // NUL → optional intermediate dirs
+    .replace(/\x01/g, '.*');           // SOH → any chars including separators
   return new RegExp(`^${expression}$`).test(candidate);
 }
 
 function findSeeds(objective: string, curatedGraph: CodeGraph, dependencyGraph: DependencyGraph): Seed[] {
-  const terms = tokenize(objective);
+  const terms = tokenizeObjective(objective);
   const seeds = new Map<string, Seed>();
   const addSeed = (seed: Seed): void => {
     const current = seeds.get(seed.id);
@@ -246,7 +248,7 @@ export function selectContextForObjective(
 ): DependencyContextSelection {
   const maxNodes = options.maxNodes ?? DEFAULT_MAX_NODES;
   const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
-  const terms = tokenize(objective);
+  const terms = tokenizeObjective(objective);
   const seeds = findSeeds(objective, curatedGraph, dependencyGraph);
   const selected = selectDependencyContext(seeds, dependencyGraph, maxNodes, maxDepth);
   return { terms, selected, curated: relatedCuratedNodes(selected, curatedGraph) };
@@ -322,6 +324,16 @@ export function readCuratedCodeGraph(repositoryRoot = root): CodeGraph | null {
   } catch (error) {
     console.error(`Error: .ai/codegraph/graph.json is invalid (${getErrorMessage(error)}).`);
     process.exitCode = 1;
+    return null;
+  }
+}
+
+export function tryReadCuratedCodeGraph(repositoryRoot: string): CodeGraph | null {
+  const graphPath = path.join(repositoryRoot, '.ai', 'codegraph', 'graph.json');
+  if (!fs.existsSync(graphPath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(graphPath, 'utf8')) as CodeGraph;
+  } catch {
     return null;
   }
 }

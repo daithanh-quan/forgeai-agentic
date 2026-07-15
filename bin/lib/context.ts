@@ -47,6 +47,9 @@ export const skipUpdateCheck = args.has('--skip-update-check') || process.env.FO
 export const watch = args.has('--watch');
 export const emit = args.has('--emit');
 export const emitPayload = getArgValue('--emit');
+export const validateArtifact = args.has('--validate-artifact');
+export const route = args.has('--route');
+export const expandContext = args.has('--expand-context');
 
 export function getArgValue(name: string): string | null {
   for (let index = 0; index < rawArgs.length; index += 1) {

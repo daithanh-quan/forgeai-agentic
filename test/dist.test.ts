@@ -19,6 +19,13 @@ function runDist(args: string[], cwd: string): string {
   }) as string;
 }
 
+test('compiled dist CLI help contains Phase 11 commands', () => {
+  const output = runDist(['--help'], projectRoot);
+  assert.match(output, /--validate-artifact/);
+  assert.match(output, /--route/);
+  assert.match(output, /--expand-context/);
+});
+
 test('compiled dist CLI starts with a plain node shebang', () => {
   const firstLine = fs.readFileSync(distCli, 'utf8').split('\n')[0];
   assert.equal(firstLine, '#!/usr/bin/env node');

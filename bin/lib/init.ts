@@ -94,6 +94,21 @@ Options:
                 --objective. Defaults: --budget 6000, --max-depth 2,
                 --max-nodes 12. With --output, also writes a Markdown rendering;
                 override its path with --markdown-output <file>.
+  --validate-artifact
+                Validate a compiled context artifact: checks schema, structure,
+                dependency graph health, fingerprint, path membership, and token
+                estimate consistency. Requires --artifact <path>.
+  --route       Validate and deliver a compiled context artifact to a CLI adapter
+                via stdin. Requires --artifact <path>. Use --adapter <name> to
+                name a configured adapter from .ai/cli-adapters.json. Without
+                --adapter, writes validated JSON to stdout. Use --model <id> to
+                resolve the {model} placeholder in adapter args.
+  --expand-context
+                Validate a need_context request and compile a supplemental context
+                artifact containing only the additionally requested symbols, files,
+                or tests. Requires --artifact <path> and --need-context <path>.
+                Use --budget <tokens> to override the default (remaining primary
+                capacity). With --output <json>, also writes a Markdown rendering.
   --status-summary
                 Emit a compact markdown summary of git status (branch, last
                 commit, staged/unstaged/untracked counts, file list). Fallback
@@ -206,6 +221,29 @@ export function copyRecursive(src: string, dest: string): void {
   }
 }
 
+const CONTEXT_GITIGNORE_ENTRIES = ['.ai/state/context/', '.ai/state/context-routes.md'];
+
+export function maintainContextGitignore(repositoryRoot: string, isDryRun: boolean): void {
+  const gitignorePath = path.join(repositoryRoot, '.gitignore');
+  let existing = '';
+  if (fs.existsSync(gitignorePath)) {
+    existing = fs.readFileSync(gitignorePath, 'utf8');
+  }
+  const existingLines = existing.split('\n');
+  const missing = CONTEXT_GITIGNORE_ENTRIES.filter((entry) => !existingLines.includes(entry));
+  if (missing.length === 0) return;
+  if (isDryRun) {
+    for (const entry of missing) {
+      console.log(`would append ${entry} to .gitignore`);
+    }
+    return;
+  }
+  let content = existing;
+  if (content.length > 0 && !content.endsWith('\n')) content += '\n';
+  content += missing.join('\n') + '\n';
+  fs.writeFileSync(gitignorePath, content);
+}
+
 export function runInit(): void {
   const manifestProfile = readManifest()?.profile;
   const profile = resolveProfile(upgrade ? (manifestProfile ?? requestedProfile) : requestedProfile);
@@ -222,5 +260,6 @@ export function runInit(): void {
   }
   writeManifest(profile.profile);
   warnMonorepoSecondaryStack(profile.profile);
+  maintainContextGitignore(root, dryRun);
   console.log(dryRun ? 'Dry run complete.' : 'ForgeAI agentic markdown kit initialized.');
 }

@@ -28,8 +28,13 @@ import {
   testSummary,
   strict,
   watch,
-  emit
+  emit,
+  validateArtifact as validateArtifactFlag,
+  route,
+  expandContext,
 } from './lib/context.js';
+import { runValidateArtifact, runRoute } from './lib/router.js';
+import { runExpandContext } from './lib/context-expansion.js';
 import { runWatch } from './lib/watch.js';
 import { runEmit } from './lib/emit.js';
 import { getPackageVersion } from './lib/utils.js';
@@ -83,4 +88,7 @@ else if (diffSummary) runDiffSummary();
 else if (testSummary) runTestSummary();
 else if (watch) runWatch();
 else if (emit) runEmit();
+else if (validateArtifactFlag) runValidateArtifact();
+else if (route) runRoute();
+else if (expandContext) runExpandContext();
 else runInit();

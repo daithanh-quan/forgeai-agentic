@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { CompiledContextArtifact } from '../bin/lib/types.js';
+import { computeArtifactEstimate } from '../bin/lib/context-compiler.js';
 import { cli, type ExecError, runTs } from './helpers.js';
 
 function writeCompilerFixture(target: string, largeBody = false): void {
@@ -166,6 +167,24 @@ test('compile-context rejects a budget too small for required rules and diagnost
     assert.equal(result.failed, true);
     assert.equal(result.error?.status, 2);
     assert.match(result.output, /budget 256 is too small for required selection, rules, and diagnostics/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('computeArtifactEstimate does not mutate input artifact', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-estimate-pure-'));
+  try {
+    initializeFixture(target);
+    const result = runCompile(target, ['--objective', 'change runCli implementation', '--budget', '4000']);
+    assert.equal(result.failed, false);
+    const artifact = JSON.parse(result.output) as CompiledContextArtifact;
+    const declared = artifact.budget.estimated_tokens;
+    const recomputed = computeArtifactEstimate(artifact);
+    // Input must not have been mutated
+    assert.equal(artifact.budget.estimated_tokens, declared, 'computeArtifactEstimate must not mutate input');
+    // Result must be consistent with declared (valid artifact)
+    assert.equal(recomputed, declared);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }
