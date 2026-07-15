@@ -5,6 +5,7 @@ import { root, getArgValue } from './context.js';
 import {
   readCuratedCodeGraph,
   selectContextForObjective,
+  tokenizeObjective,
   type SelectedContextNode
 } from './context-pack.js';
 import { analyzeSource, type SourceDeclaration } from './source-analysis.js';
@@ -16,7 +17,8 @@ import {
 import type {
   CompiledContextArtifact,
   CompiledContextExcerpt,
-  DependencyGraph
+  DependencyGraph,
+  ResolvedContextRequest
 } from './types.js';
 import { formatStatus, getErrorMessage } from './utils.js';
 
@@ -35,6 +37,7 @@ type ExcerptCandidate = {
 };
 
 export class ContextBudgetError extends Error {}
+export class NoNewContextError extends Error {}
 
 export function estimateTokens(value: string): number {
   return Math.ceil(value.length / 4);
@@ -42,6 +45,15 @@ export function estimateTokens(value: string): number {
 
 function hashSource(content: string): string {
   return crypto.createHash('sha256').update(content).digest('hex');
+}
+
+function readVerifiedSource(repositoryRoot: string, depNode: { path: string; hash: string }): string {
+  const absolutePath = path.join(repositoryRoot, depNode.path);
+  const content = fs.readFileSync(absolutePath, 'utf8');
+  if (hashSource(content) !== depNode.hash) {
+    throw new Error(`${depNode.path} changed after dependency graph validation; run forgeai-init --refresh-codegraph`);
+  }
+  return content;
 }
 
 function lineAtOffset(content: string, offset: number): number {
@@ -142,6 +154,19 @@ function stableArtifactEstimate(artifact: CompiledContextArtifact): number {
   return estimateTokens(`${JSON.stringify(artifact, null, 2)}\n`);
 }
 
+export function computeArtifactEstimate(artifact: CompiledContextArtifact): number {
+  const clone = JSON.parse(JSON.stringify(artifact)) as CompiledContextArtifact;
+  let estimate = clone.budget.estimated_tokens;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    clone.budget.estimated_tokens = estimate;
+    const next = estimateTokens(`${JSON.stringify(clone, null, 2)}\n`);
+    if (next === estimate) return next;
+    estimate = next;
+  }
+  clone.budget.estimated_tokens = estimate;
+  return estimateTokens(`${JSON.stringify(clone, null, 2)}\n`);
+}
+
 function tryExcerpt(
   artifact: CompiledContextArtifact,
   excerpt: CompiledContextExcerpt,
@@ -224,7 +249,8 @@ export function compileContext(
     omitted_candidates: candidates.length
   };
 
-  const baseEstimate = stableArtifactEstimate(artifact);
+  artifact.budget.estimated_tokens = computeArtifactEstimate(artifact);
+  const baseEstimate = artifact.budget.estimated_tokens;
   if (baseEstimate > budget) {
     throw new ContextBudgetError(`budget ${budget} is too small for required selection, rules, and diagnostics; minimum is ${baseEstimate}`);
   }
@@ -235,8 +261,172 @@ export function compileContext(
   }
   artifact.omitted_candidates = candidates.length - artifact.excerpts.length;
   artifact.budget.exhausted = artifact.omitted_candidates > 0 || artifact.excerpts.some((excerpt) => excerpt.mode === 'signature');
-  const finalEstimate = stableArtifactEstimate(artifact);
+  artifact.budget.estimated_tokens = computeArtifactEstimate(artifact);
+  const finalEstimate = artifact.budget.estimated_tokens;
   if (finalEstimate > budget) throw new ContextBudgetError(`compiled artifact exceeded budget ${budget} with estimate ${finalEstimate}`);
+  return artifact;
+}
+
+export function compileContextExpansion(
+  primary: CompiledContextArtifact,
+  requests: ResolvedContextRequest[],
+  curatedGraph: ReturnType<typeof readCuratedCodeGraph>,
+  dependencyGraph: DependencyGraph,
+  repositoryRoot: string,
+  options: { budget?: number } = {}
+): CompiledContextArtifact {
+  const remainingCapacity = primary.budget.limit_tokens - primary.budget.estimated_tokens;
+  const budget = options.budget ?? remainingCapacity;
+  const terms = tokenizeObjective(primary.objective);
+
+  // Build primary key map: key -> mode
+  const primaryModes = new Map<string, 'full' | 'signature'>();
+  for (const exc of primary.excerpts) {
+    const key = [exc.path, exc.source_start_line, exc.source_end_line, exc.kind].join(':');
+    const existing = primaryModes.get(key);
+    if (!existing || exc.mode === 'full') primaryModes.set(key, exc.mode);
+  }
+
+  // Collect candidates per request, respecting request kind
+  const allCandidates: ExcerptCandidate[] = [];
+  const seenRequestKeys = new Set<string>();
+
+  for (const request of requests) {
+    const reqKey = `${request.requestKind}:${request.path}:${request.symbol ?? ''}`;
+    if (seenRequestKeys.has(reqKey)) continue;
+    seenRequestKeys.add(reqKey);
+
+    const depNode = dependencyGraph.nodes.find((n) => n.path === request.path);
+    if (!depNode) continue;
+
+    // Get raw candidates for the file — hash mismatch propagates as an error
+    const fileCandidates = candidatesForFile(
+      repositoryRoot,
+      { node: depNode, depth: 0, reason: request.reason, graphPath: request.path },
+      terms
+    );
+
+    if (request.requestKind === 'file') {
+      // Force-include ALL declarations (including non-exported ones) plus imports
+      const content = readVerifiedSource(repositoryRoot, depNode);
+      const analysis = analyzeSource(content, request.path);
+      for (const declaration of analysis.declarations) {
+        const reason = `${request.reason} (file request)`;
+        const selected: SelectedContextNode = { node: depNode, depth: 0, reason, graphPath: request.path };
+        allCandidates.push({
+          priority: 0,
+          full: excerptFromDeclaration(selected, declaration, content, 'full', reason),
+          signature: declaration.signature
+            ? excerptFromDeclaration(selected, declaration, content, 'signature', `${reason}; body omitted to fit budget`)
+            : null
+        });
+      }
+      allCandidates.push(...fileCandidates.filter((c) => c.full.kind === 'import'));
+    } else if (request.requestKind === 'test') {
+      // Force-include test-kind declarations only
+      const content = readVerifiedSource(repositoryRoot, depNode);
+      const analysis = analyzeSource(content, request.path);
+      for (const declaration of analysis.declarations.filter((d) => d.kind === 'test')) {
+        const reason = `${request.reason} (test request)`;
+        const selected: SelectedContextNode = { node: depNode, depth: 0, reason, graphPath: request.path };
+        allCandidates.push({
+          priority: 0,
+          full: excerptFromDeclaration(selected, declaration, content, 'full', reason),
+          signature: null
+        });
+      }
+      // Non-test declarations go through normal objective matching
+      allCandidates.push(...fileCandidates.filter((c) => c.full.kind !== 'test'));
+    } else if (request.requestKind === 'symbol') {
+      // Force-include declarations whose name matches the symbol
+      if (request.symbol) {
+        const content = readVerifiedSource(repositoryRoot, depNode);
+        const analysis = analyzeSource(content, request.path);
+        for (const declaration of analysis.declarations.filter((d) => d.name === request.symbol)) {
+          const reason = `${request.reason} (symbol request: ${request.symbol})`;
+          const selected: SelectedContextNode = { node: depNode, depth: 0, reason, graphPath: request.path };
+          allCandidates.push({
+            priority: 0,
+            full: excerptFromDeclaration(selected, declaration, content, 'full', reason),
+            signature: declaration.signature
+              ? excerptFromDeclaration(selected, declaration, content, 'signature', `${reason}; body omitted to fit budget`)
+              : null
+          });
+        }
+      }
+      // Also include normal objective-matching candidates from this file
+      allCandidates.push(...fileCandidates);
+    }
+  }
+
+  // Apply mode-aware dominance rule against primary
+  const dominatedCandidates = allCandidates
+    .map((candidate): ExcerptCandidate | null => {
+      const key = [candidate.full.path, candidate.full.source_start_line, candidate.full.source_end_line, candidate.full.kind].join(':');
+      const primaryMode = primaryModes.get(key);
+      if (primaryMode === 'full') return null; // primary already has full — skip
+      if (primaryMode === 'signature') {
+        // Allow full upgrade; disallow signature retransmission
+        return { ...candidate, signature: null };
+      }
+      return candidate; // absent in primary — keep as-is
+    })
+    .filter((c): c is ExcerptCandidate => c !== null);
+
+  // Dedup within expansion
+  const deduped = deduplicateCandidates(dominatedCandidates);
+
+  if (deduped.length === 0) {
+    throw new NoNewContextError('all expansion candidates were already present in the primary artifact at full mode');
+  }
+
+  const contracts = Array.from(new Set(primary.contracts)).sort();
+  const entrypoints = Array.from(new Set(primary.entrypoints)).sort();
+
+  const artifact: CompiledContextArtifact = {
+    schema_version: 1,
+    kind: 'forgeai_compiled_context',
+    objective: `[expansion] ${primary.objective}`,
+    repository: primary.repository,
+    budget: {
+      limit_tokens: budget,
+      estimated_tokens: 0,
+      estimator: 'characters_divided_by_4',
+      exhausted: false
+    },
+    selection: {
+      max_depth: primary.selection.max_depth,
+      max_nodes: primary.selection.max_nodes,
+      files: Array.from(new Set(deduped.map((c) => c.full.path))).map((p) => ({
+        path: p, depth: 0, reason: 'expansion request', graph_path: p
+      }))
+    },
+    rules: [],
+    diagnostics: primary.diagnostics,
+    contracts,
+    entrypoints,
+    excerpts: [],
+    omitted_candidates: deduped.length
+  };
+
+  const baseEstimate = computeArtifactEstimate(artifact);
+  if (baseEstimate > budget) {
+    throw new ContextBudgetError(`expansion budget ${budget} is too small for base artifact overhead; increase --budget`);
+  }
+
+  for (const candidate of deduped) {
+    if (tryExcerpt(artifact, candidate.full, deduped.length)) continue;
+    if (candidate.signature) tryExcerpt(artifact, candidate.signature, deduped.length);
+  }
+
+  if (deduped.length > 0 && artifact.excerpts.length === 0) {
+    throw new ContextBudgetError(`expansion budget ${budget} is too small to fit any of the ${deduped.length} candidates; increase --budget`);
+  }
+
+  artifact.omitted_candidates = deduped.length - artifact.excerpts.length;
+  artifact.budget.exhausted = artifact.omitted_candidates > 0 || artifact.excerpts.some((e) => e.mode === 'signature');
+  artifact.budget.estimated_tokens = computeArtifactEstimate(artifact);
+
   return artifact;
 }
 

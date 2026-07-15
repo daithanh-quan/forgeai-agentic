@@ -225,6 +225,61 @@ future routing decisions can be based on measured evidence rather than
 assumptions. Exact provider token savings remain an evaluation claim, not a
 guarantee of the compiler's deterministic estimate.
 
+## Context Enforcement
+
+After compiling context with `--compile-context`, Phase 11 commands enforce
+it as the verified input for delegated model calls.
+
+### Validate an artifact
+
+```bash
+forgeai-init --validate-artifact --artifact .ai/state/context/TASK-01.json
+```
+
+Checks schema, fingerprint freshness, path membership, and token estimate
+consistency. Exits 0 on success; exits 1 with a descriptive error on failure.
+
+### Route to a CLI adapter
+
+```bash
+forgeai-init --route \
+  --artifact .ai/state/context/TASK-01.json \
+  --adapter claude \
+  --model claude-sonnet-4-6
+```
+
+Validates the artifact, then pipes the JSON to the named adapter's stdin.
+Without `--adapter`, writes validated JSON to stdout for manual piping.
+Records each routing attempt in `.ai/state/context-routes.md`.
+
+### Request additional context
+
+When a delegated model needs more context, it writes a `forgeai_need_context`
+JSON file:
+
+```json
+{
+  "kind": "forgeai_need_context",
+  "schema_version": 1,
+  "artifact": ".ai/state/context/TASK-01.json",
+  "requests": [
+    { "kind": "file", "path": "src/auth/internal.ts", "reason": "need private helper" }
+  ]
+}
+```
+
+The orchestrator runs:
+
+```bash
+forgeai-init --expand-context \
+  --artifact .ai/state/context/TASK-01.json \
+  --need-context .ai/state/context/TASK-01-need-context.json \
+  --output .ai/state/context/TASK-01-expansion-1.json
+```
+
+The supplemental artifact contains only the additionally requested context,
+deduplicated against the primary artifact.
+
 ## RTK Integration
 
 [RTK (Read Tool Kit)](https://github.com/nahco314/rtk) is an optional tool

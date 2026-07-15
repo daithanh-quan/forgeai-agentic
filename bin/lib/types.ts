@@ -199,3 +199,27 @@ export type PackageJson = {
   devDependencies?: Record<string, string>;
   workspaces?: unknown;
 };
+
+export type NeedContextRequestItem =
+  | { kind: 'symbol'; name: string; reason: string }
+  | { kind: 'file';   path: string; reason: string }
+  | { kind: 'test';   path: string; reason: string };
+
+export type NeedContextArtifact = {
+  kind: 'forgeai_need_context';
+  schema_version: 1;
+  artifact: string;
+  requests: NeedContextRequestItem[];
+};
+
+export type ArtifactValidationResult =
+  | { status: 'ok';      artifact: CompiledContextArtifact }
+  | { status: 'invalid'; detail: string }
+  | { status: 'stale';   detail: string };
+
+export type ResolvedContextRequest = {
+  requestKind: 'symbol' | 'file' | 'test';
+  path: string;
+  symbol?: string;
+  reason: string;
+};

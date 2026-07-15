@@ -147,6 +147,56 @@ test('auto profile reports invalid package.json instead of crashing', () => {
   }
 });
 
+test('forgeai-init creates .gitignore with context-state entries when absent', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-gitignore-create-'));
+  try {
+    assert.ok(!fs.existsSync(path.join(target, '.gitignore')));
+    runTs(cli, [], { cwd: target });
+    const gitignore = fs.readFileSync(path.join(target, '.gitignore'), 'utf8');
+    assert.match(gitignore, /\.ai\/state\/context\//);
+    assert.match(gitignore, /\.ai\/state\/context-routes\.md/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('forgeai-init appends context-state entries idempotently with trailing newline', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-gitignore-idem-'));
+  try {
+    // Pre-existing .gitignore without trailing newline, with one of the entries
+    fs.writeFileSync(path.join(target, '.gitignore'), 'node_modules\n.ai/state/context/');
+    runTs(cli, [], { cwd: target });
+    const content = fs.readFileSync(path.join(target, '.gitignore'), 'utf8');
+    // Must have trailing newline
+    assert.ok(content.endsWith('\n'));
+    // Must contain both entries exactly once
+    const lines = content.split('\n');
+    assert.equal(lines.filter((l) => l === '.ai/state/context/').length, 1);
+    assert.ok(lines.includes('.ai/state/context-routes.md'));
+    // Run again — no duplicates
+    runTs(cli, [], { cwd: target });
+    const content2 = fs.readFileSync(path.join(target, '.gitignore'), 'utf8');
+    const lines2 = content2.split('\n');
+    assert.equal(lines2.filter((l) => l === '.ai/state/context/').length, 1);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--upgrade also writes context-state gitignore entries', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-gitignore-upgrade-'));
+  try {
+    runTs(cli, [], { cwd: target });
+    // Delete .gitignore to simulate older install
+    fs.rmSync(path.join(target, '.gitignore'), { force: true });
+    runTs(cli, ['--upgrade'], { cwd: target });
+    const content = fs.readFileSync(path.join(target, '.gitignore'), 'utf8');
+    assert.match(content, /\.ai\/state\/context\//);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('check-profile reports invalid package.json instead of crashing', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-invalid-pkg-check-'));
 
