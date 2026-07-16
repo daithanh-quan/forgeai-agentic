@@ -450,6 +450,118 @@ test('codegraph check flags a half-filled graph whose summary is still TODO', ()
   }
 });
 
+test('refresh-codegraph stores declaration names including non-exported symbols', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-declarations-stored-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+    fs.writeFileSync(
+      path.join(target, 'src', 'handler.ts'),
+      [
+        'export function publicApi() { return handleRequest(); }',
+        'function handleRequest() { return 42; }',
+        'class Router { get() {} post() {} }',
+        ''
+      ].join('\n')
+    );
+    refreshDependencyGraph(target);
+
+    const graph = JSON.parse(
+      fs.readFileSync(path.join(target, '.ai', 'codegraph', 'dependency-graph.json'), 'utf8')
+    ) as { nodes: Array<{ path: string; exports: string[]; declarations?: string[] }> };
+
+    const node = graph.nodes.find((n) => n.path === 'src/handler.ts');
+    assert.ok(node, 'handler.ts node must exist');
+    assert.deepEqual(node.exports, ['publicApi'], 'exports must contain only exported names');
+    assert.ok(Array.isArray(node.declarations), 'declarations must be an array');
+    assert.ok(node.declarations!.includes('publicApi'), 'declarations must include exported function');
+    assert.ok(node.declarations!.includes('handleRequest'), 'declarations must include non-exported function');
+    assert.ok(node.declarations!.includes('Router'), 'declarations must include class name');
+    assert.ok(node.declarations!.includes('get'), 'declarations must include class method names');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('context-pack seeds on non-exported declaration name', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-declarations-seed-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+    fs.writeFileSync(
+      path.join(target, 'src', 'handler.ts'),
+      'export function publicApi() {}\nfunction handleRequest() {}\n'
+    );
+    fs.writeFileSync(path.join(target, 'src', 'unrelated.ts'), 'export const x = 1;\n');
+    refreshDependencyGraph(target);
+
+    const { output, failed } = runContextPackCli(target, ['--objective', 'fix handleRequest routing']);
+
+    assert.equal(failed, false);
+    assert.match(output, /src\/handler\.ts/);
+    assert.match(output, /declaration name match/);
+    assert.doesNotMatch(output, /src\/unrelated\.ts \|/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('context-pack declaration match uses exact name not substring', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-declarations-exact-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+    // "resetState" must NOT match term "set" — substring must be rejected
+    fs.writeFileSync(path.join(target, 'src', 'state.ts'), 'function resetState() {}\n');
+    fs.writeFileSync(path.join(target, 'src', 'unrelated.ts'), 'export const x = 1;\n');
+    refreshDependencyGraph(target);
+
+    const { output, failed } = runContextPackCli(target, ['--objective', 'set the value']);
+
+    assert.equal(failed, false);
+    // "set" must not substring-match "resetState"
+    assert.doesNotMatch(output, /src\/state\.ts \|/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('context-pack declaration match caps at +1 per node regardless of how many members match', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-declarations-cap-'));
+
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+    // Router has 6 method names that each match a term in the objective.
+    // Without cap: declaration score = 6, beating configure.ts path score of 3.
+    // With cap:    declaration score = 1, losing to configure.ts path score of 3.
+    fs.writeFileSync(
+      path.join(target, 'src', 'router.ts'),
+      'class Router { configure() {} get() {} post() {} put() {} delete() {} patch() {} }\n'
+    );
+    // configure.ts has "configure" in its path → path match score 3
+    fs.writeFileSync(path.join(target, 'src', 'configure.ts'), 'export const x = 1;\n');
+    refreshDependencyGraph(target);
+
+    const { output, failed } = runContextPackCli(target, [
+      '--objective', 'configure get post put delete patch'
+    ]);
+
+    assert.equal(failed, false);
+    const configureIndex = output.indexOf('src/configure.ts');
+    const routerIndex = output.indexOf('src/router.ts');
+    assert.ok(configureIndex !== -1, 'configure.ts must be selected');
+    assert.ok(routerIndex !== -1, 'router.ts must be selected');
+    // configure.ts must rank before router.ts (path score 3 > capped declaration score 1)
+    assert.ok(configureIndex < routerIndex, 'configure.ts (path match) must rank before router.ts (declarations only)');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('codegraph check rejects a generated_at date in the future', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-codegraph-future-'));
 

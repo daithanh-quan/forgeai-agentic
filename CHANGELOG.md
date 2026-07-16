@@ -19,6 +19,11 @@
   helper for consistent token estimation.
 - `tokenizeObjective()` exported from `context-pack` for use by the expansion
   compiler.
+- **Phase 9 (formal)** — `DependencyGraphNode` now stores `declarations: string[]`
+  (all top-level non-test symbol names, exported and non-exported). Context pack
+  seed scoring gains a declaration name match bucket (weight 1, capped at +1 per
+  node, exact token match only) so objectives can find files by internal function
+  or class names that are not exported.
 
 ### Changed
 
@@ -31,12 +36,16 @@ Run `forgeai-init --upgrade`. See `docs/migrations/3.3.0.md`.
 
 ## 3.2.0 — 2026-07-13
 
+This release delivers Phase 9 (dependency-aware context selection) and Phase 10
+(context compiler) together.
+
 ### Added
 
-- Dependency-aware CodeGraph refresh for TypeScript, TSX, JavaScript, and JSX.
-- File hashes and repository fingerprints for stale graph detection.
-- Forward/reverse dependency traversal with test prioritization and graph-path
-  explanations.
+- **Phase 9** — Dependency-aware CodeGraph refresh for TypeScript, TSX,
+  JavaScript, and JSX. File hashes and repository fingerprints for stale graph
+  detection. Forward/reverse dependency traversal with test prioritization and
+  graph-path explanations. Explicit no-match result; no fallback to confidence
+  or graph order.
 - `forgeai-init --compile-context` for budgeted AST excerpts with JSON and
   Markdown output.
 - Full-node extraction with signature fallback and source-line provenance.

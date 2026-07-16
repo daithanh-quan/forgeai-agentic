@@ -86,6 +86,7 @@ export type DependencyGraphNode = {
   path: string;
   hash: string;
   exports: string[];
+  declarations?: string[];
 };
 
 export type DependencyEdgeKind = 'static_import' | 'dynamic_import' | 'require';

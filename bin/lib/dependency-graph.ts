@@ -111,9 +111,13 @@ export function buildSourceInventory(repositoryRoot: string): SourceInventory {
   return { files, hashes, fingerprint: fingerprint.digest('hex') };
 }
 
-function parseModule(content: string, file: string): { imports: ImportReference[]; exports: string[] } {
+function parseModule(content: string, file: string): { imports: ImportReference[]; exports: string[]; declarations: string[] } {
   const analysis = analyzeSource(content, file);
-  return { imports: analysis.imports, exports: analysis.exports };
+  return {
+    imports: analysis.imports,
+    exports: analysis.exports,
+    declarations: [...new Set(analysis.declarations.filter((d) => d.kind !== 'test').flatMap((d) => d.search_names))]
+  };
 }
 
 function resolutionCandidates(importer: string, specifier: string): string[] {
@@ -160,7 +164,13 @@ export function generateDependencyGraph(repositoryRoot: string): DependencyGraph
   for (const file of inventory.files) {
     const content = fs.readFileSync(path.join(repositoryRoot, file), 'utf8');
     const parsed = parseModule(content, file);
-    nodes.push({ id: file, path: file, hash: inventory.hashes.get(file)!, exports: parsed.exports });
+    nodes.push({
+      id: file,
+      path: file,
+      hash: inventory.hashes.get(file)!,
+      exports: parsed.exports,
+      declarations: parsed.declarations
+    });
 
     for (const reference of parsed.imports) {
       if (!reference.specifier) {
@@ -219,6 +229,7 @@ function isDependencyGraph(value: unknown): value is DependencyGraph {
   for (const node of graph.nodes) {
     if (!node || typeof node.id !== 'string' || typeof node.path !== 'string' || node.id !== node.path) return false;
     if (!/^[a-f0-9]{64}$/.test(node.hash) || !Array.isArray(node.exports) || !node.exports.every((entry) => typeof entry === 'string')) return false;
+    if (node.declarations !== undefined && (!Array.isArray(node.declarations) || !node.declarations.every((e) => typeof e === 'string'))) return false;
     if (nodeIds.has(node.id)) return false;
     nodeIds.add(node.id);
   }

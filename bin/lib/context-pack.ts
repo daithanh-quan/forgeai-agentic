@@ -97,8 +97,10 @@ export function scoreNodeForObjective(node: CodeGraphNode, terms: string[]): Sco
 function scoreGeneratedNode(node: DependencyGraphNode, terms: string[]): Seed | null {
   const identity = node.path.toLowerCase();
   const exports = node.exports.join(' ').toLowerCase();
+  const declNames = new Set((node.declarations ?? []).map((d) => d.toLowerCase()));
   let score = 0;
   const reasons = new Set<string>();
+  let declarationMatched = false;
   for (const term of terms) {
     if (identity.includes(term)) {
       score += 3;
@@ -107,6 +109,10 @@ function scoreGeneratedNode(node: DependencyGraphNode, terms: string[]): Seed | 
     if (exports.includes(term)) {
       score += 2;
       reasons.add('exported symbol match');
+    } else if (!declarationMatched && declNames.has(term)) {
+      score += 1;
+      declarationMatched = true;
+      reasons.add('declaration name match');
     }
   }
   return score > 0 ? { id: node.id, score, reasons: Array.from(reasons) } : null;
