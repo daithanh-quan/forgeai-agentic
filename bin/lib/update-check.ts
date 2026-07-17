@@ -1,14 +1,17 @@
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { root, packageName, skipUpdateCheck, help, version, listProfiles, checkUpdates } from './context.js';
-import { getPackageVersion, getLatestPackageVersion, compareSemver, formatStatus } from './utils.js';
+import { root, packageName, skipUpdateCheck, help, version, listProfiles, checkUpdates, checkUpgrade } from './context.js';
+import { getPackageVersion, getLatestPackageVersion, compareSemver, parseSemver, formatStatus } from './utils.js';
 import { readManifest } from './manifest.js';
 
-export function shouldRunUpdateCheck(): boolean {
+export function shouldRunUpdateCheck(overrides?: { checkUpgrade?: boolean; interactive?: boolean; ci?: boolean }): boolean {
+  const checkingUpgrade = overrides?.checkUpgrade ?? checkUpgrade;
+  const interactive = overrides?.interactive ?? isInteractiveTerminal();
+  const runningInCi = overrides?.ci ?? process.env.CI === 'true';
   if (skipUpdateCheck) return false;
-  if (help || version || listProfiles) return false;
-  if (process.env.CI === 'true') return false;
-  if (!checkUpdates && !isInteractiveTerminal() && !process.env.FORGEAI_TEST_LATEST_VERSION) return false;
+  if (help || version || listProfiles || checkingUpgrade) return false;
+  if (runningInCi) return false;
+  if (!checkUpdates && !interactive && !process.env.FORGEAI_TEST_LATEST_VERSION) return false;
   return true;
 }
 
@@ -38,6 +41,54 @@ export function rerunWithLatest(): void {
   });
 
   process.exit(result.status ?? 1);
+}
+
+export function runCheckUpgrade(): void {
+  const currentVersion = getPackageVersion();
+  const manifest = readManifest();
+
+  if (!manifest) {
+    console.log('no harness installed. Run forgeai-init to install.');
+    process.exitCode = 1;
+    return;
+  }
+
+  if (!parseSemver(currentVersion)) {
+    console.log(`cannot determine CLI version: "${currentVersion}"`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (manifest.package !== packageName) {
+    console.log(`invalid manifest package: "${manifest.package}" (expected "${packageName}")`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const installedVersion = manifest.package_version;
+  if (!parseSemver(installedVersion)) {
+    console.log(`invalid manifest package_version: "${installedVersion ?? 'undefined'}"`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const comparison = compareSemver(installedVersion, currentVersion);
+
+  if (comparison === 0) {
+    console.log(formatStatus('ok', `harness ${installedVersion} matches CLI ${currentVersion}`));
+    return;
+  }
+
+  if (comparison < 0) {
+    console.log(formatStatus('outdated', `harness ${installedVersion} < CLI ${currentVersion}`));
+    console.log(`Run: npx ${packageName}@${currentVersion} --upgrade`);
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(formatStatus('cli-too-old', `harness ${installedVersion} > CLI ${currentVersion}`));
+  console.log('The installed harness is newer than this CLI. Use a newer CLI version.');
+  process.exitCode = 1;
 }
 
 export function runUpdatePreflight(): void {

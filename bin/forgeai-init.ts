@@ -32,6 +32,7 @@ import {
   validateArtifact as validateArtifactFlag,
   route,
   expandContext,
+  checkUpgrade,
 } from './lib/context.js';
 import { runValidateArtifact, runRoute } from './lib/router.js';
 import { runExpandContext } from './lib/context-expansion.js';
@@ -40,7 +41,7 @@ import { runEmit } from './lib/emit.js';
 import { getPackageVersion } from './lib/utils.js';
 import { getAvailableProfiles, runCheckProfile } from './lib/profiles.js';
 import { runAddModel, runListModels, runRemoveModel } from './lib/model-routing.js';
-import { runUpdatePreflight } from './lib/update-check.js';
+import { runUpdatePreflight, runCheckUpgrade } from './lib/update-check.js';
 import { runCheckSessions } from './lib/sessions.js';
 import { runCheckLifecycle } from './lib/lifecycle.js';
 import { runCheckCodeGraph } from './lib/codegraph.js';
@@ -91,4 +92,5 @@ else if (emit) runEmit();
 else if (validateArtifactFlag) runValidateArtifact();
 else if (route) runRoute();
 else if (expandContext) runExpandContext();
+else if (checkUpgrade) runCheckUpgrade();
 else runInit();

@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { cli, type ExecError, runTs } from './helpers.js';
 import { collectMigrationNotes } from '../bin/lib/upgrade-notes.js';
+import { shouldRunUpdateCheck } from '../bin/lib/update-check.js';
 
 test('upgrade preserves populated project context and state files', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-preserve-'));
@@ -448,6 +449,159 @@ test('check-profile reports invalid package.json instead of crashing', () => {
     }
 
     assert.match(output, /invalid package\.json/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('shouldRunUpdateCheck skips npm preflight for --check-upgrade even in an interactive TTY outside CI', () => {
+  assert.equal(shouldRunUpdateCheck({ checkUpgrade: true, interactive: true, ci: false }), false);
+});
+
+test('--check-upgrade exits 0 when harness version matches CLI version', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-cu-ok-'));
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const output = runTs(cli, ['--check-upgrade'], { cwd: target });
+
+    assert.match(output, /\bok\b/i);
+    assert.match(output, /harness.*matches CLI/i);
+    assert.doesNotMatch(output, /initialized/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--check-upgrade exits 1 and reports outdated when harness version is older than CLI', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-cu-old-'));
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const manifestPath = path.join(target, '.ai', 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.package_version = '1.0.0';
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    let output = '';
+    try {
+      runTs(cli, ['--check-upgrade'], { cwd: target });
+      assert.fail('should have exited 1');
+    } catch (error) {
+      output = String((error as ExecError).stdout ?? '');
+    }
+    assert.match(output, /outdated/i);
+    assert.match(output, /1\.0\.0/);
+    assert.doesNotMatch(output, /cli.too.old/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--check-upgrade exits 1 and reports cli-too-old when harness version is newer than CLI', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-cu-cli-old-'));
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const manifestPath = path.join(target, '.ai', 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.package_version = '99.0.0';
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    let output = '';
+    try {
+      runTs(cli, ['--check-upgrade'], { cwd: target });
+      assert.fail('should have exited 1');
+    } catch (error) {
+      output = String((error as ExecError).stdout ?? '');
+    }
+    assert.match(output, /cli.too.old/i);
+    assert.match(output, /99\.0\.0/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--check-upgrade exits 1 when no harness is installed', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-cu-none-'));
+  try {
+    let output = '';
+    try {
+      runTs(cli, ['--check-upgrade'], { cwd: target });
+      assert.fail('should have exited 1');
+    } catch (error) {
+      output = String((error as ExecError).stdout ?? '');
+    }
+    assert.match(output, /no harness installed/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--check-upgrade exits 1 when manifest package_version is invalid', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-cu-bad-ver-'));
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const manifestPath = path.join(target, '.ai', 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.package_version = 'not-a-version';
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    let output = '';
+    try {
+      runTs(cli, ['--check-upgrade'], { cwd: target });
+      assert.fail('should have exited 1');
+    } catch (error) {
+      output = String((error as ExecError).stdout ?? '');
+    }
+    assert.match(output, /invalid.*package_version/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--check-upgrade exits 1 when manifest package_version is missing', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-cu-missing-ver-'));
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const manifestPath = path.join(target, '.ai', 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    delete manifest.package_version;
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    let output = '';
+    try {
+      runTs(cli, ['--check-upgrade'], { cwd: target });
+      assert.fail('should have exited 1');
+    } catch (error) {
+      output = String((error as ExecError).stdout ?? '');
+    }
+    assert.match(output, /invalid.*package_version/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--check-upgrade exits 1 when manifest belongs to a different package', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-cu-foreign-'));
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const manifestPath = path.join(target, '.ai', 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.package = 'some-other-package';
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    let output = '';
+    try {
+      runTs(cli, ['--check-upgrade'], { cwd: target });
+      assert.fail('should have exited 1');
+    } catch (error) {
+      output = String((error as ExecError).stdout ?? '');
+    }
+    assert.match(output, /invalid.*package/i);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }

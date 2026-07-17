@@ -12,6 +12,7 @@ export function usage(): string {
   forgeai-init --upgrade
   forgeai-init --check
   forgeai-init --check-updates
+  forgeai-init --check-upgrade
   forgeai-init --check-git
   forgeai-init --check-sessions
   forgeai-init --check-lifecycle
@@ -47,6 +48,12 @@ Options:
   --check       Validate installed ForgeAI harness files and model adapters.
   --check-updates
                 Check npm for the latest ForgeAI version, even in non-interactive mode.
+  --check-upgrade
+                Compare the installed harness version (.ai/manifest.json
+                package_version) to the running CLI version. Outcomes: ok
+                (match, exits 0), outdated (harness older, exits 1),
+                cli-too-old (harness newer, exits 1). No network access —
+                suitable for CI use.
   --check-git   Validate git branch, worktree, remote, hooks, and PR/MR tooling.
   --check-sessions
                 Validate active agent sessions for overlapping write scopes.

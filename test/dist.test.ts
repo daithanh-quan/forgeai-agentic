@@ -85,6 +85,26 @@ test('compiled dist CLI reads migration docs from docs/migrations/', () => {
   }
 });
 
+test('compiled dist CLI help contains --check-upgrade', () => {
+  const output = runDist(['--help'], projectRoot);
+  assert.match(output, /--check-upgrade/);
+});
+
+test('compiled dist CLI --check-upgrade exits 0 on a fresh install', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-dist-cu-'));
+  try {
+    runDist([], target);
+
+    const output = runDist(['--check-upgrade'], target);
+
+    assert.match(output, /\bok\b/i);
+    assert.match(output, /harness.*matches CLI/i);
+    assert.doesNotMatch(output, /initialized/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('compiled dist CLI creates a bounded context artifact without tsx', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-dist-compile-'));
   try {

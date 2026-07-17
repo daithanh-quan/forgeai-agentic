@@ -32,6 +32,7 @@ export const checkMemory = args.has('--check-memory');
 export const strict = args.has('--strict');
 export const listProfiles = args.has('--list-profiles');
 export const checkUpdates = args.has('--check-updates');
+export const checkUpgrade = args.has('--check-upgrade');
 export const addModel = args.has('--add-model');
 export const listModels = args.has('--list-models');
 export const removeModel = args.has('--remove-model');
