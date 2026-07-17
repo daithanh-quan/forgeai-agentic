@@ -197,6 +197,42 @@ test('--upgrade also writes context-state gitignore entries', () => {
   }
 });
 
+test('upgrade does not touch user-created evaluation run records', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-eval-'));
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const evalDir = path.join(target, '.ai', 'evaluation');
+    fs.mkdirSync(evalDir, { recursive: true });
+    const evalFile = path.join(evalDir, 'run-001.md');
+    fs.writeFileSync(evalFile, '# Run 001\n\n- Run ID: run-001\n- Outcome: pass\n');
+
+    runTs(cli, ['--upgrade'], { cwd: target });
+
+    assert.match(fs.readFileSync(evalFile, 'utf8'), /run-001/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('upgrade --force does not touch user-created evaluation run records', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-eval-force-'));
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const evalDir = path.join(target, '.ai', 'evaluation');
+    fs.mkdirSync(evalDir, { recursive: true });
+    const evalFile = path.join(evalDir, 'run-001.md');
+    fs.writeFileSync(evalFile, '# Run 001\n\n- Run ID: run-001\n- Outcome: pass\n');
+
+    runTs(cli, ['--upgrade', '--force'], { cwd: target });
+
+    assert.match(fs.readFileSync(evalFile, 'utf8'), /run-001/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('check-profile reports invalid package.json instead of crashing', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-invalid-pkg-check-'));
 
