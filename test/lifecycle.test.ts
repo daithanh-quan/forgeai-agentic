@@ -3,7 +3,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { cli, type ExecError, type HarnessManifest, runTs } from './helpers.js';
+import { cli, type ExecError, type HarnessManifest, runTs, projectRoot } from './helpers.js';
+
+const CURRENT_VERSION = (
+  JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8')) as { version: string }
+).version;
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -100,7 +104,7 @@ test('initialization copies the template files', () => {
     const routing = fs.readFileSync(path.join(target, '.ai', 'model-routing.yaml'), 'utf8');
     const manifest = JSON.parse(fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')) as HarnessManifest;
 
-    assert.equal(manifest.package_version, '3.3.0');
+    assert.equal(manifest.package_version, CURRENT_VERSION);
     assert.equal(manifest.profile, 'base');
     assert.match(routing, /provider: agy/);
     assert.match(routing, /score_range: \[0, 2\]/);
@@ -129,7 +133,7 @@ test('help and version report CLI metadata', () => {
   assert.match(helpOutput, /forgeai-init --check-profile/);
   assert.match(helpOutput, /--profile\s+Apply an optional stack profile/);
   assert.match(helpOutput, /--version\s+Print the package version/);
-  assert.equal(versionOutput.trim(), '3.3.0');
+  assert.equal(versionOutput.trim(), CURRENT_VERSION);
 });
 
 test('lifecycle check passes with no real task journals', () => {
@@ -266,7 +270,7 @@ test('upgrade overwrites harness files and preserves installed profile', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')) as HarnessManifest;
     const readme = fs.readFileSync(path.join(target, '.ai', 'README.md'), 'utf8');
 
-    assert.equal(manifest.package_version, '3.3.0');
+    assert.equal(manifest.package_version, CURRENT_VERSION);
     assert.equal(manifest.profile, 'nextjs');
     assert.match(readme, /# AI Project Harness/);
     assert.equal(fs.existsSync(path.join(target, '.ai', 'profiles', 'nextjs.md')), true);

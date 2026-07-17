@@ -3,7 +3,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { cli, type ExecError, type HarnessManifest, runTs } from './helpers.js';
+import { cli, type ExecError, type HarnessManifest, runTs, projectRoot } from './helpers.js';
+
+const CURRENT_VERSION = (
+  JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8')) as { version: string }
+).version;
 
 test('profile initialization installs stack-specific files and manifest', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-profile-nextjs-'));
@@ -16,7 +20,7 @@ test('profile initialization installs stack-specific files and manifest', () => 
     assert.equal(fs.existsSync(path.join(target, '.ai', 'workflows', 'nextjs-change.md')), true);
 
     const manifest = JSON.parse(fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')) as HarnessManifest;
-    assert.equal(manifest.package_version, '3.3.0');
+    assert.equal(manifest.package_version, CURRENT_VERSION);
     assert.equal(manifest.profile, 'nextjs');
   } finally {
     fs.rmSync(target, { recursive: true, force: true });

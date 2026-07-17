@@ -3,6 +3,8 @@ import path from 'node:path';
 import { root, templateDir, dryRun, force, upgrade, requestedProfile } from './context.js';
 import { readManifest, writeManifest } from './manifest.js';
 import { resolveProfile, profilePath, warnMonorepoSecondaryStack } from './profiles.js';
+import { compareSemver, getPackageVersion, parseSemver } from './utils.js';
+import { collectMigrationNotes, printMigrationNotes } from './upgrade-notes.js';
 
 export function usage(): string {
   return `Usage:
@@ -10,6 +12,7 @@ export function usage(): string {
   forgeai-init --upgrade
   forgeai-init --check
   forgeai-init --check-updates
+  forgeai-init --check-upgrade
   forgeai-init --check-git
   forgeai-init --check-sessions
   forgeai-init --check-lifecycle
@@ -45,6 +48,12 @@ Options:
   --check       Validate installed ForgeAI harness files and model adapters.
   --check-updates
                 Check npm for the latest ForgeAI version, even in non-interactive mode.
+  --check-upgrade
+                Compare the installed harness version (.ai/manifest.json
+                package_version) to the running CLI version. Outcomes: ok
+                (match, exits 0), outdated (harness older, exits 1),
+                cli-too-old (harness newer, exits 1). No network access —
+                suitable for CI use.
   --check-git   Validate git branch, worktree, remote, hooks, and PR/MR tooling.
   --check-sessions
                 Validate active agent sessions for overlapping write scopes.
@@ -196,6 +205,11 @@ export function isPreservedOnUpgrade(dest: string): boolean {
   return false;
 }
 
+export function computeFileAction(src: string, dest: string): 'create' | 'update' | 'unchanged' {
+  if (!fs.existsSync(dest)) return 'create';
+  return fs.readFileSync(src).equals(fs.readFileSync(dest)) ? 'unchanged' : 'update';
+}
+
 export function copyRecursive(src: string, dest: string): void {
   const stat = fs.statSync(src);
   if (stat.isDirectory()) {
@@ -205,20 +219,41 @@ export function copyRecursive(src: string, dest: string): void {
   }
   if (fs.existsSync(dest)) {
     if (upgrade && !force && isPreservedOnUpgrade(dest)) {
-      console.log(`preserved ${path.relative(root, dest)}`);
+      console.log(`preserved ${path.relative(root, dest).split(path.sep).join('/')}`);
       return;
     }
     if (!force && !upgrade) {
-      console.log(`skip ${path.relative(root, dest)} already exists. Use --force or --upgrade to overwrite.`);
+      console.log(`skip ${path.relative(root, dest).split(path.sep).join('/')} already exists. Use --force or --upgrade to overwrite.`);
       return;
     }
   }
-  if (dryRun) console.log(`would create ${path.relative(root, dest)}`);
-  else {
+
+  const relativePath = path.relative(root, dest).split(path.sep).join('/');
+
+  if (upgrade) {
+    const action = computeFileAction(src, dest);
+    if (dryRun) {
+      if (action === 'unchanged') console.log(`no change ${relativePath}`);
+      else console.log(`would ${action} ${relativePath}`);
+      return;
+    }
+    if (action === 'unchanged') {
+      console.log(`no change ${relativePath}`);
+      return;
+    }
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.copyFileSync(src, dest);
-    console.log(`created ${path.relative(root, dest)}`);
+    console.log(`${action === 'update' ? 'updated' : 'created'} ${relativePath}`);
+    return;
   }
+
+  if (dryRun) {
+    console.log(`would create ${relativePath}`);
+    return;
+  }
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.copyFileSync(src, dest);
+  console.log(`created ${relativePath}`);
 }
 
 const CONTEXT_GITIGNORE_ENTRIES = ['.ai/state/context/', '.ai/state/context-routes.md'];
@@ -245,7 +280,26 @@ export function maintainContextGitignore(repositoryRoot: string, isDryRun: boole
 }
 
 export function runInit(): void {
-  const manifestProfile = readManifest()?.profile;
+  const manifest = readManifest();
+  const manifestProfile = manifest?.profile;
+  const installedVersion = upgrade ? (manifest?.package_version ?? null) : null;
+  const currentVersion = getPackageVersion();
+
+  if (
+    upgrade &&
+    installedVersion &&
+    parseSemver(installedVersion) &&
+    parseSemver(currentVersion) &&
+    compareSemver(installedVersion, currentVersion) > 0
+  ) {
+    console.error(
+      `refusing downgrade: harness ${installedVersion} > CLI ${currentVersion}. ` +
+      `Use a CLI version equal to or newer than the installed harness.`
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   const profile = resolveProfile(upgrade ? (manifestProfile ?? requestedProfile) : requestedProfile);
   if (profile.status === 'invalid') {
     console.error(profile.detail);
@@ -262,4 +316,9 @@ export function runInit(): void {
   warnMonorepoSecondaryStack(profile.profile);
   maintainContextGitignore(root, dryRun);
   console.log(dryRun ? 'Dry run complete.' : 'ForgeAI agentic markdown kit initialized.');
+
+  if (upgrade && !dryRun) {
+    const notes = collectMigrationNotes(installedVersion, currentVersion);
+    printMigrationNotes(notes);
+  }
 }

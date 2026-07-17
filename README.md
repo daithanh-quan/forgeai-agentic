@@ -81,6 +81,23 @@ whether to skip for now or upgrade. If you approve the upgrade, the agent runs:
 npx forgeai-agentic-init@latest --upgrade
 ```
 
+### Upgrade commands
+
+| Command | When to use |
+|---------|-------------|
+| `--check-updates` | Interactive local check. Queries npm for the latest version and offers an upgrade prompt. Skipped automatically in CI. |
+| `--check-upgrade` | CI-safe offline check. Compares the harness version in `.ai/manifest.json` to the running CLI version. No network access. |
+
+**CI example** — enforce a specific CLI version in your pipeline:
+
+```bash
+npx forgeai-agentic-init@3.4.0 --check-upgrade
+```
+
+Exits 0 when the installed harness matches the CLI version; exits 1 when
+outdated (`harness < CLI`) or when the CLI is older than the installed harness
+(`cli-too-old`). Does not check npm or the latest published version.
+
 ## What Gets Installed
 
 ```text
