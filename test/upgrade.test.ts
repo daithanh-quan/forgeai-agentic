@@ -197,6 +197,88 @@ test('--upgrade also writes context-state gitignore entries', () => {
   }
 });
 
+// --- Preview path ---
+
+test('--upgrade --dry-run reports "would update" for managed files with changed content', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-preview-update-'));
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const agentPath = path.join(target, '.ai', 'agents', 'orchestrator.md');
+    fs.writeFileSync(agentPath, fs.readFileSync(agentPath, 'utf8') + '\nSTALE_MARKER\n');
+
+    const output = runTs(cli, ['--upgrade', '--dry-run'], { cwd: target });
+
+    assert.match(output, /would update \.ai\/agents\/orchestrator\.md/);
+    // Dry run must not modify anything
+    assert.match(fs.readFileSync(agentPath, 'utf8'), /STALE_MARKER/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--upgrade --dry-run reports "no change" for managed files already up-to-date', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-preview-nochange-'));
+  try {
+    runTs(cli, [], { cwd: target });
+    const output = runTs(cli, ['--upgrade', '--dry-run'], { cwd: target });
+
+    assert.match(output, /no change/);
+    assert.doesNotMatch(output, /would update/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+// --- Apply path ---
+
+test('--upgrade logs "updated" and overwrites managed files with changed content', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-apply-update-'));
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const agentPath = path.join(target, '.ai', 'agents', 'orchestrator.md');
+    fs.writeFileSync(agentPath, fs.readFileSync(agentPath, 'utf8') + '\nSTALE_MARKER\n');
+
+    const output = runTs(cli, ['--upgrade'], { cwd: target });
+
+    assert.match(output, /updated \.ai\/agents\/orchestrator\.md/);
+    assert.doesNotMatch(fs.readFileSync(agentPath, 'utf8'), /STALE_MARKER/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--upgrade logs "no change" and skips copy for managed files already up-to-date', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-apply-nochange-'));
+  try {
+    runTs(cli, [], { cwd: target });
+    const output = runTs(cli, ['--upgrade'], { cwd: target });
+
+    assert.match(output, /no change/);
+    assert.doesNotMatch(output, /\bupdated\b/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--upgrade creates a missing managed file and logs "created"', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-apply-create-'));
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const agentPath = path.join(target, '.ai', 'agents', 'orchestrator.md');
+    fs.rmSync(agentPath);
+
+    const output = runTs(cli, ['--upgrade'], { cwd: target });
+
+    assert.match(output, /created \.ai\/agents\/orchestrator\.md/);
+    assert.ok(fs.existsSync(agentPath));
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('upgrade does not touch user-created evaluation run records', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-eval-'));
   try {

@@ -196,6 +196,11 @@ export function isPreservedOnUpgrade(dest: string): boolean {
   return false;
 }
 
+export function computeFileAction(src: string, dest: string): 'create' | 'update' | 'unchanged' {
+  if (!fs.existsSync(dest)) return 'create';
+  return fs.readFileSync(src).equals(fs.readFileSync(dest)) ? 'unchanged' : 'update';
+}
+
 export function copyRecursive(src: string, dest: string): void {
   const stat = fs.statSync(src);
   if (stat.isDirectory()) {
@@ -205,20 +210,41 @@ export function copyRecursive(src: string, dest: string): void {
   }
   if (fs.existsSync(dest)) {
     if (upgrade && !force && isPreservedOnUpgrade(dest)) {
-      console.log(`preserved ${path.relative(root, dest)}`);
+      console.log(`preserved ${path.relative(root, dest).split(path.sep).join('/')}`);
       return;
     }
     if (!force && !upgrade) {
-      console.log(`skip ${path.relative(root, dest)} already exists. Use --force or --upgrade to overwrite.`);
+      console.log(`skip ${path.relative(root, dest).split(path.sep).join('/')} already exists. Use --force or --upgrade to overwrite.`);
       return;
     }
   }
-  if (dryRun) console.log(`would create ${path.relative(root, dest)}`);
-  else {
+
+  const relativePath = path.relative(root, dest).split(path.sep).join('/');
+
+  if (upgrade) {
+    const action = computeFileAction(src, dest);
+    if (dryRun) {
+      if (action === 'unchanged') console.log(`no change ${relativePath}`);
+      else console.log(`would ${action} ${relativePath}`);
+      return;
+    }
+    if (action === 'unchanged') {
+      console.log(`no change ${relativePath}`);
+      return;
+    }
     fs.mkdirSync(path.dirname(dest), { recursive: true });
     fs.copyFileSync(src, dest);
-    console.log(`created ${path.relative(root, dest)}`);
+    console.log(`${action === 'update' ? 'updated' : 'created'} ${relativePath}`);
+    return;
   }
+
+  if (dryRun) {
+    console.log(`would create ${relativePath}`);
+    return;
+  }
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.copyFileSync(src, dest);
+  console.log(`created ${relativePath}`);
 }
 
 const CONTEXT_GITIGNORE_ENTRIES = ['.ai/state/context/', '.ai/state/context-routes.md'];
