@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { cli, type ExecError, runTs } from './helpers.js';
+import { collectMigrationNotes } from '../bin/lib/upgrade-notes.js';
 
 test('upgrade preserves populated project context and state files', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-preserve-'));
@@ -274,6 +275,123 @@ test('--upgrade creates a missing managed file and logs "created"', () => {
 
     assert.match(output, /created \.ai\/agents\/orchestrator\.md/);
     assert.ok(fs.existsSync(agentPath));
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('collectMigrationNotes returns notes strictly newer than fromVersion', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-mig-range-'));
+  try {
+    fs.writeFileSync(path.join(tempDir, '3.2.0.md'), '# Migration 3.2.0\nNotes A.');
+    fs.writeFileSync(path.join(tempDir, '3.3.0.md'), '# Migration 3.3.0\nNotes B.');
+    fs.writeFileSync(path.join(tempDir, '3.4.0.md'), '# Migration 3.4.0\nNotes C.');
+
+    const notes = collectMigrationNotes('3.2.0', '3.4.0', tempDir);
+    assert.equal(notes.length, 2);
+    assert.match(notes[0], /3\.3\.0/);
+    assert.match(notes[1], /3\.4\.0/);
+    assert.doesNotMatch(notes.join('\n'), /3\.2\.0/);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('collectMigrationNotes with null fromVersion returns only the toVersion note', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-mig-null-'));
+  try {
+    fs.writeFileSync(path.join(tempDir, '3.2.0.md'), '# Migration 3.2.0\nOld notes.');
+    fs.writeFileSync(path.join(tempDir, '3.4.0.md'), '# Migration 3.4.0\nLatest notes.');
+
+    const notes = collectMigrationNotes(null, '3.4.0', tempDir);
+    assert.equal(notes.length, 1);
+    assert.match(notes[0], /3\.4\.0/);
+    assert.doesNotMatch(notes[0], /3\.2\.0/);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('collectMigrationNotes with invalid fromVersion returns only the toVersion note', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-mig-invalid-from-'));
+  try {
+    fs.writeFileSync(path.join(tempDir, '3.3.0.md'), '# Migration 3.3.0\nNotes.');
+    fs.writeFileSync(path.join(tempDir, '3.4.0.md'), '# Migration 3.4.0\nLatest.');
+
+    const notes = collectMigrationNotes('unknown', '3.4.0', tempDir);
+    assert.equal(notes.length, 1);
+    assert.match(notes[0], /3\.4\.0/);
+    assert.doesNotMatch(notes.join('\n'), /3\.3\.0/);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('collectMigrationNotes returns empty array for downgrade or same version', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-mig-downgrade-'));
+  try {
+    fs.writeFileSync(path.join(tempDir, '3.4.0.md'), '# Migration 3.4.0\nNotes.');
+
+    assert.deepEqual(collectMigrationNotes('3.4.0', '3.4.0', tempDir), []);
+    assert.deepEqual(collectMigrationNotes('4.0.0', '3.4.0', tempDir), []);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('collectMigrationNotes returns empty array when toVersion is invalid', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-mig-badto-'));
+  try {
+    fs.writeFileSync(path.join(tempDir, '3.4.0.md'), '# Migration 3.4.0\nNotes.');
+
+    assert.deepEqual(collectMigrationNotes('3.3.0', 'unknown', tempDir), []);
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('--upgrade prints migration notes when harness version is older than CLI', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-notes-'));
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const manifestPath = path.join(target, '.ai', 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.package_version = '3.2.0';
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const output = runTs(cli, ['--upgrade'], { cwd: target });
+
+    assert.match(output, /Migration notes/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--upgrade refuses to downgrade the harness', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-downgrade-'));
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const manifestPath = path.join(target, '.ai', 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.package_version = '99.0.0';
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    // Stale a managed file to prove the guard runs before any file mutation
+    const agentPath = path.join(target, '.ai', 'agents', 'orchestrator.md');
+    fs.writeFileSync(agentPath, 'LOCAL CONTENT\n');
+
+    let combined = '';
+    try {
+      runTs(cli, ['--upgrade'], { cwd: target });
+      assert.fail('should have exited 1');
+    } catch (error) {
+      combined = String((error as ExecError).stdout ?? '') + String((error as ExecError).stderr ?? '');
+    }
+    assert.match(combined, /refusing downgrade/i);
+    assert.match(fs.readFileSync(manifestPath, 'utf8'), /99\.0\.0/);
+    assert.equal(fs.readFileSync(agentPath, 'utf8'), 'LOCAL CONTENT\n');
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }

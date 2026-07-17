@@ -68,6 +68,23 @@ test('compiled dist CLI refreshes a dependency graph without tsx', () => {
   }
 });
 
+test('compiled dist CLI reads migration docs from docs/migrations/', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-dist-notes-'));
+  try {
+    runDist([], target);
+
+    const manifestPath = path.join(target, '.ai', 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as { package_version: string };
+    manifest.package_version = '3.2.0';
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const output = runDist(['--upgrade'], target);
+    assert.match(output, /Migration notes/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('compiled dist CLI creates a bounded context artifact without tsx', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-dist-compile-'));
   try {

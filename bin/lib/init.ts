@@ -3,6 +3,8 @@ import path from 'node:path';
 import { root, templateDir, dryRun, force, upgrade, requestedProfile } from './context.js';
 import { readManifest, writeManifest } from './manifest.js';
 import { resolveProfile, profilePath, warnMonorepoSecondaryStack } from './profiles.js';
+import { compareSemver, getPackageVersion, parseSemver } from './utils.js';
+import { collectMigrationNotes, printMigrationNotes } from './upgrade-notes.js';
 
 export function usage(): string {
   return `Usage:
@@ -271,7 +273,26 @@ export function maintainContextGitignore(repositoryRoot: string, isDryRun: boole
 }
 
 export function runInit(): void {
-  const manifestProfile = readManifest()?.profile;
+  const manifest = readManifest();
+  const manifestProfile = manifest?.profile;
+  const installedVersion = upgrade ? (manifest?.package_version ?? null) : null;
+  const currentVersion = getPackageVersion();
+
+  if (
+    upgrade &&
+    installedVersion &&
+    parseSemver(installedVersion) &&
+    parseSemver(currentVersion) &&
+    compareSemver(installedVersion, currentVersion) > 0
+  ) {
+    console.error(
+      `refusing downgrade: harness ${installedVersion} > CLI ${currentVersion}. ` +
+      `Use a CLI version equal to or newer than the installed harness.`
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   const profile = resolveProfile(upgrade ? (manifestProfile ?? requestedProfile) : requestedProfile);
   if (profile.status === 'invalid') {
     console.error(profile.detail);
@@ -288,4 +309,9 @@ export function runInit(): void {
   warnMonorepoSecondaryStack(profile.profile);
   maintainContextGitignore(root, dryRun);
   console.log(dryRun ? 'Dry run complete.' : 'ForgeAI agentic markdown kit initialized.');
+
+  if (upgrade && !dryRun) {
+    const notes = collectMigrationNotes(installedVersion, currentVersion);
+    printMigrationNotes(notes);
+  }
 }
