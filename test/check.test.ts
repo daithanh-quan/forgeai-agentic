@@ -3,7 +3,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { cli, type ExecError, runTs } from './helpers.js';
+import { cli, type ExecError, runTs, projectRoot } from './helpers.js';
+
+const CURRENT_VERSION = (
+  JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8')) as { version: string }
+).version;
 
 test('check validates a freshly initialized harness', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-check-ready-'));
@@ -60,13 +64,13 @@ test('check suggests updating when installed harness is behind latest version', 
 
     const output = runTs(cli, ['--check'], {
       cwd: target,
-      env: { ...process.env, PATH: '', FORGEAI_TEST_LATEST_VERSION: '3.3.0' }
+      env: { ...process.env, PATH: '', FORGEAI_TEST_LATEST_VERSION: CURRENT_VERSION }
     });
 
     assert.match(output, /ForgeAI update check/);
     assert.match(output, /outdated\s+installed harness: 1\.3\.0/);
-    assert.match(output, /ok\s+current CLI: 3\.3\.0/);
-    assert.match(output, /latest\s+forgeai-agentic-init@3\.3\.0/);
+    assert.match(output, new RegExp(`ok\\s+current CLI: ${CURRENT_VERSION.replace(/\./g, '\\.')}`));
+    assert.match(output, new RegExp(`latest\\s+forgeai-agentic-init@${CURRENT_VERSION.replace(/\./g, '\\.')}`));
     assert.match(output, /Recommendation: ask the human to run npx forgeai-agentic-init@latest --upgrade/);
     assert.match(output, /ForgeAI harness check/);
   } finally {

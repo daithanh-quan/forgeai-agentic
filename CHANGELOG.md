@@ -1,5 +1,32 @@
 # Changelog
 
+## 3.4.0 — 2026-07-17
+
+### Added
+
+- `--check-upgrade` command: offline three-state harness version check (`ok` /
+  `outdated` / `cli-too-old`). Validates manifest package identity and version
+  format. No network access — designed for CI use.
+- `--upgrade --dry-run` now classifies managed files as `no change`, `would
+  update`, or `would create`. The real apply path uses the same classifier —
+  what the preview reports is what the apply does.
+- `--upgrade` now logs `updated` (not `created`) when overwriting changed
+  managed files, and skips unchanged files entirely (`no change`).
+- `--upgrade` refuses to downgrade the harness and exits 1 with a clear message.
+- `--upgrade` prints migration notes filtered to the installed-to-current
+  version range after a successful update.
+
+### Changed
+
+- Version assertions in `test/lifecycle.test.ts` and `test/profile.test.ts` now
+  read from `package.json` dynamically — version bumps no longer require manual
+  test edits.
+- Upgrade file-operation log paths are normalized to `/` on all platforms.
+
+### Migration
+
+Run `forgeai-init --upgrade`. See `docs/migrations/3.4.0.md`.
+
 ## 3.3.0 — 2026-07-14
 
 ### Added
