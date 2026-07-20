@@ -13,8 +13,9 @@
 [![npm version](https://img.shields.io/npm/v/forgeai-agentic-init?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/forgeai-agentic-init)
 [![Node.js ≥20](https://img.shields.io/badge/node-%E2%89%A520-brightgreen?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](./LICENSE)
+[![Profiles](https://img.shields.io/badge/profiles-11%20stacks-orange?style=flat-square)](#profiles)
 
-[Install](#install) · [Terminal UI](#terminal-ui) · [Model Routing](#model-routing) · [Checks](#basic-checks)
+[Install](#install) · [Profiles](#profiles) · [Terminal UI](#terminal-ui) · [Model Routing](#model-routing) · [Checks](#basic-checks)
 
 </div>
 
@@ -22,12 +23,16 @@
 
 Install a shared AI workflow harness so every agent starts from the same rules,
 memory, task workflow, model routing, review gates, and terminal monitor for
-multi-agent orchestration.
+multi-agent orchestration — with built-in stack profiles for 11 ecosystems.
 
 ## Why Use It
 
 - **Consistent agent context**: every agent starts from the same `.ai/` rules,
   project notes, workflow, and memory.
+- **Multi-stack profiles**: ships with stack-specific guidance for Next.js,
+  FastAPI, Django, Go, Rust, React Native, Tauri, Node API, Flutter/mobile, and
+  more. Use `--profile auto` to detect your stack automatically, or combine
+  profiles with `+` for polyglot projects.
 - **Model-agnostic workflow**: works with Codex, Claude Code, AGY, Aider,
   local models, or any tool that can read markdown instructions.
 - **Safer delegation**: includes task decomposition, session-scope checks,
@@ -97,6 +102,61 @@ npx forgeai-agentic-init@3.4.0 --check-upgrade
 Exits 0 when the installed harness matches the CLI version; exits 1 when
 outdated (`harness < CLI`) or when the CLI is older than the installed harness
 (`cli-too-old`). Does not check npm or the latest published version.
+
+## Profiles
+
+ForgeAI ships with **11 stack-specific profiles**. Each profile installs
+additional guidance documents, workflow templates, and skills tuned to that
+stack's tooling, test patterns, and common conventions — on top of the shared
+base harness.
+
+**Zero-config detection** — let ForgeAI read your project files and pick the
+right profile:
+
+```bash
+npx forgeai-agentic-init@latest --profile auto
+```
+
+**Pick a profile by name** with `--profile <name>`:
+
+| Profile | Stack | Auto-detected from |
+|---------|-------|--------------------|
+| `nextjs` | Next.js (React SSR/SSG) | `next` in `package.json` |
+| `node-api` | Node.js REST / GraphQL API | `express`, `fastify`, `@nestjs/core`, `hono`, `koa` |
+| `python-api` | Generic Python web service | Python project files (fallback) |
+| `fastapi` | FastAPI (Python async API) | `fastapi` in Python dependency files |
+| `django` | Django (Python full-stack) | `django` in Python dependency files |
+| `go` | Go service or CLI | `go.mod` |
+| `rust` | Rust binary or library | `Cargo.toml` |
+| `mobile` | Flutter / native iOS & Android | `pubspec.yaml`, `ios/`, `android/` |
+| `react-native` | React Native / Expo | `react-native` or `expo` in `package.json` |
+| `tauri` | Tauri desktop app | `src-tauri/`, `tauri.conf.json` |
+| `monorepo` | Monorepo workspace | `pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `lerna.json`, `workspaces` |
+
+**Polyglot and monorepo projects** — combine any profiles with `+`:
+
+```bash
+# Next.js inside a monorepo
+npx forgeai-agentic-init@latest --profile nextjs+monorepo
+
+# FastAPI backend + Go sidecar
+npx forgeai-agentic-init@latest --profile fastapi+go
+
+# Tauri app with a React Native companion
+npx forgeai-agentic-init@latest --profile tauri+react-native
+```
+
+List all available profiles at any time:
+
+```bash
+npx forgeai-agentic-init@latest --list-profiles
+```
+
+Validate that the installed profile matches detected project signals:
+
+```bash
+npx forgeai-agentic-init@latest --check-profile
+```
 
 ## What Gets Installed
 

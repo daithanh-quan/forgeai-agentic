@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { root, templateDir, dryRun, force, upgrade, requestedProfile } from './context.js';
-import { readManifest, writeManifest } from './manifest.js';
-import { resolveProfile, profilePath, warnMonorepoSecondaryStack } from './profiles.js';
+import { root, templateDir, dryRun, force, upgrade, requestedProfile, isProfileExplicit } from './context.js';
+import { readManifestResult, writeManifest } from './manifest.js';
+import { resolveProfile, profilePath, warnMonorepoSecondaryStack, parseCompositeProfile, detectConfidence, normalizeProfile } from './profiles.js';
 import { compareSemver, getPackageVersion, parseSemver } from './utils.js';
 import { collectMigrationNotes, printMigrationNotes } from './upgrade-notes.js';
 
@@ -44,7 +44,9 @@ Options:
   --dry-run     Print files that would be created without writing them.
   --force       Overwrite existing harness files during initialization.
   --upgrade     Overwrite installed ForgeAI harness files with this package version.
-  --profile     Apply an optional stack profile: auto, nextjs, node-api, tauri, monorepo, python-api, or mobile.
+  --profile     Apply an optional stack profile: auto, nextjs, node-api, tauri, monorepo,
+                python-api, mobile, go, rust, fastapi, django, or react-native.
+                Combine profiles with +: --profile nextjs+monorepo.
   --check       Validate installed ForgeAI harness files and model adapters.
   --check-updates
                 Check npm for the latest ForgeAI version, even in non-interactive mode.
@@ -280,7 +282,8 @@ export function maintainContextGitignore(repositoryRoot: string, isDryRun: boole
 }
 
 export function runInit(): void {
-  const manifest = readManifest();
+  const manifestResult = readManifestResult();
+  const manifest = manifestResult.state === 'valid' ? manifestResult.data : null;
   const manifestProfile = manifest?.profile;
   const installedVersion = upgrade ? (manifest?.package_version ?? null) : null;
   const currentVersion = getPackageVersion();
@@ -300,20 +303,60 @@ export function runInit(): void {
     return;
   }
 
-  const profile = resolveProfile(upgrade ? (manifestProfile ?? requestedProfile) : requestedProfile);
+  // Under --upgrade without an explicit --profile, a corrupt or unreadable manifest
+  // cannot tell us which profile to reinstall — error rather than silently clobber.
+  if (upgrade && !isProfileExplicit && manifestResult.state === 'invalid') {
+    console.error(`manifest is corrupt (${manifestResult.reason}); re-run with --profile <name> to recover`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // A valid-JSON manifest may still have a wrong-type profile field.
+  if (upgrade && !isProfileExplicit && manifest !== null && typeof (manifest.profile as unknown) !== 'string') {
+    console.error(
+      `manifest profile has wrong type (expected string, got ${Array.isArray(manifest.profile as unknown) ? 'array' : typeof (manifest.profile as unknown)}); ` +
+      `re-run with --profile <name> to recover`
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const profileInput = upgrade && !isProfileExplicit ? (manifestProfile ?? requestedProfile) : requestedProfile;
+  const profile = resolveProfile(profileInput);
   if (profile.status === 'invalid') {
     console.error(profile.detail);
     process.exitCode = 1;
     return;
   }
+
+  // Reject explicit profile changes when a manifest already exists unless the
+  // caller passed --upgrade (which updates the manifest) or --force. Without
+  // this guard, the profile files are written but the manifest keeps the old
+  // profile name — an inconsistent state that is hard to detect.
+  if (isProfileExplicit && manifestResult.state !== 'missing' && !upgrade && !force) {
+    const detail =
+      manifestResult.state === 'valid'
+        ? `current: ${String((manifestResult.data.profile as unknown) ?? 'base')}`
+        : 'current manifest is corrupt';
+    console.error(
+      `a profile is already installed (${detail}); use --upgrade --profile ${requestedProfile} to update`
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   copyRecursive(templateDir, root);
   if (profile.status === 'ok') {
-    copyRecursive(profilePath(profile.profile), root);
+    for (const component of parseCompositeProfile(profile.profile)) {
+      copyRecursive(profilePath(component), root);
+    }
   } else if (requestedProfile === 'auto' && profile.status === 'unknown') {
     console.log(`profile auto skipped: ${profile.detail}`);
   }
   writeManifest(profile.profile);
-  warnMonorepoSecondaryStack(profile.profile);
+  // Skip the secondary-stack note when auto-profile already logged the ambiguity
+  // message; they would be duplicate suggestions for the same composite profile.
+  const autoAmbiguityLogged = normalizeProfile(profileInput) === 'auto' && profile.status === 'ok' && detectConfidence() === 'ambiguous';
+  if (!autoAmbiguityLogged) warnMonorepoSecondaryStack(profile.profile);
   maintainContextGitignore(root, dryRun);
   console.log(dryRun ? 'Dry run complete.' : 'ForgeAI agentic markdown kit initialized.');
 

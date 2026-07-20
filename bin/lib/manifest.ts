@@ -34,13 +34,33 @@ export function writeManifest(profile: string): void {
   console.log(`created ${relativePath}`);
 }
 
-export function readManifest(): HarnessManifest | null {
+export type ManifestResult =
+  | { state: 'missing' }
+  | { state: 'invalid'; reason: string }
+  | { state: 'valid'; data: HarnessManifest };
+
+export function readManifestResult(): ManifestResult {
   const manifestPath = path.join(root, '.ai', 'manifest.json');
-  if (!fs.existsSync(manifestPath)) return null;
+  if (!fs.existsSync(manifestPath)) return { state: 'missing' };
+  let parsed: unknown;
   try {
-    return JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as HarnessManifest;
+    parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   } catch (error) {
-    console.log(`invalid .ai/manifest.json: ${getErrorMessage(error)} (treating as no manifest)`);
+    return { state: 'invalid', reason: getErrorMessage(error) };
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    const kind = parsed === null ? 'null' : Array.isArray(parsed) ? 'array' : typeof parsed;
+    return { state: 'invalid', reason: `manifest content is not an object (got ${kind})` };
+  }
+  return { state: 'valid', data: parsed as HarnessManifest };
+}
+
+export function readManifest(): HarnessManifest | null {
+  const result = readManifestResult();
+  if (result.state === 'missing') return null;
+  if (result.state === 'invalid') {
+    console.log(`invalid .ai/manifest.json: ${result.reason} (treating as no manifest)`);
     return null;
   }
+  return result.data;
 }

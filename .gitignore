@@ -6,6 +6,3 @@ test/**/*.js
 
 # JetBrains IDE settings
 .idea/
-
-# Local planning notes
-ROADMAP.md

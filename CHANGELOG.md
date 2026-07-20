@@ -1,5 +1,50 @@
 # Changelog
 
+## 3.5.0 — 2026-07-17
+
+### Added
+
+- **Go profile** (`--profile go`): auto-detected from `go.mod`. Package-boundary,
+  `go vet`/`go test` workflow, and context exclusion hints for `vendor/` and
+  generated files.
+- **Rust profile** (`--profile rust`): auto-detected from `Cargo.toml`. Ownership/
+  borrowing guidance, `cargo clippy` workflow, context exclusion hints for `target/`.
+- **FastAPI profile** (`--profile fastapi`): auto-detected from exact `fastapi` package
+  name in Python dependency files. Pydantic schema guidance and Alembic awareness.
+- **Django profile** (`--profile django`): auto-detected from exact `django` package
+  name in Python dependency files. App structure, ORM, and migration workflow.
+- **React Native profile** (`--profile react-native`): auto-detected from
+  `react-native` or `expo` dependencies. Platform targeting, navigation, and native
+  module boundary guidance.
+- **Profile composition**: `--profile nextjs+monorepo` applies both profiles, stores
+  the composite name in the manifest, validates structural correctness (empty
+  segments, duplicates, reserved names), and validates each component during
+  `--check-profile`.
+- **Three-state confidence**: `--check-profile` shows `(confident)`, `(ambiguous)`,
+  or `(confidence: unknown)`. `--profile auto` logs a composition suggestion including
+  monorepo when multiple primary stacks are found.
+- `--upgrade --profile <name>` now uses the explicit profile instead of the manifest
+  profile, enabling in-place profile migration (e.g., `mobile` → `react-native`).
+
+### Changed
+
+- Python detection uses format-specific exact-match parsers; `django-stubs` and
+  comments no longer produce false positives.
+- FastAPI and Django are detected independently; a project with both is reported
+  as `ambiguous`.
+- Mobile detection separates React Native/Expo (`react-native`) from Flutter/native
+  (`mobile`).
+- Monorepo secondary-stack warning suggests the composite form
+  (`--profile monorepo+<secondary>`).
+- `--help` lists all profiles including `go`, `rust`, `fastapi`, `django`,
+  `react-native`, and the `a+b` composition syntax.
+
+### Migration
+
+Run `forgeai-init --upgrade`. See `docs/migrations/3.5.0.md`.
+React Native/Expo projects: run `forgeai-init --upgrade --profile react-native`
+and remove leftover mobile profile files (see migration guide for exact paths).
+
 ## 3.4.0 — 2026-07-17
 
 ### Added
