@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { cli, type ExecError, runTs } from './helpers.js';
+import { cli, type ExecError, type HarnessManifest, runTs } from './helpers.js';
 import { collectMigrationNotes } from '../bin/lib/upgrade-notes.js';
 import { shouldRunUpdateCheck } from '../bin/lib/update-check.js';
 
@@ -120,16 +120,63 @@ test('upgrade refreshes harness-managed state templates but keeps run state', ()
   }
 });
 
-test('upgrade survives an invalid manifest instead of crashing', () => {
+test('--upgrade without --profile exits 1 when manifest JSON is truncated', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-bad-manifest-'));
 
   try {
-    runTs(cli, [], { cwd: target });
-    fs.writeFileSync(path.join(target, '.ai', 'manifest.json'), '{ "profile": "base", ');
+    runTs(cli, ['--profile', 'go'], { cwd: target });
+    const manifestPath = path.join(target, '.ai', 'manifest.json');
+    fs.writeFileSync(manifestPath, '{ "profile": "go", '); // corrupt JSON
 
-    const output = runTs(cli, ['--upgrade'], { cwd: target });
+    let stderr = '';
+    try {
+      runTs(cli, ['--upgrade'], { cwd: target });
+      assert.fail('should have exited 1');
+    } catch (error) {
+      stderr = String((error as ExecError).stderr ?? '');
+    }
+    assert.match(stderr, /corrupt/i);
+    // Manifest must not have been overwritten
+    assert.equal(fs.readFileSync(manifestPath, 'utf8'), '{ "profile": "go", ');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
 
-    assert.match(output, /invalid \.ai\/manifest\.json/i);
+test('--upgrade without --profile exits 1 when manifest JSON is null', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-null-manifest-'));
+
+  try {
+    runTs(cli, ['--profile', 'go'], { cwd: target });
+    const manifestPath = path.join(target, '.ai', 'manifest.json');
+    fs.writeFileSync(manifestPath, 'null');
+
+    let stderr = '';
+    try {
+      runTs(cli, ['--upgrade'], { cwd: target });
+      assert.fail('should have exited 1');
+    } catch (error) {
+      stderr = String((error as ExecError).stderr ?? '');
+    }
+    assert.match(stderr, /corrupt/i);
+    assert.equal(fs.readFileSync(manifestPath, 'utf8'), 'null');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--upgrade --profile <name> recovers from a truncated manifest JSON', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-recover-corrupt-'));
+
+  try {
+    runTs(cli, ['--profile', 'go'], { cwd: target });
+    fs.writeFileSync(path.join(target, '.ai', 'manifest.json'), '{ "profile": "go", ');
+
+    runTs(cli, ['--upgrade', '--profile', 'go'], { cwd: target });
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')
+    ) as HarnessManifest;
+    assert.equal(manifest.profile, 'go');
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }
@@ -579,6 +626,213 @@ test('--check-upgrade exits 1 when manifest package_version is missing', () => {
       output = String((error as ExecError).stdout ?? '');
     }
     assert.match(output, /invalid.*package_version/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--check-upgrade exits 1 when manifest package_version is a number', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-cu-ver-num-'));
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const manifestPath = path.join(target, '.ai', 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.package_version = 350;
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    let output = '';
+    try {
+      runTs(cli, ['--check-upgrade'], { cwd: target });
+      assert.fail('should have exited 1');
+    } catch (error) {
+      output = String((error as ExecError).stdout ?? '');
+    }
+    assert.match(output, /invalid.*package_version/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--check-upgrade exits 1 when manifest package_version is an array', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-cu-ver-arr-'));
+  try {
+    runTs(cli, [], { cwd: target });
+
+    const manifestPath = path.join(target, '.ai', 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.package_version = [3, 5, 0];
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    let output = '';
+    try {
+      runTs(cli, ['--check-upgrade'], { cwd: target });
+      assert.fail('should have exited 1');
+    } catch (error) {
+      output = String((error as ExecError).stdout ?? '');
+    }
+    assert.match(output, /invalid.*package_version/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--upgrade does not crash when manifest package_version is a number', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-ver-num-'));
+  try {
+    runTs(cli, ['--profile', 'nextjs'], { cwd: target });
+
+    const manifestPath = path.join(target, '.ai', 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.package_version = 350;
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    // Should succeed — version comparison is skipped gracefully for invalid version
+    runTs(cli, ['--upgrade'], { cwd: target });
+    const updated = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as HarnessManifest;
+    assert.equal(updated.profile, 'nextjs');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--upgrade does not crash when manifest package_version is an object', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-ver-obj-'));
+  try {
+    runTs(cli, ['--profile', 'nextjs'], { cwd: target });
+
+    const manifestPath = path.join(target, '.ai', 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.package_version = { major: 3, minor: 5, patch: 0 };
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    runTs(cli, ['--upgrade'], { cwd: target });
+    const updated = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as HarnessManifest;
+    assert.equal(updated.profile, 'nextjs');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+// --- Task 3: Explicit profile during upgrade ---
+
+test('--upgrade --profile <name> uses explicit profile over manifest profile', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-explicit-'));
+  try {
+    runTs(cli, ['--profile', 'mobile'], { cwd: target });
+    const beforeManifest = JSON.parse(
+      fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')
+    ) as HarnessManifest;
+    assert.equal(beforeManifest.profile, 'mobile');
+
+    runTs(cli, ['--upgrade', '--profile', 'react-native'], { cwd: target });
+    const afterManifest = JSON.parse(
+      fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')
+    ) as HarnessManifest;
+    assert.equal(afterManifest.profile, 'react-native');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--upgrade --profile=react-native (equals syntax) uses explicit profile over manifest profile', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-explicit-eq-'));
+  try {
+    runTs(cli, ['--profile', 'mobile'], { cwd: target });
+    runTs(cli, ['--upgrade', '--profile=react-native'], { cwd: target });
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')
+    ) as HarnessManifest;
+    assert.equal(manifest.profile, 'react-native');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--upgrade without --profile keeps manifest profile', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-keep-'));
+  try {
+    runTs(cli, ['--profile', 'mobile'], { cwd: target });
+    runTs(cli, ['--upgrade'], { cwd: target });
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')
+    ) as HarnessManifest;
+    assert.equal(manifest.profile, 'mobile');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--upgrade without --profile exits 1 when manifest profile is a number', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-corrupt-num-'));
+  try {
+    runTs(cli, ['--profile', 'mobile'], { cwd: target });
+    fs.writeFileSync(path.join(target, '.ai', 'manifest.json'), JSON.stringify({ version: 1, profile: 123 }));
+
+    let stderr = '';
+    try {
+      runTs(cli, ['--upgrade'], { cwd: target });
+      assert.fail('should have exited 1');
+    } catch (error) {
+      stderr = String((error as ExecError).stderr ?? '');
+    }
+    assert.match(stderr, /corrupt|wrong type|unreadable/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--upgrade without --profile exits 1 when manifest profile is an array', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-corrupt-arr-'));
+  try {
+    runTs(cli, ['--profile', 'mobile'], { cwd: target });
+    fs.writeFileSync(path.join(target, '.ai', 'manifest.json'), JSON.stringify({ version: 1, profile: ['mobile'] }));
+
+    let stderr = '';
+    try {
+      runTs(cli, ['--upgrade'], { cwd: target });
+      assert.fail('should have exited 1');
+    } catch (error) {
+      stderr = String((error as ExecError).stderr ?? '');
+    }
+    assert.match(stderr, /corrupt|wrong type|unreadable/i);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--upgrade --profile <name> recovers a corrupt manifest profile', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-upgrade-recover-'));
+  try {
+    runTs(cli, ['--profile', 'mobile'], { cwd: target });
+    fs.writeFileSync(path.join(target, '.ai', 'manifest.json'), JSON.stringify({ version: 1, profile: 123 }));
+
+    // Explicit --profile overrides the corrupt manifest; should succeed
+    runTs(cli, ['--upgrade', '--profile', 'go'], { cwd: target });
+
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')
+    ) as HarnessManifest;
+    assert.equal(manifest.profile, 'go');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--check-upgrade exits 1 and reports corrupt when manifest JSON is invalid', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-cu-corrupt-'));
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.writeFileSync(path.join(target, '.ai', 'manifest.json'), '{ "profile": "base", ');
+
+    let output = '';
+    try {
+      runTs(cli, ['--check-upgrade'], { cwd: target });
+      assert.fail('should have exited 1');
+    } catch (error) {
+      output = String((error as ExecError).stdout ?? '');
+    }
+    assert.match(output, /corrupt/i);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }

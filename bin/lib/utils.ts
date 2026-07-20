@@ -61,8 +61,8 @@ export function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function parseSemver(versionValue: string | undefined): [number, number, number] | null {
-  if (!versionValue) return null;
+export function parseSemver(versionValue: unknown): [number, number, number] | null {
+  if (typeof versionValue !== 'string') return null;
   const match = versionValue.trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/);
   if (!match) return null;
   return [Number(match[1]), Number(match[2]), Number(match[3])];

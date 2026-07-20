@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { root, packageName, skipUpdateCheck, help, version, listProfiles, checkUpdates, checkUpgrade } from './context.js';
 import { getPackageVersion, getLatestPackageVersion, compareSemver, parseSemver, formatStatus } from './utils.js';
-import { readManifest } from './manifest.js';
+import { readManifest, readManifestResult } from './manifest.js';
 
 export function shouldRunUpdateCheck(overrides?: { checkUpgrade?: boolean; interactive?: boolean; ci?: boolean }): boolean {
   const checkingUpgrade = overrides?.checkUpgrade ?? checkUpgrade;
@@ -45,13 +45,21 @@ export function rerunWithLatest(): void {
 
 export function runCheckUpgrade(): void {
   const currentVersion = getPackageVersion();
-  const manifest = readManifest();
+  const manifestResult = readManifestResult();
 
-  if (!manifest) {
+  if (manifestResult.state === 'missing') {
     console.log('no harness installed. Run forgeai-init to install.');
     process.exitCode = 1;
     return;
   }
+
+  if (manifestResult.state === 'invalid') {
+    console.log(`manifest is corrupt (${manifestResult.reason}); re-run forgeai-init --upgrade --profile <name> to recover`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const manifest = manifestResult.data;
 
   if (!parseSemver(currentVersion)) {
     console.log(`cannot determine CLI version: "${currentVersion}"`);
@@ -95,7 +103,8 @@ export function runUpdatePreflight(): void {
   if (!shouldRunUpdateCheck()) return;
 
   const currentVersion = getPackageVersion();
-  const manifest = readManifest();
+  const manifestResult2 = readManifestResult();
+  const manifest = manifestResult2.state === 'valid' ? manifestResult2.data : null;
   const installedVersion = manifest?.package_version;
   const latest = getLatestPackageVersion();
 

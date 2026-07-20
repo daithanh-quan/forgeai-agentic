@@ -13,6 +13,28 @@ export const packageName = 'forgeai-agentic-init';
 
 export const rawArgs = process.argv.slice(2);
 export const args = new Set(rawArgs);
+
+// Eagerly validate value-requiring flags: reject missing values (both bare and
+// `=`-form) and duplicate occurrences across all argv positions. Value check
+// runs before the duplicate count so a bare trailing flag reports the most
+// actionable error ("requires a value", not "specified more than once").
+for (const name of ['--profile', '--emit'] as const) {
+  let occurrences = 0;
+  for (let _i = 0; _i < rawArgs.length; _i++) {
+    const arg = rawArgs[_i];
+    if (arg === name) {
+      const next = rawArgs[_i + 1];
+      if (next === undefined || next.startsWith('--')) { process.stderr.write(`${name} requires a value\n`); process.exit(1); }
+      occurrences++;
+      if (occurrences > 1) { process.stderr.write(`${name} cannot be specified more than once\n`); process.exit(1); }
+    } else if (arg.startsWith(`${name}=`)) {
+      if (arg.slice(name.length + 1) === '') { process.stderr.write(`${name} requires a value\n`); process.exit(1); }
+      occurrences++;
+      if (occurrences > 1) { process.stderr.write(`${name} cannot be specified more than once\n`); process.exit(1); }
+    }
+  }
+}
+
 export const help = args.has('--help') || args.has('-h');
 export const version = args.has('--version') || args.has('-v');
 export const force = args.has('--force');
@@ -33,6 +55,7 @@ export const strict = args.has('--strict');
 export const listProfiles = args.has('--list-profiles');
 export const checkUpdates = args.has('--check-updates');
 export const checkUpgrade = args.has('--check-upgrade');
+export const isProfileExplicit = getArgValue('--profile') !== null;
 export const addModel = args.has('--add-model');
 export const listModels = args.has('--list-models');
 export const removeModel = args.has('--remove-model');
