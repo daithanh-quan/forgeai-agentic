@@ -103,6 +103,40 @@ Exits 0 when the installed harness matches the CLI version; exits 1 when
 outdated (`harness < CLI`) or when the CLI is older than the installed harness
 (`cli-too-old`). Does not check npm or the latest published version.
 
+## CI/CD Integration
+
+Copy the workflow template into your project:
+
+```bash
+mkdir -p .github/workflows
+cp node_modules/forgeai-agentic-init/ci-templates/github/forgeai.yml \
+   .github/workflows/forgeai.yml
+```
+
+Or download a pinned version directly from npm:
+
+```bash
+mkdir -p .github/workflows
+curl -fsSL \
+  https://unpkg.com/forgeai-agentic-init@3.6.0/ci-templates/github/forgeai.yml \
+  -o .github/workflows/forgeai.yml
+```
+
+Then open `.github/workflows/forgeai.yml` and replace `VERSION` with your
+current harness version (found in `.ai/manifest.json`).
+
+The workflow runs five critical gates — **Harness version**, **Harness files**,
+**Security**, **CodeGraph**, and **Review gates** — all without provider
+credentials.
+
+The template targets `branches: [main]`. If your repository uses `master`,
+`develop`, or release branches, update the `on.push.branches` and
+`on.pull_request.branches` lists before committing the workflow.
+
+To make any job a required status check, go to **Settings → Branches →
+Branch protection rules** and add the job name (e.g. `Harness version`,
+`Security`).
+
 ## Profiles
 
 ForgeAI ships with **11 stack-specific profiles**. Each profile installs
