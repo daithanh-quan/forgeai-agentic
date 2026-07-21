@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.6.0 — 2026-07-21
+
+### Added
+
+- **CI/CD Integration** (Phase 15): `ci-templates/github/forgeai.yml` ships
+  in the npm package — a GitHub Actions workflow with five critical gates
+  (`upgrade-check`, `harness-check`, `security`, `codegraph`, `review`). Copy into `.github/workflows/`, replace `VERSION`
+  with your harness version from `.ai/manifest.json`. No provider credentials
+  required. See [CI/CD Integration](README.md#cicd-integration) in the README.
+
 ## 3.5.0 — 2026-07-17
 
 ### Added

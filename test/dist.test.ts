@@ -105,6 +105,63 @@ test('compiled dist CLI --check-upgrade exits 0 on a fresh install', () => {
   }
 });
 
+test('ci-templates/github/forgeai.yml exists in the package source', () => {
+  const templatePath = path.join(projectRoot, 'ci-templates', 'github', 'forgeai.yml');
+  assert.ok(fs.existsSync(templatePath), 'ci-templates/github/forgeai.yml must exist');
+});
+
+test('ci-templates/github/forgeai.yml has required workflow structure', () => {
+  const templatePath = path.join(projectRoot, 'ci-templates', 'github', 'forgeai.yml');
+  const content = fs.readFileSync(templatePath, 'utf8');
+
+  // Top-level workflow keys
+  assert.ok(content.includes('name: ForgeAI Harness'), 'workflow must have name: ForgeAI Harness');
+  assert.ok(content.includes('on:'), 'workflow must have on: trigger');
+  assert.ok(content.includes('jobs:'), 'workflow must have a jobs section');
+
+  // All five job IDs
+  assert.ok(content.includes('upgrade-check:'), 'workflow must have upgrade-check job');
+  assert.ok(content.includes('harness-check:'), 'workflow must have harness-check job');
+  assert.ok(content.includes('security:'), 'workflow must have security job');
+  assert.ok(content.includes('codegraph:'), 'workflow must have codegraph job');
+  assert.ok(content.includes('review:'), 'workflow must have review job');
+
+  // All five commands contain @VERSION (not @latest or a pinned semver)
+  assert.ok(content.includes('--check-upgrade'), 'workflow must run --check-upgrade');
+  assert.ok(content.includes('--check-security'), 'workflow must run --check-security');
+  assert.ok(content.includes('--check-codegraph'), 'workflow must run --check-codegraph');
+  assert.ok(content.includes('--check-review'), 'workflow must run --check-review');
+  assert.ok(content.match(/npx --yes forgeai-agentic-init@VERSION/g)?.length === 5,
+    'all 5 jobs must use npx --yes forgeai-agentic-init@VERSION');
+  assert.ok(content.includes('--check-codegraph --strict'), 'codegraph job must use --strict flag');
+
+  // No needs: — all jobs must run in parallel
+  assert.ok(!content.includes('needs:'), 'workflow must not have needs: (jobs must run in parallel)');
+
+  // Least-privilege permissions
+  assert.ok(content.includes('permissions:'), 'workflow must declare permissions');
+  assert.ok(content.includes('contents: read'), 'workflow must use contents: read permission');
+});
+
+test('ci-templates/github/forgeai.yml is included in the npm package', () => {
+  const npmCache = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-npm-cache-'));
+  try {
+    const packOutput = execFileSync('npm', ['pack', '--dry-run', '--json'], {
+      cwd: projectRoot,
+      encoding: 'utf8',
+      env: { ...process.env, npm_config_cache: npmCache },
+    });
+    const [packResult] = JSON.parse(packOutput) as Array<{ files: Array<{ path: string }> }>;
+    const filePaths = packResult.files.map((f) => f.path);
+    assert.ok(
+      filePaths.includes('ci-templates/github/forgeai.yml'),
+      'ci-templates/github/forgeai.yml must be included in the npm package'
+    );
+  } finally {
+    fs.rmSync(npmCache, { recursive: true, force: true });
+  }
+});
+
 test('compiled dist CLI creates a bounded context artifact without tsx', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-dist-compile-'));
   try {
