@@ -32,6 +32,7 @@ import {
   validateArtifact as validateArtifactFlag,
   route,
   expandContext,
+  listRuns,
   checkUpgrade,
 } from './lib/context.js';
 import { runValidateArtifact, runRoute } from './lib/router.js';
@@ -58,6 +59,7 @@ import { runStatusSummary, runDiffSummary, runTestSummary } from './lib/diagnost
 import { runCheckApproval } from './lib/approval.js';
 import { runCheckEvaluation } from './lib/evaluation.js';
 import { usage, runInit } from './lib/init.js';
+import { runListRuns } from './lib/run-record.js';
 
 runUpdatePreflight();
 
@@ -90,7 +92,8 @@ else if (testSummary) runTestSummary();
 else if (watch) runWatch();
 else if (emit) runEmit();
 else if (validateArtifactFlag) runValidateArtifact();
-else if (route) runRoute();
+else if (route) await runRoute();
+else if (listRuns) runListRuns();
 else if (expandContext) runExpandContext();
 else if (checkUpgrade) runCheckUpgrade();
 else runInit();

@@ -1,5 +1,32 @@
 # Changelog
 
+## 3.7.0 — 2026-07-22
+
+### Added
+
+- **LLM-Native Adapter Layer** (Phase 12A — buffered MVP): `--route --adapter
+  anthropic|openai|gemini` delivers a compiled context artifact to the provider
+  API via Node.js built-in `fetch` (no new runtime deps). API keys from env
+  vars only (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`); never
+  stored in project files. Gemini key sent via `x-goog-api-key` header.
+- **Normalized error taxonomy:** `ApiCallResult` carries `error_kind`
+  (`auth | quota | network | provider | invalid_response`), `http_status`, and
+  `retryable`. Auth errors fail fast; quota (HTTP 429) falls back to CLI adapter.
+  HTTP 408/5xx responses are `retryable: true`.
+- **Config validation:** `loadApiAdapters()` distinguishes missing config (null)
+  from invalid config (error), preventing silent CLI fallthrough on typos.
+  Validation rejects arrays, unknown providers, empty names, non-string system,
+  max_tokens > 65536, and version ≠ 1.
+- **Run records:** every API call writes a best-effort JSON record to
+  `.ai/state/runs/<run-id>.json`. View with `forgeai-init --list-runs`.
+- **`--list-runs`:** prints all run records newest-first.
+- **`templates/.ai/api-adapters.json`**: starter config for Anthropic
+  (`claude-sonnet-4-6`), OpenAI (`gpt-4.1`), and Gemini (`gemini-2.5-flash`).
+  Copy to `.ai/api-adapters.json` and set the relevant env var.
+- **`.ai/api-adapters.json` preserved on upgrade** — added to
+  `PRESERVE_ON_UPGRADE_FILES`.
+- Streaming output, retry loop, and lifecycle events deferred to Phase 12B.
+
 ## 3.6.0 — 2026-07-21
 
 ### Added

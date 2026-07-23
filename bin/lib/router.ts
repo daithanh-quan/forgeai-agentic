@@ -7,6 +7,7 @@ import { checkDependencyGraphHealth, readDependencyGraph } from './dependency-gr
 import { formatStatus, getErrorMessage } from './utils.js';
 import { root, getArgValue } from './context.js';
 import { ADAPTERS_RELATIVE } from './model-routing.js';
+import { loadApiAdapters, callApiAdapter, API_ADAPTERS_RELATIVE } from './api-adapter.js';
 
 const MIN_BUDGET = 256;
 const MAX_BUDGET = 200_000;
@@ -213,21 +214,14 @@ function buildJournalEntry(
   return lines.join('\n');
 }
 
-export function routeToAdapter(
+function routeCliAdapter(
   artifact: CompiledContextArtifact,
   artifactPath: string,
-  adapterName: string | null,
+  adapterName: string,
   model: string | null,
-  repositoryRoot: string
+  repositoryRoot: string,
+  json: string
 ): void {
-  const json = `${JSON.stringify(artifact, null, 2)}\n`;
-
-  if (!adapterName) {
-    process.stdout.write(json);
-    appendJournal(buildJournalEntry(artifact, artifactPath, 'stdout', model, 'ok'), repositoryRoot);
-    return;
-  }
-
   const configPath = path.join(repositoryRoot, ADAPTERS_RELATIVE);
   if (!fs.existsSync(configPath)) {
     process.stderr.write(`Error: ${ADAPTERS_RELATIVE} not found. Run forgeai-init first.\n`);
@@ -248,7 +242,8 @@ export function routeToAdapter(
     return;
   }
   const config = rawConfig as AdapterConfig;
-  const adapter = config.adapters?.[adapterName];
+  const cliAdapters = config.adapters;
+  const adapter = cliAdapters !== undefined && Object.hasOwn(cliAdapters, adapterName) ? cliAdapters[adapterName] : undefined;
   if (!adapter) {
     process.stderr.write(`Error: adapter '${adapterName}' not found in ${ADAPTERS_RELATIVE}.\n`);
     process.exitCode = 1;
@@ -277,7 +272,6 @@ export function routeToAdapter(
     process.exitCode = 1;
     return;
   }
-  // Validate args and healthcheck config
   const adapterArgs = adapter.args ?? [];
   if (!Array.isArray(adapterArgs) || adapterArgs.some((a) => typeof a !== 'string')) {
     process.stderr.write(`Error: adapter '${adapterName}' args must be an array of strings.\n`);
@@ -297,7 +291,6 @@ export function routeToAdapter(
       process.exitCode = 1;
       return;
     }
-    // Run healthcheck
     const hcResult = spawnSync(adapter.command, hcArgs ?? [], { timeout: hcTimeout ?? undefined, encoding: 'utf8' });
     if (hcResult.error || hcResult.status !== 0) {
       process.stderr.write(`Error: healthcheck for '${adapterName}' failed.\n`);
@@ -305,7 +298,6 @@ export function routeToAdapter(
       return;
     }
   }
-  // Resolve placeholders
   const { resolved, unresolved } = resolvePlaceholders(adapterArgs as string[], {
     model: model ?? undefined,
     assignment: artifact.objective,
@@ -316,7 +308,6 @@ export function routeToAdapter(
     process.exitCode = 1;
     return;
   }
-  // Spawn adapter
   const result = spawnSync(adapter.command, resolved, {
     input: json,
     stdio: ['pipe', 'inherit', 'inherit'],
@@ -344,7 +335,70 @@ export function routeToAdapter(
   }
 }
 
-export function runRoute(): void {
+export async function routeToAdapter(
+  artifact: CompiledContextArtifact,
+  artifactPath: string,
+  adapterName: string | null,
+  model: string | null,
+  repositoryRoot: string
+): Promise<void> {
+  const json = `${JSON.stringify(artifact, null, 2)}\n`;
+
+  if (!adapterName) {
+    process.stdout.write(json);
+    appendJournal(buildJournalEntry(artifact, artifactPath, 'stdout', model, 'ok'), repositoryRoot);
+    return;
+  }
+
+  // Check API adapters first
+  const loaded = loadApiAdapters(repositoryRoot);
+
+  if (loaded !== null && !loaded.ok) {
+    // Config file exists but is invalid — fail fast, do not silently fall through to CLI
+    process.stderr.write(`Error: invalid ${API_ADAPTERS_RELATIVE}: ${loaded.detail}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const adapterMap = loaded?.ok ? loaded.config.adapters : undefined;
+  const apiEntry = adapterMap !== undefined && Object.hasOwn(adapterMap, adapterName) ? adapterMap[adapterName] : undefined;
+
+  if (apiEntry) {
+    const effectiveModel = model ?? apiEntry.model;
+    const { result } = await callApiAdapter(adapterName, artifact, artifactPath, repositoryRoot, model);
+    const status = result.ok ? 'ok' : `failed (${result.error_kind ?? 'error'})`;
+    appendJournal(buildJournalEntry(artifact, artifactPath, `${adapterName} (api)`, effectiveModel, status), repositoryRoot);
+
+    if (result.ok) {
+      if (result.text) process.stdout.write(result.text);
+      return;
+    }
+
+    if (result.error_kind === 'auth') {
+      // Auth errors never fall back — fail immediately
+      process.stderr.write(`Error: API adapter '${adapterName}' authentication failed: ${result.error ?? ''}\n`);
+      process.exitCode = 1;
+      return;
+    }
+
+    if (result.error_kind === 'quota') {
+      const cliFallback = apiEntry.fallback_adapter ?? adapterName;
+      process.stderr.write(`${formatStatus('warn', `API adapter '${adapterName}' hit quota; falling back to CLI adapter '${cliFallback}'`)}\n`);
+      routeCliAdapter(artifact, artifactPath, cliFallback, effectiveModel, repositoryRoot, json);
+      return;
+    }
+
+    // Other errors (network, provider, invalid_response) — fail
+    process.stderr.write(`Error: API adapter '${adapterName}' failed: ${result.error ?? 'unknown'}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // No API adapter by this name — fall through to CLI
+  routeCliAdapter(artifact, artifactPath, adapterName, model, repositoryRoot, json);
+}
+
+export async function runRoute(): Promise<void> {
   const artifactArg = getArgValue('--artifact');
   if (!artifactArg) {
     process.stderr.write('Usage: forgeai-init --route --artifact <path> [--adapter <name>] [--model <id>]\n');
@@ -363,5 +417,5 @@ export function runRoute(): void {
   if (model && !adapterName) {
     process.stderr.write(`${formatStatus('warn', '--model is ignored when --adapter is not specified')}\n`);
   }
-  routeToAdapter(result.artifact, artifactPath, adapterName, model, root);
+  await routeToAdapter(result.artifact, artifactPath, adapterName, model, root);
 }

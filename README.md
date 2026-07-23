@@ -118,7 +118,7 @@ Or download a pinned version directly from npm:
 ```bash
 mkdir -p .github/workflows
 curl -fsSL \
-  https://unpkg.com/forgeai-agentic-init@3.6.0/ci-templates/github/forgeai.yml \
+  https://unpkg.com/forgeai-agentic-init@3.7.0/ci-templates/github/forgeai.yml \
   -o .github/workflows/forgeai.yml
 ```
 
@@ -136,6 +136,84 @@ The template targets `branches: [main]`. If your repository uses `master`,
 To make any job a required status check, go to **Settings → Branches →
 Branch protection rules** and add the job name (e.g. `Harness version`,
 `Security`).
+
+## API Adapters
+
+**New project:** `forgeai-init` creates `.ai/api-adapters.json` automatically
+from the template.
+
+**Existing project:** run `forgeai-init --upgrade` to add the file without
+overwriting your customized config.
+
+**Manual fallback** (only if the above does not apply):
+
+```bash
+cp node_modules/forgeai-agentic-init/templates/.ai/api-adapters.json \
+   .ai/api-adapters.json
+```
+
+Set your API key in your shell or CI environment (never in project files):
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+export OPENAI_API_KEY=sk-...
+export GOOGLE_API_KEY=AIza...
+```
+
+Route a compiled context artifact to an API adapter:
+
+```bash
+forgeai-init --route \
+  --artifact .ai/state/context/TASK-01.json \
+  --adapter anthropic
+```
+
+The adapter delivers the compiled context to the provider API and writes a
+JSON run record to `.ai/state/runs/`. View records with:
+
+```bash
+forgeai-init --list-runs
+```
+
+**Quota fallback:** HTTP 429 responses fall back to a CLI adapter. Which one
+is controlled by `fallback_adapter` in your API adapter config:
+
+```json
+{
+  "adapters": {
+    "anthropic": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "fallback_adapter": "claude"
+    }
+  }
+}
+```
+
+If `fallback_adapter` is omitted, the router looks for a CLI adapter with the
+**same name** as the API adapter (e.g. `"anthropic"`). The shipped template
+sets `fallback_adapter` to the matching CLI adapter name for each provider.
+
+**Timeout:** Default is 120 seconds (120 000 ms) per request, covering both
+connection and body read. Override per adapter with `timeout_ms` (max 600 000):
+
+```json
+{ "provider": "anthropic", "model": "claude-sonnet-4-6", "timeout_ms": 60000 }
+```
+
+A timeout is classified as `network/retryable:true` — the same as a connection
+error.
+
+**Auth errors** (HTTP 401/403) fail immediately — no fallback. Check that the
+correct env var is set.
+
+**Run records are best-effort.** If `.ai/state/runs/` cannot be written the
+route still completes; a warning is printed to stderr.
+
+**Native API adapters return provider text to stdout.** They do not directly
+edit files or execute tools; downstream automation must apply or consume the
+response. This differs from CLI adapters (Claude Code, Codex) which run
+interactive agents with filesystem access.
 
 ## Profiles
 
