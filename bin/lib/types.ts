@@ -224,3 +224,53 @@ export type ResolvedContextRequest = {
   symbol?: string;
   reason: string;
 };
+
+export type ApiAdapterProvider = 'anthropic' | 'openai' | 'gemini';
+
+export type ApiAdapterEntry = {
+  provider: ApiAdapterProvider;
+  model: string;
+  max_tokens?: number;
+  system?: string;
+  timeout_ms?: number;
+  fallback_adapter?: string;
+};
+
+export type ApiAdapterConfig = {
+  version?: number;
+  adapters?: Record<string, ApiAdapterEntry>;
+};
+
+export type ApiCallResult = {
+  ok: boolean;
+  text: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cached_tokens: number | null;
+  latency_ms: number;
+  http_status: number | null;
+  error_kind: 'auth' | 'quota' | 'network' | 'provider' | 'invalid_response' | null;
+  retryable: boolean;
+  error: string | null;
+};
+
+export type RunRecord = {
+  schema_version: 1;
+  kind: 'forgeai_run_record';
+  run_id: string;
+  timestamp: string;
+  adapter: string;
+  provider: ApiAdapterProvider;
+  model: string;
+  artifact: string;
+  objective: string;
+  budget_tokens: number;
+  estimated_tokens: number;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cached_tokens: number | null;
+  latency_ms: number;
+  http_status: number | null;
+  outcome: 'ok' | 'quota' | 'auth' | 'error';
+  error: string | null;
+};

@@ -180,7 +180,7 @@ Exit criteria:
   normal router path.
 - Additional context is explicit, justified, bounded, and incremental.
 
-### Phase 12 - LLM-native adapter layer
+### Phase 12A - LLM-native adapter layer (buffered MVP)
 
 Add first-class API adapters alongside existing CLI adapters.
 
@@ -200,6 +200,19 @@ Exit criteria:
 - API and CLI adapters consume the same compiled context artifact.
 - Provider usage data is stored without requiring manual transcription.
 - Adapter failures preserve assignment and context boundaries during fallback.
+
+**Shipped in 3.7.0.** Covers provider interfaces, error taxonomy, config
+validation, run records, async routing, and CLI fallback on quota. Streaming
+output, retry loop, and provider-native lifecycle events are deferred to Phase 12B.
+
+### Phase 12B - Streaming output and retry (deferred from 12A)
+
+Deliverables:
+
+- Incremental stdout from chunked `ReadableStream` responses.
+- Configurable retry loop with exponential backoff for `retryable: true` results.
+- Provider-native lifecycle events emitted as NDJSON to the `--watch` pipe.
+- `retry_count` field added to `RunRecord`.
 
 ### Phase 13 - Evaluation and routing feedback
 

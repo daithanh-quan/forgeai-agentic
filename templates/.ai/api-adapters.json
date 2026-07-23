@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "adapters": {
+    "anthropic": {
+      "provider": "anthropic",
+      "model": "claude-sonnet-4-6",
+      "max_tokens": 8192,
+      "fallback_adapter": "claude"
+    },
+    "openai": {
+      "provider": "openai",
+      "model": "gpt-4.1",
+      "max_tokens": 8192,
+      "fallback_adapter": "codex"
+    },
+    "gemini": {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "max_tokens": 8192,
+      "fallback_adapter": "agy"
+    }
+  }
+}

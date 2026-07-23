@@ -109,11 +109,13 @@ Options:
                 Validate a compiled context artifact: checks schema, structure,
                 dependency graph health, fingerprint, path membership, and token
                 estimate consistency. Requires --artifact <path>.
-  --route       Validate and deliver a compiled context artifact to a CLI adapter
-                via stdin. Requires --artifact <path>. Use --adapter <name> to
-                name a configured adapter from .ai/cli-adapters.json. Without
-                --adapter, writes validated JSON to stdout. Use --model <id> to
-                resolve the {model} placeholder in adapter args.
+  --route       Route a compiled context artifact to a configured adapter.
+                Checks .ai/api-adapters.json first (Anthropic, OpenAI, Gemini
+                via native API), then .ai/cli-adapters.json. Requires
+                --artifact <path>. Optional: --adapter <name>, --model <id>.
+                API keys via env vars: ANTHROPIC_API_KEY, OPENAI_API_KEY,
+                GOOGLE_API_KEY. Never add keys to project files.
+  --list-runs   Print all API adapter run records from .ai/state/runs/.
   --expand-context
                 Validate a need_context request and compile a supplemental context
                 artifact containing only the additionally requested symbols, files,
@@ -183,6 +185,7 @@ export const PRESERVE_ON_UPGRADE_FILES = new Set([
   '.ai/MEMORY.md',
   '.ai/AGENT_REGISTRY.md',
   '.ai/cli-adapters.json',
+  '.ai/api-adapters.json',
   '.ai/model-routing.yaml',
   '.ai/security-policy.yaml',
   '.ai/codegraph/graph.json',
@@ -258,7 +261,7 @@ export function copyRecursive(src: string, dest: string): void {
   console.log(`created ${relativePath}`);
 }
 
-const CONTEXT_GITIGNORE_ENTRIES = ['.ai/state/context/', '.ai/state/context-routes.md'];
+const CONTEXT_GITIGNORE_ENTRIES = ['.ai/state/context/', '.ai/state/context-routes.md', '.ai/state/runs/'];
 
 export function maintainContextGitignore(repositoryRoot: string, isDryRun: boolean): void {
   const gitignorePath = path.join(repositoryRoot, '.gitignore');
@@ -359,6 +362,13 @@ export function runInit(): void {
   if (!autoAmbiguityLogged) warnMonorepoSecondaryStack(profile.profile);
   maintainContextGitignore(root, dryRun);
   console.log(dryRun ? 'Dry run complete.' : 'ForgeAI agentic markdown kit initialized.');
+
+  if (!dryRun && fs.existsSync(path.join(root, '.ai', 'api-adapters.json'))) {
+    console.log('');
+    console.log('API adapters installed in .ai/api-adapters.json');
+    console.log('Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_API_KEY');
+    console.log('Keys must be environment variables; never add them to project files.');
+  }
 
   if (upgrade && !dryRun) {
     const notes = collectMigrationNotes(installedVersion, currentVersion);

@@ -204,6 +204,7 @@ test('forgeai-init creates .gitignore with context-state entries when absent', (
     const gitignore = fs.readFileSync(path.join(target, '.gitignore'), 'utf8');
     assert.match(gitignore, /\.ai\/state\/context\//);
     assert.match(gitignore, /\.ai\/state\/context-routes\.md/);
+    assert.match(gitignore, /\.ai\/state\/runs\//);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }
@@ -218,15 +219,17 @@ test('forgeai-init appends context-state entries idempotently with trailing newl
     const content = fs.readFileSync(path.join(target, '.gitignore'), 'utf8');
     // Must have trailing newline
     assert.ok(content.endsWith('\n'));
-    // Must contain both entries exactly once
+    // Must contain all three entries exactly once
     const lines = content.split('\n');
     assert.equal(lines.filter((l) => l === '.ai/state/context/').length, 1);
     assert.ok(lines.includes('.ai/state/context-routes.md'));
+    assert.ok(lines.includes('.ai/state/runs/'));
     // Run again — no duplicates
     runTs(cli, [], { cwd: target });
     const content2 = fs.readFileSync(path.join(target, '.gitignore'), 'utf8');
     const lines2 = content2.split('\n');
     assert.equal(lines2.filter((l) => l === '.ai/state/context/').length, 1);
+    assert.equal(lines2.filter((l) => l === '.ai/state/runs/').length, 1);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }
@@ -241,6 +244,7 @@ test('--upgrade also writes context-state gitignore entries', () => {
     runTs(cli, ['--upgrade'], { cwd: target });
     const content = fs.readFileSync(path.join(target, '.gitignore'), 'utf8');
     assert.match(content, /\.ai\/state\/context\//);
+    assert.match(content, /\.ai\/state\/runs\//);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }
