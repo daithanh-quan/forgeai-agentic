@@ -234,6 +234,8 @@ export type ApiAdapterEntry = {
   system?: string;
   timeout_ms?: number;
   fallback_adapter?: string;
+  max_retries?: number;
+  retry_base_ms?: number;
 };
 
 export type ApiAdapterConfig = {
@@ -251,6 +253,8 @@ export type ApiCallResult = {
   http_status: number | null;
   error_kind: 'auth' | 'quota' | 'network' | 'provider' | 'invalid_response' | null;
   retryable: boolean;
+  streamed: boolean;
+  retry_count: number;
   error: string | null;
 };
 
@@ -272,5 +276,6 @@ export type RunRecord = {
   latency_ms: number;
   http_status: number | null;
   outcome: 'ok' | 'quota' | 'auth' | 'error';
+  retry_count: number;
   error: string | null;
 };

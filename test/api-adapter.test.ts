@@ -27,6 +27,30 @@ export function minimalArtifact(): CompiledContextArtifact {
   };
 }
 
+// Shared SSE streaming helpers (used by Anthropic/OpenAI/Gemini streaming tests).
+function sseStream(...frames: string[]): ReadableStream<Uint8Array> {
+  const enc = new TextEncoder();
+  let i = 0;
+  return new ReadableStream({
+    pull(c) { if (i < frames.length) c.enqueue(enc.encode(frames[i++])); else c.close(); },
+  });
+}
+function sseResponse(...frames: string[]): Response {
+  return new Response(sseStream(...frames), { status: 200 });
+}
+// Emits the given frames, then errors the stream (simulates a mid-read reset).
+function sseErrorResponse(...frames: string[]): Response {
+  const enc = new TextEncoder();
+  let i = 0;
+  const stream = new ReadableStream<Uint8Array>({
+    pull(c) {
+      if (i < frames.length) c.enqueue(enc.encode(frames[i++]));
+      else c.error(new Error('stream reset'));
+    },
+  });
+  return new Response(stream, { status: 200 });
+}
+
 function anthropicConfig(): ApiAdapterEntry {
   return { provider: 'anthropic', model: 'claude-sonnet-4-6', max_tokens: 1024 };
 }
@@ -227,6 +251,71 @@ test('callAnthropic: malformed usage fields → ok:true, tokens coerced to null'
 
 // ── OpenAI tests ──────────────────────────────────────────────────────────────
 
+test('callAnthropic streaming: aggregates deltas, usage, cached tokens', async () => {
+  const frames = [
+    'event: message_start\ndata: {"type":"message_start","message":{"usage":{"input_tokens":100,"cache_read_input_tokens":30}}}\n\n',
+    'event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"text":"Hel"}}\n\n',
+    'event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"text":"lo"}}\n\n',
+    'event: message_delta\ndata: {"type":"message_delta","usage":{"output_tokens":50}}\n\n',
+    'event: message_stop\ndata: {"type":"message_stop"}\n\n',
+  ];
+  process.env.ANTHROPIC_API_KEY = 'k';
+  const chunks: string[] = [];
+  const result = await callAnthropic(minimalArtifact(), anthropicConfig(), (async () => sseResponse(...frames)) as unknown as typeof fetch, (t) => chunks.push(t));
+  delete process.env.ANTHROPIC_API_KEY;
+  assert.deepEqual(chunks, ['Hel', 'lo']);
+  assert.equal(result.ok, true);
+  assert.equal(result.text, 'Hello');
+  assert.equal(result.streamed, true);
+  assert.equal(result.input_tokens, 100);
+  assert.equal(result.output_tokens, 50);
+  assert.equal(result.cached_tokens, 30);
+});
+
+test('callAnthropic streaming: overloaded_error before first delta → provider, retryable', async () => {
+  const frames = ['event: error\ndata: {"type":"error","error":{"type":"overloaded_error"}}\n\n'];
+  process.env.ANTHROPIC_API_KEY = 'k';
+  const result = await callAnthropic(minimalArtifact(), anthropicConfig(), (async () => sseResponse(...frames)) as unknown as typeof fetch, () => {});
+  delete process.env.ANTHROPIC_API_KEY;
+  assert.equal(result.ok, false);
+  assert.equal(result.error_kind, 'provider');
+  assert.equal(result.retryable, true);
+  assert.equal(result.streamed, false);
+});
+
+test('callAnthropic streaming: EOF without message_stop → invalid_response', async () => {
+  const frames = ['event: content_block_delta\ndata: {"type":"content_block_delta","delta":{"text":"hi"}}\n\n'];
+  process.env.ANTHROPIC_API_KEY = 'k';
+  const result = await callAnthropic(minimalArtifact(), anthropicConfig(), (async () => sseResponse(...frames)) as unknown as typeof fetch, () => {});
+  delete process.env.ANTHROPIC_API_KEY;
+  assert.equal(result.ok, false);
+  assert.equal(result.error_kind, 'invalid_response');
+  assert.equal(result.streamed, true);
+  assert.equal(result.retryable, false);
+});
+
+test('callAnthropic streaming: malformed JSON after a delta → invalid_response, streamed', async () => {
+  const frames = [
+    'data: {"type":"content_block_delta","delta":{"text":"hi"}}\n\n',
+    'data: {not json}\n\n',
+  ];
+  process.env.ANTHROPIC_API_KEY = 'k';
+  const result = await callAnthropic(minimalArtifact(), anthropicConfig(), (async () => sseResponse(...frames)) as unknown as typeof fetch, () => {});
+  delete process.env.ANTHROPIC_API_KEY;
+  assert.equal(result.error_kind, 'invalid_response');
+  assert.equal(result.streamed, true);
+  assert.equal(result.retryable, false);
+});
+
+test('callAnthropic streaming: 429 before body still classifies as quota', async () => {
+  process.env.ANTHROPIC_API_KEY = 'k';
+  const result = await callAnthropic(minimalArtifact(), anthropicConfig(), (async () => new Response('rl', { status: 429 })) as unknown as typeof fetch, () => {});
+  delete process.env.ANTHROPIC_API_KEY;
+  assert.equal(result.error_kind, 'quota');
+  assert.equal(result.retryable, true);
+  assert.equal(result.streamed, false);
+});
+
 import { callOpenAI } from '../bin/lib/api-adapters/openai.js';
 
 function openaiConfig(): ApiAdapterEntry {
@@ -403,11 +492,114 @@ test('callOpenAI: whitespace-only text "  " → invalid_response', async () => {
 
 // ── Gemini tests ──────────────────────────────────────────────────────────────
 
+test('callOpenAI streaming: aggregates deltas + usage from final chunk, requires [DONE]', async () => {
+  const frames = [
+    'data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n',
+    'data: {"choices":[{"delta":{"content":"lo"}}]}\n\n',
+    'data: {"choices":[],"usage":{"prompt_tokens":100,"completion_tokens":50,"prompt_tokens_details":{"cached_tokens":20}}}\n\n',
+    'data: [DONE]\n\n',
+  ];
+  process.env.OPENAI_API_KEY = 'k';
+  const chunks: string[] = [];
+  const result = await callOpenAI(minimalArtifact(), openaiConfig(), (async () => sseResponse(...frames)) as unknown as typeof fetch, (t) => chunks.push(t));
+  delete process.env.OPENAI_API_KEY;
+  assert.deepEqual(chunks, ['Hel', 'lo']);
+  assert.equal(result.text, 'Hello');
+  assert.equal(result.input_tokens, 100);
+  assert.equal(result.output_tokens, 50);
+  assert.equal(result.cached_tokens, 20);
+  assert.equal(result.streamed, true);
+});
+
+test('callOpenAI streaming: EOF without [DONE] → invalid_response', async () => {
+  const frames = ['data: {"choices":[{"delta":{"content":"hi"}}]}\n\n'];
+  process.env.OPENAI_API_KEY = 'k';
+  const result = await callOpenAI(minimalArtifact(), openaiConfig(), (async () => sseResponse(...frames)) as unknown as typeof fetch, () => {});
+  delete process.env.OPENAI_API_KEY;
+  assert.equal(result.error_kind, 'invalid_response');
+  assert.equal(result.streamed, true);
+  assert.equal(result.retryable, false);
+});
+
+test('callOpenAI streaming: reader reset before first delta → network, retryable', async () => {
+  process.env.OPENAI_API_KEY = 'k';
+  const result = await callOpenAI(minimalArtifact(), openaiConfig(), (async () => sseErrorResponse()) as unknown as typeof fetch, () => {});
+  delete process.env.OPENAI_API_KEY;
+  assert.equal(result.error_kind, 'network');
+  assert.equal(result.retryable, true);
+  assert.equal(result.streamed, false);
+});
+
+test('callOpenAI streaming: reader reset after first delta → invalid_response, streamed, not retryable', async () => {
+  process.env.OPENAI_API_KEY = 'k';
+  const chunks: string[] = [];
+  const result = await callOpenAI(minimalArtifact(), openaiConfig(), (async () => sseErrorResponse('data: {"choices":[{"delta":{"content":"hi"}}]}\n\n')) as unknown as typeof fetch, (t) => chunks.push(t));
+  delete process.env.OPENAI_API_KEY;
+  assert.deepEqual(chunks, ['hi']);
+  assert.equal(result.error_kind, 'invalid_response');
+  assert.equal(result.streamed, true);
+  assert.equal(result.retryable, false);
+});
+
+test('callOpenAI streaming: whitespace deltas then [DONE] → invalid_response, keeps streamed', async () => {
+  const frames = ['data: {"choices":[{"delta":{"content":"   "}}]}\n\n', 'data: [DONE]\n\n'];
+  process.env.OPENAI_API_KEY = 'k';
+  const chunks: string[] = [];
+  const result = await callOpenAI(minimalArtifact(), openaiConfig(), (async () => sseResponse(...frames)) as unknown as typeof fetch, (t) => chunks.push(t));
+  delete process.env.OPENAI_API_KEY;
+  assert.deepEqual(chunks, ['   ']);
+  assert.equal(result.error_kind, 'invalid_response');
+  assert.equal(result.streamed, true);
+});
+
+test('callOpenAI streaming: missing body → invalid_response, not streamed', async () => {
+  process.env.OPENAI_API_KEY = 'k';
+  const result = await callOpenAI(minimalArtifact(), openaiConfig(), (async () => new Response(null, { status: 200 })) as unknown as typeof fetch, () => {});
+  delete process.env.OPENAI_API_KEY;
+  assert.equal(result.error_kind, 'invalid_response');
+  assert.equal(result.streamed, false);
+});
+
 import { callGemini } from '../bin/lib/api-adapters/gemini.js';
 
 function geminiConfig(): ApiAdapterEntry {
   return { provider: 'gemini', model: 'gemini-2.5-flash', max_tokens: 1024 };
 }
+
+test('callGemini streaming: aggregates parts + usage on clean EOF', async () => {
+  const frames = [
+    'data: {"candidates":[{"content":{"parts":[{"text":"Hel"}]}}]}\n\n',
+    'data: {"candidates":[{"content":{"parts":[{"text":"lo"}]}}],"usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":50,"cachedContentTokenCount":10}}\n\n',
+  ];
+  process.env.GOOGLE_API_KEY = 'k';
+  const chunks: string[] = [];
+  const result = await callGemini(minimalArtifact(), geminiConfig(), (async () => sseResponse(...frames)) as unknown as typeof fetch, (t) => chunks.push(t));
+  delete process.env.GOOGLE_API_KEY;
+  assert.deepEqual(chunks, ['Hel', 'lo']);
+  assert.equal(result.text, 'Hello');
+  assert.equal(result.input_tokens, 100);
+  assert.equal(result.output_tokens, 50);
+  assert.equal(result.cached_tokens, 10);
+  assert.equal(result.streamed, true);
+});
+
+test('callGemini streaming: uses :streamGenerateContent?alt=sse endpoint', async () => {
+  let seenUrl = '';
+  process.env.GOOGLE_API_KEY = 'k';
+  await callGemini(minimalArtifact(), geminiConfig(), (async (u: string) => { seenUrl = u; return sseResponse('data: {"candidates":[{"content":{"parts":[{"text":"x"}]}}]}\n\n'); }) as unknown as typeof fetch, () => {});
+  delete process.env.GOOGLE_API_KEY;
+  assert.ok(seenUrl.includes(':streamGenerateContent'));
+  assert.ok(seenUrl.includes('alt=sse'));
+});
+
+test('callGemini streaming: malformed JSON before any delta → invalid_response, not retryable', async () => {
+  process.env.GOOGLE_API_KEY = 'k';
+  const result = await callGemini(minimalArtifact(), geminiConfig(), (async () => sseResponse('data: {bad}\n\n')) as unknown as typeof fetch, () => {});
+  delete process.env.GOOGLE_API_KEY;
+  assert.equal(result.error_kind, 'invalid_response');
+  assert.equal(result.streamed, false);
+  assert.equal(result.retryable, false);
+});
 
 test('callGemini: 200 → ok result with tokens including cached', async () => {
   const mockFetch = async (): Promise<Response> => new Response(JSON.stringify({
@@ -598,6 +790,26 @@ import { loadApiAdapters, callApiAdapter, validateApiAdaptersConfig, API_ADAPTER
 test('API_ADAPTERS_RELATIVE equals .ai/api-adapters.json', () => {
   assert.equal(API_ADAPTERS_RELATIVE, '.ai/api-adapters.json');
 });
+
+test('validateApiAdaptersConfig: accepts max_retries and retry_base_ms including 0', () => {
+  const res = validateApiAdaptersConfig({ version: 1, adapters: {
+    a: { provider: 'anthropic', model: 'claude-sonnet-4-6', max_retries: 0, retry_base_ms: 250 },
+  }});
+  assert.equal(res.ok, true);
+});
+
+for (const bad of [-1, 2.5, 6]) {
+  test(`validateApiAdaptersConfig: rejects max_retries ${bad}`, () => {
+    const res = validateApiAdaptersConfig({ adapters: { a: { provider: 'openai', model: 'gpt-x', max_retries: bad } } });
+    assert.equal(res.ok, false);
+  });
+}
+for (const bad of [0, -5, 1.5, 30001]) {
+  test(`validateApiAdaptersConfig: rejects retry_base_ms ${bad}`, () => {
+    const res = validateApiAdaptersConfig({ adapters: { a: { provider: 'openai', model: 'gpt-x', retry_base_ms: bad } } });
+    assert.equal(res.ok, false);
+  });
+}
 
 test('validateApiAdaptersConfig: rejects non-object (string)', () => {
   const r = validateApiAdaptersConfig('not an object');
@@ -808,6 +1020,100 @@ test('callApiAdapter: writes run record on success', async () => {
   }
 });
 
+import type { ApiCallResult } from '../bin/lib/types.js';
+import type { RunEvent } from '../bin/lib/run-events.js';
+
+function okResult(over: Partial<ApiCallResult> = {}): ApiCallResult {
+  return { ok: true, text: 'x', input_tokens: 1, output_tokens: 2, cached_tokens: null, latency_ms: 5, http_status: 200, error_kind: null, retryable: false, streamed: false, retry_count: 0, error: null, ...over };
+}
+function failResult(over: Partial<ApiCallResult> = {}): ApiCallResult {
+  return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms: 5, http_status: 500, error_kind: 'provider', retryable: true, streamed: false, retry_count: 0, error: 'boom', ...over };
+}
+function writeApiConfig(tmp: string, entry: Record<string, unknown>): void {
+  fs.mkdirSync(path.join(tmp, '.ai'), { recursive: true });
+  fs.writeFileSync(path.join(tmp, '.ai/api-adapters.json'), JSON.stringify({ version: 1, adapters: { myapi: { provider: 'anthropic', model: 'claude-sonnet-4-6', ...entry } } }));
+}
+
+test('callApiAdapter: retries retryable failures then succeeds; records retry_count and delays', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fa-retry-'));
+  writeApiConfig(tmp, { max_retries: 3, retry_base_ms: 100 });
+  const results = [failResult(), failResult(), okResult()];
+  let calls = 0;
+  const delays: number[] = [];
+  const events: RunEvent[] = [];
+  const { result, record } = await callApiAdapter('myapi', minimalArtifact(), '.ai/state/context/T.json', tmp, null, {
+    dispatch: async () => results[calls++],
+    sleep: async (ms) => { delays.push(ms); },
+    emitEvent: (e) => events.push(e),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.retry_count, 2);
+  assert.deepEqual(delays, [100, 200]);
+  assert.equal(record?.retry_count, 2);
+  assert.equal(events.filter((e) => e.type === 'retry_attempt').length, 2);
+  assert.equal(events.filter((e) => e.type === 'run_start').length, 1);
+  assert.equal(events.filter((e) => e.type === 'run_complete').length, 1);
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+test('callApiAdapter: exhausts retries and returns quota (router will fall back)', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fa-retry-'));
+  writeApiConfig(tmp, { max_retries: 2, retry_base_ms: 10 });
+  const { result } = await callApiAdapter('myapi', minimalArtifact(), '.ai/state/context/T.json', tmp, null, {
+    dispatch: async () => failResult({ error_kind: 'quota', http_status: 429 }),
+    sleep: async () => {},
+    emitEvent: () => {},
+  });
+  assert.equal(result.error_kind, 'quota');
+  assert.equal(result.retry_count, 2);
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+test('callApiAdapter: auth failure is never retried', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fa-retry-'));
+  writeApiConfig(tmp, { max_retries: 3, retry_base_ms: 10 });
+  let calls = 0;
+  const { result } = await callApiAdapter('myapi', minimalArtifact(), '.ai/state/context/T.json', tmp, null, {
+    dispatch: async () => { calls++; return failResult({ error_kind: 'auth', retryable: false, http_status: 401 }); },
+    sleep: async () => {},
+    emitEvent: () => {},
+  });
+  assert.equal(calls, 1);
+  assert.equal(result.retry_count, 0);
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+test('callApiAdapter: streamed failure is never retried', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fa-retry-'));
+  writeApiConfig(tmp, { max_retries: 3, retry_base_ms: 10 });
+  let calls = 0;
+  const { result } = await callApiAdapter('myapi', minimalArtifact(), '.ai/state/context/T.json', tmp, null, {
+    dispatch: async () => { calls++; return failResult({ error_kind: 'invalid_response', retryable: false, streamed: true }); },
+    sleep: async () => {},
+    emitEvent: () => {},
+  });
+  assert.equal(calls, 1);
+  assert.equal(result.streamed, true);
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+test('callApiAdapter: latency_ms is total wall-clock across attempts and backoff', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fa-retry-'));
+  writeApiConfig(tmp, { max_retries: 1, retry_base_ms: 100 });
+  const clock = [1000, 2500]; // now() is called exactly twice: startWall, then final
+  let i = 0;
+  const results = [failResult(), okResult()];
+  let calls = 0;
+  const { result } = await callApiAdapter('myapi', minimalArtifact(), '.ai/state/context/T.json', tmp, null, {
+    dispatch: async () => results[calls++],
+    sleep: async () => {},
+    emitEvent: () => {},
+    now: () => clock[Math.min(i++, clock.length - 1)],
+  });
+  assert.equal(result.latency_ms, 1500);
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
 test('callApiAdapter: missing adapter config → error result, record is null', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-api-'));
   try {
@@ -935,6 +1241,40 @@ test('routeToAdapter: API success → text written to stdout, run record created
     const runsDir = path.join(tmp, '.ai', 'state', 'runs');
     const files = fs.readdirSync(runsDir).filter((f) => f.endsWith('.json'));
     assert.equal(files.length, 1);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('routeToAdapter --stream: writes deltas to stdout once, no double-write', async () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-route-'));
+  const artifact = minimalArtifact();
+  try {
+    const artifactPath = makeValidArtifactFile(tmp, artifact);
+    writeApiAdapters(tmp, { adapters: { myapi: { provider: 'anthropic', model: 'claude-sonnet-4-6' } } });
+    const frames = [
+      'data: {"type":"message_start","message":{"usage":{"input_tokens":1}}}\n\n',
+      'data: {"type":"content_block_delta","delta":{"text":"Hi"}}\n\n',
+      'data: {"type":"message_delta","usage":{"output_tokens":1}}\n\n',
+      'data: {"type":"message_stop"}\n\n',
+    ];
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async () => sseResponse(...frames)) as unknown as typeof fetch;
+
+    const stdoutChunks: string[] = [];
+    const origWrite = process.stdout.write.bind(process.stdout);
+    process.stdout.write = (chunk: string | Uint8Array) => { stdoutChunks.push(String(chunk)); return true; };
+
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    try {
+      await routeToAdapter(artifact, artifactPath, 'myapi', null, tmp, true);
+    } finally {
+      globalThis.fetch = origFetch;
+      process.stdout.write = origWrite;
+      delete process.env.ANTHROPIC_API_KEY;
+    }
+
+    assert.equal(stdoutChunks.join(''), 'Hi'); // exactly the streamed delta, once
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

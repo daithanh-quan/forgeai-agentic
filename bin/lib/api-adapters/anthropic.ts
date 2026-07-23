@@ -1,4 +1,5 @@
 import type { ApiAdapterEntry, ApiCallResult, CompiledContextArtifact } from '../types.js';
+import { parseSSE } from './sse.js';
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const DEFAULT_SYSTEM = 'You are a software engineering agent. Process the compiled context artifact and complete the objective stated in it.';
@@ -10,11 +11,12 @@ function optionalTokenCount(value: unknown): number | null {
 export async function callAnthropic(
   artifact: CompiledContextArtifact,
   config: ApiAdapterEntry,
-  fetcher: typeof fetch = fetch
+  fetcher: typeof fetch = fetch,
+  onDelta?: (text: string) => void
 ): Promise<ApiCallResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms: 0, http_status: null, error_kind: 'auth', retryable: false, error: 'ANTHROPIC_API_KEY is not set; set it with: export ANTHROPIC_API_KEY=<your-key>' };
+    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms: 0, http_status: null, error_kind: 'auth', retryable: false, streamed: false, retry_count: 0, error: 'ANTHROPIC_API_KEY is not set; set it with: export ANTHROPIC_API_KEY=<your-key>' };
   }
 
   const body = JSON.stringify({
@@ -22,6 +24,7 @@ export async function callAnthropic(
     max_tokens: config.max_tokens ?? 8192,
     system: config.system ?? DEFAULT_SYSTEM,
     messages: [{ role: 'user', content: JSON.stringify(artifact) }],
+    ...(onDelta ? { stream: true } : {}),
   });
 
   const start = Date.now();
@@ -35,23 +38,77 @@ export async function callAnthropic(
     });
   } catch (err) {
     const isTimeout = err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
-    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms: Date.now() - start, http_status: null, error_kind: 'network', retryable: true, error: isTimeout ? `request timed out after ${config.timeout_ms ?? 120_000}ms` : String(err) };
+    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms: Date.now() - start, http_status: null, error_kind: 'network', retryable: true, streamed: false, retry_count: 0, error: isTimeout ? `request timed out after ${config.timeout_ms ?? 120_000}ms` : String(err) };
   }
 
   const status = response.status;
 
   if (status === 401 || status === 403) {
     const detail = await response.text().catch(() => '');
-    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms: Date.now() - start, http_status: status, error_kind: 'auth', retryable: false, error: `HTTP ${status}: ${detail.slice(0, 200)}` };
+    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms: Date.now() - start, http_status: status, error_kind: 'auth', retryable: false, streamed: false, retry_count: 0, error: `HTTP ${status}: ${detail.slice(0, 200)}` };
   }
   if (status === 429) {
     const detail = await response.text().catch(() => '');
-    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms: Date.now() - start, http_status: status, error_kind: 'quota', retryable: true, error: `HTTP 429: ${detail.slice(0, 200)}` };
+    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms: Date.now() - start, http_status: status, error_kind: 'quota', retryable: true, streamed: false, retry_count: 0, error: `HTTP 429: ${detail.slice(0, 200)}` };
   }
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
     const retryable = status === 408 || (status >= 500 && status < 600);
-    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms: Date.now() - start, http_status: status, error_kind: 'provider', retryable, error: `HTTP ${status}: ${detail.slice(0, 200)}` };
+    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms: Date.now() - start, http_status: status, error_kind: 'provider', retryable, streamed: false, retry_count: 0, error: `HTTP ${status}: ${detail.slice(0, 200)}` };
+  }
+
+  if (onDelta) {
+    if (!response.body) {
+      return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms: Date.now() - start, http_status: status, error_kind: 'invalid_response', retryable: false, streamed: false, retry_count: 0, error: 'streaming response has no body' };
+    }
+    let text = '';
+    let input: number | null = null, output: number | null = null, cached: number | null = null;
+    let streamed = false;
+    let sawStop = false;
+    const fail = (kind: ApiCallResult['error_kind'], retryable: boolean, msg: string): ApiCallResult => ({
+      ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null,
+      latency_ms: Date.now() - start, http_status: status, error_kind: kind,
+      retryable: streamed ? false : retryable, streamed, retry_count: 0, error: msg,
+    });
+    try {
+      for await (const dataStr of parseSSE(response.body)) {
+        let evt: { type?: string; delta?: { text?: unknown }; message?: { usage?: Record<string, unknown> }; usage?: Record<string, unknown>; error?: { type?: string } };
+        try { evt = JSON.parse(dataStr); }
+        catch { return fail('invalid_response', false, 'malformed SSE event JSON'); }
+        switch (evt.type) {
+          case 'message_start':
+            input = optionalTokenCount(evt.message?.usage?.['input_tokens']);
+            cached = optionalTokenCount(evt.message?.usage?.['cache_read_input_tokens']);
+            break;
+          case 'content_block_delta': {
+            const d = evt.delta?.text;
+            if (typeof d === 'string' && d.length > 0) { text += d; streamed = true; onDelta(d); }
+            break;
+          }
+          case 'message_delta': {
+            const o = optionalTokenCount(evt.usage?.['output_tokens']);
+            if (o !== null) output = o;
+            break;
+          }
+          case 'error':
+            return streamed
+              ? fail('invalid_response', false, 'stream error after output began')
+              : fail('provider', evt.error?.type === 'overloaded_error', `stream error: ${evt.error?.type ?? 'unknown'}`);
+          case 'message_stop':
+            sawStop = true;
+            break;
+          default:
+            break; // ping / unknown ignored
+        }
+      }
+    } catch {
+      return streamed
+        ? fail('invalid_response', false, 'stream read failed after output began')
+        : fail('network', true, 'stream read failed');
+    }
+    if (!sawStop) return fail('invalid_response', false, 'stream ended before message_stop');
+    if (text.trim().length === 0) return fail('invalid_response', false, 'response text is empty');
+    return { ok: true, text, input_tokens: input, output_tokens: output, cached_tokens: cached, latency_ms: Date.now() - start, http_status: status, error_kind: null, retryable: false, streamed: true, retry_count: 0, error: null };
   }
 
   type AnthropicResponse = {
@@ -64,33 +121,33 @@ export async function callAnthropic(
   } catch (bodyErr) {
     const isTimeout = bodyErr instanceof Error && (bodyErr.name === 'TimeoutError' || bodyErr.name === 'AbortError');
     if (isTimeout) {
-      return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms: Date.now() - start, http_status: status, error_kind: 'network', retryable: true, error: `request timed out after ${config.timeout_ms ?? 120_000}ms` };
+      return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms: Date.now() - start, http_status: status, error_kind: 'network', retryable: true, streamed: false, retry_count: 0, error: `request timed out after ${config.timeout_ms ?? 120_000}ms` };
     }
-    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms: Date.now() - start, http_status: status, error_kind: 'invalid_response', retryable: false, error: 'response body is not valid JSON' };
+    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms: Date.now() - start, http_status: status, error_kind: 'invalid_response', retryable: false, streamed: false, retry_count: 0, error: 'response body is not valid JSON' };
   }
   const latency_ms = Date.now() - start;
 
   if (!Array.isArray(data?.content)) {
-    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms, http_status: status, error_kind: 'invalid_response', retryable: false, error: 'response missing content array' };
+    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms, http_status: status, error_kind: 'invalid_response', retryable: false, streamed: false, retry_count: 0, error: 'response missing content array' };
   }
 
   // Guard null/non-object items — avoids throw on malformed shape (which dispatcher would mis-label 'network')
   const invalidItem = data.content.find((c) => typeof c !== 'object' || c === null);
   if (invalidItem !== undefined) {
-    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms, http_status: status, error_kind: 'invalid_response', retryable: false, error: 'response content array contains non-object item' };
+    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms, http_status: status, error_kind: 'invalid_response', retryable: false, streamed: false, retry_count: 0, error: 'response content array contains non-object item' };
   }
   // Require at least one text block — empty content is silent data loss
   const textItems = data.content.filter((c) => c.type === 'text');
   if (textItems.length === 0) {
-    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms, http_status: status, error_kind: 'invalid_response', retryable: false, error: 'response has no text blocks' };
+    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms, http_status: status, error_kind: 'invalid_response', retryable: false, streamed: false, retry_count: 0, error: 'response has no text blocks' };
   }
   // Reject text blocks that have no string text field — returning empty string would be silent data loss
   if (textItems.some((c) => typeof c.text !== 'string')) {
-    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms, http_status: status, error_kind: 'invalid_response', retryable: false, error: 'response has text block with non-string text field' };
+    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms, http_status: status, error_kind: 'invalid_response', retryable: false, streamed: false, retry_count: 0, error: 'response has text block with non-string text field' };
   }
   const text = textItems.map((c) => c.text as string).join('');
   if (text.trim().length === 0) {
-    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms, http_status: status, error_kind: 'invalid_response', retryable: false, error: 'response text is empty' };
+    return { ok: false, text: null, input_tokens: null, output_tokens: null, cached_tokens: null, latency_ms, http_status: status, error_kind: 'invalid_response', retryable: false, streamed: false, retry_count: 0, error: 'response text is empty' };
   }
   return {
     ok: true,
@@ -102,6 +159,8 @@ export async function callAnthropic(
     http_status: status,
     error_kind: null,
     retryable: false,
+    streamed: false,
+    retry_count: 0,
     error: null,
   };
 }

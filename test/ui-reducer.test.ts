@@ -143,3 +143,26 @@ test('_disconnected event sets disconnected flag in state', () => {
   assert.equal(s.disconnected, true);
   assert.equal(s.logs[s.logs.length - 1]!.level, 'warn');
 });
+
+test('reducer run_start marks connected and logs adapter/model', () => {
+  const s = reducer(initialState(), { type: 'run_start', ts, adapter: 'myapi', provider: 'anthropic', model: 'claude-sonnet-4-6' });
+  assert.equal(s.connected, true);
+  assert.ok(s.logs[s.logs.length - 1]!.text.includes('myapi'));
+  assert.ok(s.logs[s.logs.length - 1]!.text.includes('claude-sonnet-4-6'));
+});
+
+test('reducer retry_attempt logs attempt and delay at warn level', () => {
+  const s = reducer(initialState(), { type: 'retry_attempt', ts, adapter: 'myapi', attempt: 2, error_kind: 'provider', delay_ms: 400 });
+  const last = s.logs[s.logs.length - 1]!;
+  assert.equal(last.level, 'warn');
+  assert.ok(last.text.includes('#2'));
+  assert.ok(last.text.includes('400'));
+});
+
+test('reducer run_complete marks connected and logs outcome + tokens', () => {
+  const s = reducer(initialState(), { type: 'run_complete', ts, adapter: 'myapi', outcome: 'ok', input_tokens: 100, output_tokens: 50, latency_ms: 1200, retry_count: 1 });
+  assert.equal(s.connected, true);
+  const last = s.logs[s.logs.length - 1]!;
+  assert.ok(last.text.includes('ok'));
+  assert.ok(last.text.includes('1200'));
+});

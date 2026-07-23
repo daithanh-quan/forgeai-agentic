@@ -1,5 +1,30 @@
 # Changelog
 
+## 3.8.0 — 2026-07-23
+
+### Added
+
+- **Streaming output** (Phase 12B): `--route --adapter <name> --stream` streams
+  incremental model output to stdout as it arrives, for all three API providers
+  (Anthropic, OpenAI, Gemini). Streaming is opt-in; without `--stream` the
+  buffered Phase 12A behavior is unchanged. CLI adapters ignore `--stream` (they
+  already stream via inherited stdio).
+- **Retry with exponential backoff**: per-adapter `max_retries` (0–5, default 2)
+  and `retry_base_ms` (default 500) in `.ai/api-adapters.json`. Retryable
+  failures (network, 5xx, 429) are retried with `retry_base_ms * 2^attempt`
+  backoff before the existing quota→CLI fallback. Auth failures and mid-stream
+  failures are never retried.
+- **Lifecycle events**: `run_start`, `retry_attempt`, and `run_complete` are
+  emitted as NDJSON to the `--watch` pipe (best-effort) and rendered in the
+  activity log. `run_complete` describes the API-adapter run only — a `quota`
+  completion may precede a successful CLI fallback.
+- **`retry_count`** on run records. Records written before 3.8.0 (no
+  `retry_count`) are read as `0`.
+
+### Migration
+
+Run `forgeai-init --upgrade`. Additive change — see `docs/migrations/3.8.0.md`.
+
 ## 3.7.0 — 2026-07-22
 
 ### Added
