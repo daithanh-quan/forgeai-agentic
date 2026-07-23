@@ -83,6 +83,7 @@ export const emit = args.has('--emit');
 export const emitPayload = getArgValue('--emit');
 export const validateArtifact = args.has('--validate-artifact');
 export const route = args.has('--route');
+export const stream = args.has('--stream');
 export const expandContext = args.has('--expand-context');
 export const listRuns = args.has('--list-runs');
 

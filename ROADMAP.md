@@ -207,12 +207,14 @@ output, retry loop, and provider-native lifecycle events are deferred to Phase 1
 
 ### Phase 12B - Streaming output and retry (deferred from 12A)
 
+**Shipped in 3.8.0.** Covers all four deliverables below.
+
 Deliverables:
 
-- Incremental stdout from chunked `ReadableStream` responses.
-- Configurable retry loop with exponential backoff for `retryable: true` results.
-- Provider-native lifecycle events emitted as NDJSON to the `--watch` pipe.
-- `retry_count` field added to `RunRecord`.
+- Incremental stdout from chunked `ReadableStream` responses. ✓
+- Configurable retry loop with exponential backoff for `retryable: true` results. ✓
+- Provider-native lifecycle events emitted as NDJSON to the `--watch` pipe. ✓
+- `retry_count` field added to `RunRecord`. ✓
 
 ### Phase 13 - Evaluation and routing feedback
 

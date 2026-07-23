@@ -25,10 +25,34 @@ function makeRecord(overrides: Partial<RunRecord> = {}): RunRecord {
     latency_ms: 5000,
     http_status: 200,
     outcome: 'ok',
+    retry_count: 0,
     error: null,
     ...overrides,
   };
 }
+
+test('listRunRecords: 3.7.0 record without retry_count normalizes to 0', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fa-run-'));
+  const dir = path.join(tmp, '.ai/state/runs');
+  fs.mkdirSync(dir, { recursive: true });
+  const legacy = makeRecord({ run_id: 'run-legacy' }) as Record<string, unknown>;
+  delete legacy.retry_count;
+  fs.writeFileSync(path.join(dir, 'run-legacy.json'), JSON.stringify(legacy));
+  const records = listRunRecords(tmp);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].retry_count, 0);
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+test('listRunRecords: rejects negative or decimal retry_count', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fa-run-'));
+  const dir = path.join(tmp, '.ai/state/runs');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'neg.json'), JSON.stringify({ ...makeRecord({ run_id: 'neg' }), retry_count: -1 }));
+  fs.writeFileSync(path.join(dir, 'dec.json'), JSON.stringify({ ...makeRecord({ run_id: 'dec' }), retry_count: 1.5 }));
+  assert.equal(listRunRecords(tmp).length, 0);
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
 
 test('generateRunId starts with "run-"', () => {
   const id = generateRunId();

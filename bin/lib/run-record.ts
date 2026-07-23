@@ -25,7 +25,11 @@ export function writeRunRecord(record: RunRecord, repositoryRoot: string): void 
 const VALID_PROVIDERS_REC = new Set(['anthropic', 'openai', 'gemini']);
 const VALID_OUTCOMES_REC = new Set(['ok', 'quota', 'auth', 'error']);
 
-function isValidRunRecord(raw: unknown): raw is RunRecord {
+// Returns true when `raw` is a structurally valid run record for reading.
+// Intentionally NOT a `raw is RunRecord` predicate: a pre-12B record may omit
+// `retry_count`, which does not satisfy the RunRecord type until normalized in
+// listRunRecords. Returning boolean keeps the predicate honest.
+function isValidRunRecordInput(raw: unknown): boolean {
   if (typeof raw !== 'object' || raw === null) return false;
   const r = raw as Record<string, unknown>;
   if (r['kind'] !== 'forgeai_run_record') return false;
@@ -47,6 +51,8 @@ function isValidRunRecord(raw: unknown): raw is RunRecord {
   if (r['error'] !== null && typeof r['error'] !== 'string') return false;
   const parsedTs = new Date(r['timestamp'] as string);
   if (Number.isNaN(parsedTs.getTime()) || parsedTs.toISOString() !== r['timestamp']) return false;
+  const rc = r['retry_count'];
+  if (rc !== undefined && !(Number.isInteger(rc) && (rc as number) >= 0)) return false;
   return true;
 }
 
@@ -67,7 +73,10 @@ export function listRunRecords(repositoryRoot: string): RunRecord[] {
     if (!name.endsWith('.json')) continue;
     try {
       const raw = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'));
-      if (isValidRunRecord(raw)) records.push(raw);
+      if (isValidRunRecordInput(raw)) {
+        const r = raw as Record<string, unknown>;
+        records.push({ ...(r as unknown as RunRecord), retry_count: (r['retry_count'] as number | undefined) ?? 0 });
+      }
     } catch {
       // skip malformed
     }

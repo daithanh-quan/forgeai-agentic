@@ -37,4 +37,15 @@ export type ForgeEvent = {
   name?: string;
   target?: string;
   raw?: string;
+  adapter?: string;
+  provider?: string;
+  model?: string;
+  attempt?: number;
+  error_kind?: string;
+  delay_ms?: number;
+  outcome?: string;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  latency_ms?: number;
+  retry_count?: number;
 };

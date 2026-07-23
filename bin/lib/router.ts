@@ -5,7 +5,7 @@ import type { ArtifactValidationResult, CompiledContextArtifact, AdapterConfig }
 import { computeArtifactEstimate } from './context-compiler.js';
 import { checkDependencyGraphHealth, readDependencyGraph } from './dependency-graph.js';
 import { formatStatus, getErrorMessage } from './utils.js';
-import { root, getArgValue } from './context.js';
+import { root, getArgValue, stream as streamFlag } from './context.js';
 import { ADAPTERS_RELATIVE } from './model-routing.js';
 import { loadApiAdapters, callApiAdapter, API_ADAPTERS_RELATIVE } from './api-adapter.js';
 
@@ -340,7 +340,8 @@ export async function routeToAdapter(
   artifactPath: string,
   adapterName: string | null,
   model: string | null,
-  repositoryRoot: string
+  repositoryRoot: string,
+  stream = false
 ): Promise<void> {
   const json = `${JSON.stringify(artifact, null, 2)}\n`;
 
@@ -365,12 +366,23 @@ export async function routeToAdapter(
 
   if (apiEntry) {
     const effectiveModel = model ?? apiEntry.model;
-    const { result } = await callApiAdapter(adapterName, artifact, artifactPath, repositoryRoot, model);
+    const { result } = await callApiAdapter(adapterName, artifact, artifactPath, repositoryRoot, model, {
+      stream,
+      onDelta: (t) => process.stdout.write(t),
+    });
     const status = result.ok ? 'ok' : `failed (${result.error_kind ?? 'error'})`;
-    appendJournal(buildJournalEntry(artifact, artifactPath, `${adapterName} (api)`, effectiveModel, status), repositoryRoot);
+    appendJournal(buildJournalEntry(artifact, artifactPath, `${adapterName} (api${result.streamed ? ', stream' : ''})`, effectiveModel, status), repositoryRoot);
 
     if (result.ok) {
-      if (result.text) process.stdout.write(result.text);
+      // Buffered: write the full text once. Streamed: bytes already went to stdout.
+      if (!result.streamed && result.text) process.stdout.write(result.text);
+      return;
+    }
+
+    if (result.streamed) {
+      // Bytes already written to stdout — cannot retry or fall back.
+      process.stderr.write(`Error: API adapter '${adapterName}' failed mid-stream: ${result.error ?? 'unknown'}\n`);
+      process.exitCode = 1;
       return;
     }
 
@@ -395,6 +407,7 @@ export async function routeToAdapter(
   }
 
   // No API adapter by this name — fall through to CLI
+  if (stream) process.stderr.write(`${formatStatus('warn', `--stream has no effect on CLI adapter '${adapterName}' (it already streams via stdio)`)}\n`);
   routeCliAdapter(artifact, artifactPath, adapterName, model, repositoryRoot, json);
 }
 
@@ -417,5 +430,8 @@ export async function runRoute(): Promise<void> {
   if (model && !adapterName) {
     process.stderr.write(`${formatStatus('warn', '--model is ignored when --adapter is not specified')}\n`);
   }
-  await routeToAdapter(result.artifact, artifactPath, adapterName, model, root);
+  if (streamFlag && !adapterName) {
+    process.stderr.write(`${formatStatus('warn', '--stream is ignored when --adapter is not specified')}\n`);
+  }
+  await routeToAdapter(result.artifact, artifactPath, adapterName, model, root, streamFlag);
 }

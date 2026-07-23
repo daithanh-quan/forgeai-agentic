@@ -204,6 +204,38 @@ connection and body read. Override per adapter with `timeout_ms` (max 600 000):
 A timeout is classified as `network/retryable:true` — the same as a connection
 error.
 
+**Streaming output.** Add `--stream` to write model output to stdout
+incrementally as it arrives (all three API providers):
+
+```bash
+forgeai-init --route --artifact .ai/state/context/TASK-01.json --adapter anthropic --stream
+```
+
+Without `--stream` the full response is buffered and written once. CLI adapters
+ignore `--stream` — they already stream via inherited stdio. A failure that
+occurs after streaming has begun cannot be retried or fall back (the bytes are
+already on stdout); it exits 1.
+
+**Retry with backoff.** Retryable failures (network, HTTP 5xx, HTTP 429) are
+retried with exponential backoff before the quota→CLI fallback. Configure per
+adapter with `max_retries` (0–5, default 2; `0` disables retry) and
+`retry_base_ms` (default 500; backoff is `retry_base_ms * 2^attempt`):
+
+```json
+{ "provider": "anthropic", "model": "claude-sonnet-4-6", "max_retries": 3, "retry_base_ms": 500 }
+```
+
+Auth errors and mid-stream failures are never retried. `retry_count` is recorded
+on each run record.
+
+**Lifecycle events.** When the `--watch` TUI is running, routes emit
+`run_start`, `retry_attempt`, and `run_complete` events (NDJSON) to its pipe,
+shown in the activity log. Emission is best-effort — a missing or full pipe never
+affects the route. `run_complete` describes the **API-adapter run only**: if the
+adapter exhausts retries on quota, a `run_complete` with `outcome: quota` is
+emitted *before* the CLI fallback runs, so it does not reflect the final route
+outcome.
+
 **Auth errors** (HTTP 401/403) fail immediately — no fallback. Check that the
 correct env var is set.
 

@@ -165,6 +165,32 @@ export function reducer(state: AppState, event: ForgeEvent): AppState {
     case '_disconnected':
       return appendLog({ ...state, disconnected: true }, '[!] connection lost', ts, 'warn');
 
+    case 'run_start':
+      return appendLog(
+        markConnected(state),
+        `▶ run ${event.adapter} ${event.provider ?? ''}/${event.model ?? ''}`,
+        ts,
+      );
+
+    case 'retry_attempt':
+      return appendLog(
+        state,
+        `↻ ${event.adapter} retry #${event.attempt} (${event.error_kind}, ${event.delay_ms}ms)`,
+        ts,
+        'warn',
+      );
+
+    case 'run_complete': {
+      const icon = event.outcome === 'ok' ? '✓' : '✗';
+      const tokens = event.input_tokens != null ? `in=${event.input_tokens} out=${event.output_tokens}` : 'tokens=unknown';
+      return appendLog(
+        markConnected(state),
+        `${icon} run ${event.adapter} ${event.outcome} ${tokens} ${event.latency_ms}ms`,
+        ts,
+        event.outcome === 'ok' ? 'info' : 'error',
+      );
+    }
+
     default:
       return appendLog(
         state,
