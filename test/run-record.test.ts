@@ -18,6 +18,7 @@ function makeRecord(overrides: Partial<RunRecord> = {}): RunRecord {
     artifact: '.ai/state/context/TASK-01.json',
     objective: 'test objective',
     task_id: null,
+    mode: 'compact',
     budget_tokens: 6000,
     estimated_tokens: 4000,
     input_tokens: 4100,

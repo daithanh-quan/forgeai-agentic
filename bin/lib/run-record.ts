@@ -55,6 +55,8 @@ function isValidRunRecordInput(raw: unknown): boolean {
   if (rc !== undefined && !(Number.isInteger(rc) && (rc as number) >= 0)) return false;
   const tid = r['task_id'];
   if (tid !== undefined && tid !== null && (typeof tid !== 'string' || tid.length === 0)) return false;
+  const md = r['mode'];
+  if (md !== undefined && md !== null && md !== 'baseline' && md !== 'compact') return false;
   return true;
 }
 
@@ -81,6 +83,7 @@ export function listRunRecords(repositoryRoot: string): RunRecord[] {
           ...(r as unknown as RunRecord),
           retry_count: (r['retry_count'] as number | undefined) ?? 0,
           task_id: (r['task_id'] as string | null | undefined) ?? null,
+          mode: (r['mode'] as RunRecord['mode'] | undefined) ?? 'compact',
         });
       }
     } catch {

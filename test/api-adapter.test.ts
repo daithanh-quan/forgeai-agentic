@@ -14,6 +14,8 @@ export function minimalArtifact(): CompiledContextArtifact {
     objective: 'test objective',
     task_id: null,
     artifact_role: 'primary',
+    mode: 'compact',
+    experiment_id: null,
     repository: { revision: null, fingerprint: 'abc123' },
     budget: { limit_tokens: 6000, estimated_tokens: 100, estimator: 'characters_divided_by_4', exhausted: false },
     selection: { max_depth: 2, max_nodes: 10, files: [] },

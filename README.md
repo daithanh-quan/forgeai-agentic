@@ -293,6 +293,63 @@ Records are gitignored (local derived state) and preserved on `--upgrade`.
 > The older manual system — `--check-evaluation` over `.ai/evaluation/*.md` — is
 > deprecated but still works; it now prints a notice pointing here.
 
+### Experiments (baseline vs compact)
+
+Measure whether compiled context preserves outcomes at lower cost. An experiment
+runs the **same task twice from the same starting revision** — once with whole
+files (`baseline`), once with bounded excerpts (`compact`) — under one shared
+`--experiment` id, using the **same model**.
+
+Run each mode in its own worktree so the implementing model's edits in one run
+do not change the source the other run compiles against (a changed source =
+different `repository_fingerprint`, which the comparability gate would reject):
+
+```bash
+BASE=$(git rev-parse HEAD)
+git worktree add ../exp-baseline "$BASE"
+git worktree add ../exp-compact  "$BASE"
+
+# Baseline worktree — whole selected files
+cd ../exp-baseline
+forgeai-init --compile-context --objective "refactor router fallback" \
+  --task TASK-20260727-a --mode baseline --experiment EXP-20260727-router \
+  --budget 20000 --output .ai/state/context/TASK-20260727-a.json
+forgeai-init --route --artifact .ai/state/context/TASK-20260727-a.json --adapter <a>
+# …model implements the task, you review it, then:
+forgeai-init --evaluate --task TASK-20260727-a
+
+# Compact worktree — bounded excerpts, same objective + same adapter/model
+cd ../exp-compact
+forgeai-init --compile-context --objective "refactor router fallback" \
+  --task TASK-20260727-b --mode compact --experiment EXP-20260727-router \
+  --budget 6000 --output .ai/state/context/TASK-20260727-b.json
+forgeai-init --route --artifact .ai/state/context/TASK-20260727-b.json --adapter <a>
+forgeai-init --evaluate --task TASK-20260727-b
+
+# Use the baseline worktree as the report workspace: its record is already there,
+# so only the compact record needs to be copied in.
+cp .ai/state/evaluations/TASK-20260727-b.json ../exp-baseline/.ai/state/evaluations/
+cd ../exp-baseline
+forgeai-init --report                  # Experiments section + advisory
+forgeai-init --report --min-samples 1  # lower the pair threshold for a demo
+```
+
+The two `--task` ids must differ (each is a real reviewed task); the
+`--experiment` id, objective, and adapter/model must match. `--evaluate` refuses
+to write an experiment record whose runs did not route that task's compiled
+artifact.
+
+The advisory recommends `prefer compact` only once there are at least
+`--min-samples` (default 5) complete baseline/compact pairs, the compact pass
+rate is within 5 points of baseline, and mean token or latency savings reach
+15%. A pair counts only if the two runs are comparable — same objective,
+repository fingerprint, selected files, acceptance criteria, and
+**provider/model routing signature**, with no expansion round — so the measured
+difference is attributable to context mode rather than model, task, or revision
+changes; non-comparable pairs are listed as skipped. Records without an
+`experiment_id` (ordinary evaluations) are excluded from the experiment analysis
+but still counted in the overall and per-tier summary.
+
 ## Profiles
 
 ForgeAI ships with **11 stack-specific profiles**. Each profile installs

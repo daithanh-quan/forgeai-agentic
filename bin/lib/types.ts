@@ -125,7 +125,7 @@ export type DependencyGraph = {
 
 export type CompiledContextExcerpt = {
   path: string;
-  kind: 'import' | 'function' | 'class' | 'interface' | 'type' | 'enum' | 'variable' | 'test';
+  kind: 'import' | 'function' | 'class' | 'interface' | 'type' | 'enum' | 'variable' | 'test' | 'file';
   name: string;
   reason: string;
   source_start_line: number;
@@ -169,6 +169,8 @@ export type CompiledContextArtifact = {
   objective: string;
   task_id: string | null;
   artifact_role: 'primary' | 'expansion';
+  mode: 'baseline' | 'compact';
+  experiment_id: string | null;
   repository: {
     revision: string | null;
     fingerprint: string;
@@ -271,6 +273,7 @@ export type RunRecord = {
   artifact: string;
   objective: string;
   task_id: string | null;
+  mode: 'baseline' | 'compact' | null;
   budget_tokens: number;
   estimated_tokens: number;
   input_tokens: number | null;
@@ -285,12 +288,23 @@ export type RunRecord = {
 
 export type EvaluationOutcome = 'pass' | 'fail' | 'partial';
 
+export type EvaluationComparability = {
+  objective: string;
+  repository_fingerprint: string;
+  selection_signature: string;
+  acceptance_signature: string;
+  routing_signature: string;
+};
+
 export type EvaluationRecord = {
   kind: 'forgeai_evaluation_record';
   schema_version: 1;
   evaluation_id: string;
   task_id: string;
   generated_at: string;
+  mode: 'baseline' | 'compact';
+  experiment_id: string | null;
+  comparability: EvaluationComparability | null;
   outcome: EvaluationOutcome;
   outcome_source: { type: 'review_scorecard'; scorecard: string; verdict: string };
   validation: {

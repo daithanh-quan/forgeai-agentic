@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import type { ArtifactValidationResult, CompiledContextArtifact, AdapterConfig } from './types.js';
 import { computeArtifactEstimate } from './context-compiler.js';
 import { checkDependencyGraphHealth, readDependencyGraph } from './dependency-graph.js';
-import { formatStatus, getErrorMessage, isValidTaskId } from './utils.js';
+import { formatStatus, getErrorMessage, isValidTaskId, isValidExperimentId } from './utils.js';
 import { root, getArgValue, stream as streamFlag } from './context.js';
 import { ADAPTERS_RELATIVE } from './model-routing.js';
 import { loadApiAdapters, callApiAdapter, API_ADAPTERS_RELATIVE } from './api-adapter.js';
@@ -37,6 +37,12 @@ export function checkArtifactStructure(raw: unknown): string | null {
   if (a.artifact_role !== undefined && a.artifact_role !== 'primary' && a.artifact_role !== 'expansion') {
     return "artifact_role must be 'primary' or 'expansion'";
   }
+  if (a.mode !== undefined && a.mode !== 'baseline' && a.mode !== 'compact') {
+    return "mode must be 'baseline' or 'compact'";
+  }
+  if (a.experiment_id !== null && a.experiment_id !== undefined && (typeof a.experiment_id !== 'string' || !isValidExperimentId(a.experiment_id))) {
+    return 'experiment_id must be null or a valid EXP-YYYYMMDD-slug string';
+  }
   const repo = a.repository as Record<string, unknown> | undefined;
   if (!repo || typeof repo.fingerprint !== 'string' || repo.fingerprint.length === 0) return 'repository.fingerprint must be a non-empty string';
   if (!repo || !('revision' in repo) || (repo.revision !== null && typeof repo.revision !== 'string')) return 'repository.revision must be string or null';
@@ -61,7 +67,7 @@ export function checkArtifactStructure(raw: unknown): string | null {
     if (typeof f.graph_path !== 'string') return 'selection.files[].graph_path must be a string';
   }
   if (!Array.isArray(a.excerpts)) return 'excerpts must be an array';
-  const validExcerptKinds = new Set(['import', 'function', 'class', 'interface', 'type', 'enum', 'variable', 'test']);
+  const validExcerptKinds = new Set(['import', 'function', 'class', 'interface', 'type', 'enum', 'variable', 'test', 'file']);
   const selectionPaths = new Set((sel.files as Array<{ path: string }>).map((f) => f.path));
   for (const exc of a.excerpts as unknown[]) {
     if (typeof exc !== 'object' || exc === null) return 'excerpts items must be objects';
@@ -141,7 +147,13 @@ export function validateArtifact(artifactPath: string, repositoryRoot: string): 
   // against the raw (possibly pre-3.9.0) shape.
   return {
     status: 'ok',
-    artifact: { ...artifact, task_id: artifact.task_id ?? null, artifact_role: artifact.artifact_role ?? 'primary' }
+    artifact: {
+      ...artifact,
+      task_id: artifact.task_id ?? null,
+      artifact_role: artifact.artifact_role ?? 'primary',
+      mode: artifact.mode ?? 'compact',
+      experiment_id: artifact.experiment_id ?? null,
+    }
   };
 }
 

@@ -526,6 +526,8 @@ test('validateArtifact normalizes a legacy artifact without task_id/artifact_rol
     const legacy = { ...artifact } as Record<string, unknown>;
     delete legacy.task_id;
     delete legacy.artifact_role;
+    delete legacy.mode;
+    delete legacy.experiment_id;
     // Recompute the estimate for the field-less shape so the record stays self-consistent.
     legacy.budget = { ...(legacy.budget as Record<string, unknown>) };
     (legacy.budget as Record<string, unknown>).estimated_tokens = computeArtifactEstimate(legacy as unknown as CompiledContextArtifact);
@@ -535,6 +537,8 @@ test('validateArtifact normalizes a legacy artifact without task_id/artifact_rol
     if (result.status === 'ok') {
       assert.equal(result.artifact.task_id, null);
       assert.equal(result.artifact.artifact_role, 'primary');
+      assert.equal(result.artifact.mode, 'compact');
+      assert.equal(result.artifact.experiment_id, null);
     }
   } finally {
     fs.rmSync(target, { recursive: true, force: true });

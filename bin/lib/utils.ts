@@ -160,3 +160,11 @@ const TASK_ID_PATTERN = /^TASK-\d{8}-[a-z0-9][a-z0-9-]*$/;
 export function isValidTaskId(id: string): boolean {
   return typeof id === 'string' && TASK_ID_PATTERN.test(id);
 }
+
+// A valid ForgeAI experiment id: EXP-<8 digits>-<lowercase alphanumeric slug>.
+// Rejects empty strings and the EXP-YYYYMMDD-short-slug template placeholder.
+const EXPERIMENT_ID_PATTERN = /^EXP-\d{8}-[a-z0-9][a-z0-9-]*$/;
+
+export function isValidExperimentId(id: string): boolean {
+  return typeof id === 'string' && EXPERIMENT_ID_PATTERN.test(id);
+}

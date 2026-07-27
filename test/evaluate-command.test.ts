@@ -157,3 +157,100 @@ test('--evaluate ignores a malformed context artifact and still succeeds', () =>
   const result = run(dir, ['--evaluate', '--task', 'TASK-20260724-x']);
   assert.equal(result.status, 0, result.stderr);
 });
+
+// ── Phase 13B: experiment mode/comparability + provenance gate ──────────────
+
+// Compiles a baseline experiment artifact for the task and writes it as the
+// single primary under .ai/state/context/primary.json. Optionally writes a run
+// record that routes it. Returns the repo dir.
+function setupExperimentRepo(opts: { runMode?: 'baseline' | 'compact' | null; runArtifact?: string } = {}): string {
+  const dir = setupRepo();
+  // Initialize the harness + dependency graph so --compile-context can run.
+  fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'src', 'entry.ts'), 'export function runCli() { return 42; }\n');
+  runTs(cli, [], { cwd: dir });
+  runTs(cli, ['--refresh-codegraph'], { cwd: dir });
+  const json = runTs(cli, ['--compile-context', '--objective', 'change runCli implementation', '--budget', '4000',
+    '--task', 'TASK-20260724-x', '--mode', 'baseline', '--experiment', 'EXP-20260724-router'], { cwd: dir });
+  const ctxDir = path.join(dir, '.ai/state/context');
+  fs.mkdirSync(ctxDir, { recursive: true });
+  fs.writeFileSync(path.join(ctxDir, 'primary.json'), json);
+  const runMode = opts.runMode === undefined ? 'baseline' : opts.runMode;
+  if (runMode !== null) {
+    const runsDir = path.join(dir, '.ai/state/runs');
+    fs.mkdirSync(runsDir, { recursive: true });
+    fs.writeFileSync(path.join(runsDir, 'run-1.json'), JSON.stringify({
+      schema_version: 1, kind: 'forgeai_run_record', run_id: 'run-1', timestamp: '2026-07-24T00:00:00.000Z',
+      adapter: 'anthropic', provider: 'anthropic', model: 'claude-sonnet-4-6',
+      artifact: opts.runArtifact ?? '.ai/state/context/primary.json', objective: 'change runCli implementation',
+      task_id: 'TASK-20260724-x', mode: runMode, budget_tokens: 4000, estimated_tokens: 100,
+      input_tokens: 80, output_tokens: 20, cached_tokens: 0, latency_ms: 250, http_status: 200,
+      outcome: 'ok', retry_count: 0, error: null,
+    }, null, 2));
+  }
+  return dir;
+}
+
+test('--evaluate stamps mode, experiment_id, and comparability from the primary artifact', () => {
+  const dir = setupExperimentRepo();
+  const result = run(dir, ['--evaluate', '--task', 'TASK-20260724-x']);
+  assert.equal(result.status, 0, result.stderr + result.stdout);
+  const record = JSON.parse(fs.readFileSync(path.join(dir, '.ai/state/evaluations/TASK-20260724-x.json'), 'utf8'));
+  assert.equal(record.mode, 'baseline');
+  assert.equal(record.experiment_id, 'EXP-20260724-router');
+  assert.equal(typeof record.comparability.objective, 'string');
+  assert.equal(typeof record.comparability.repository_fingerprint, 'string');
+  assert.match(record.comparability.selection_signature, /^\d+:\d+:/);
+  // acceptance_signature is the Command column (cells[1]), never the Date column.
+  assert.ok(record.comparability.acceptance_signature.length > 0);
+  assert.ok(!/\d{4}-\d{2}-\d{2}/.test(record.comparability.acceptance_signature), 'acceptance_signature must hold commands, not dates');
+  assert.match(record.comparability.routing_signature, /.+\/.+/);
+});
+
+test('--evaluate rejects an experiment task with no runs', () => {
+  const dir = setupExperimentRepo({ runMode: null });
+  const result = run(dir, ['--evaluate', '--task', 'TASK-20260724-x']);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout + result.stderr, /no run records|No record written/);
+  assert.equal(fs.existsSync(path.join(dir, '.ai/state/evaluations/TASK-20260724-x.json')), false);
+});
+
+test('--evaluate rejects an experiment run whose mode differs from the artifact', () => {
+  const dir = setupExperimentRepo({ runMode: 'compact' });
+  const result = run(dir, ['--evaluate', '--task', 'TASK-20260724-x']);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout + result.stderr, /does not match artifact mode|No record written/);
+  assert.equal(fs.existsSync(path.join(dir, '.ai/state/evaluations/TASK-20260724-x.json')), false);
+});
+
+test('--evaluate rejects an experiment run that routed a different artifact', () => {
+  const dir = setupExperimentRepo({ runArtifact: '.ai/state/context/OTHER.json' });
+  const result = run(dir, ['--evaluate', '--task', 'TASK-20260724-x']);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout + result.stderr, /did not route the primary artifact|No record written/);
+  assert.equal(fs.existsSync(path.join(dir, '.ai/state/evaluations/TASK-20260724-x.json')), false);
+});
+
+test('--evaluate treats a legacy artifact (no mode/experiment_id) as a non-experiment', () => {
+  const dir = setupRepo();
+  // Init the harness + graph, compile a normal artifact, then strip the 3.10.0 fields
+  // to simulate a pre-3.10.0 primary artifact (no run record, like an old evaluation).
+  fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'src', 'entry.ts'), 'export function runCli() { return 42; }\n');
+  runTs(cli, [], { cwd: dir });
+  runTs(cli, ['--refresh-codegraph'], { cwd: dir });
+  const compiled = JSON.parse(runTs(cli, ['--compile-context', '--objective', 'change runCli implementation',
+    '--budget', '4000', '--task', 'TASK-20260724-x'], { cwd: dir })) as Record<string, unknown>;
+  delete compiled.mode;
+  delete compiled.experiment_id;
+  const ctxDir = path.join(dir, '.ai/state/context');
+  fs.mkdirSync(ctxDir, { recursive: true });
+  fs.writeFileSync(path.join(ctxDir, 'primary.json'), JSON.stringify(compiled, null, 2));
+
+  // No run record — a legacy (non-experiment) evaluation must still succeed.
+  const result = run(dir, ['--evaluate', '--task', 'TASK-20260724-x']);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const record = JSON.parse(fs.readFileSync(path.join(dir, '.ai/state/evaluations/TASK-20260724-x.json'), 'utf8'));
+  assert.equal(record.mode, 'compact');
+  assert.equal(record.experiment_id, null);
+});
