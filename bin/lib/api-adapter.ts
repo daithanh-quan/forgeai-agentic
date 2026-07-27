@@ -199,7 +199,7 @@ export async function callApiAdapter(
     schema_version: 1, kind: 'forgeai_run_record',
     run_id: generateRunId(), timestamp: new Date().toISOString(),
     adapter: adapterName, provider: entry.provider, model: effectiveModel,
-    artifact: artifactPath, objective: artifact.objective,
+    artifact: artifactPath, objective: artifact.objective, task_id: artifact.task_id ?? null,
     budget_tokens: artifact.budget.limit_tokens, estimated_tokens: artifact.budget.estimated_tokens,
     input_tokens: result.input_tokens, output_tokens: result.output_tokens,
     cached_tokens: result.cached_tokens, latency_ms: result.latency_ms,

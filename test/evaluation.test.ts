@@ -136,3 +136,14 @@ test('check-evaluation fails on invalid Mode value', () => {
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+test('--check-evaluation prints a soft-deprecation notice', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-checkeval-dep-'));
+  try {
+    const { output } = runCheckEvaluationCli(target);
+    assert.match(output, /deprecated/i);
+    assert.match(output, /--evaluate/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});

@@ -189,3 +189,43 @@ test('computeArtifactEstimate does not mutate input artifact', () => {
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+test('compile-context stamps task_id and primary role when --task is given', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-compile-task-'));
+  try {
+    initializeFixture(target);
+    const result = runCompile(target, ['--objective', 'change runCli implementation', '--budget', '4000', '--task', 'TASK-20260724-routing']);
+    assert.equal(result.failed, false);
+    const artifact = JSON.parse(result.output) as CompiledContextArtifact;
+    assert.equal(artifact.task_id, 'TASK-20260724-routing');
+    assert.equal(artifact.artifact_role, 'primary');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('compile-context defaults task_id to null', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-compile-notask-'));
+  try {
+    initializeFixture(target);
+    const result = runCompile(target, ['--objective', 'change runCli implementation', '--budget', '4000']);
+    assert.equal(result.failed, false);
+    const artifact = JSON.parse(result.output) as CompiledContextArtifact;
+    assert.equal(artifact.task_id, null);
+    assert.equal(artifact.artifact_role, 'primary');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('compile-context rejects a malformed --task', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-compile-badtask-'));
+  try {
+    initializeFixture(target);
+    const result = runCompile(target, ['--objective', 'change runCli implementation', '--budget', '4000', '--task', 'not-a-task']);
+    assert.equal(result.failed, true);
+    assert.equal(result.error?.status, 1);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});

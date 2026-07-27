@@ -53,6 +53,8 @@ function isValidRunRecordInput(raw: unknown): boolean {
   if (Number.isNaN(parsedTs.getTime()) || parsedTs.toISOString() !== r['timestamp']) return false;
   const rc = r['retry_count'];
   if (rc !== undefined && !(Number.isInteger(rc) && (rc as number) >= 0)) return false;
+  const tid = r['task_id'];
+  if (tid !== undefined && tid !== null && (typeof tid !== 'string' || tid.length === 0)) return false;
   return true;
 }
 
@@ -75,7 +77,11 @@ export function listRunRecords(repositoryRoot: string): RunRecord[] {
       const raw = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'));
       if (isValidRunRecordInput(raw)) {
         const r = raw as Record<string, unknown>;
-        records.push({ ...(r as unknown as RunRecord), retry_count: (r['retry_count'] as number | undefined) ?? 0 });
+        records.push({
+          ...(r as unknown as RunRecord),
+          retry_count: (r['retry_count'] as number | undefined) ?? 0,
+          task_id: (r['task_id'] as string | null | undefined) ?? null,
+        });
       }
     } catch {
       // skip malformed

@@ -40,7 +40,7 @@ export function validateArgFlag(name: string, argv: string[]): string | null {
 // Eagerly validate value-requiring flags at module load: rejects bare flags, empty/whitespace values,
 // values starting with "--", and duplicate occurrences. Value check runs before the duplicate count
 // so a bare trailing flag reports the most actionable error ("requires a value", not "specified more than once").
-for (const name of ['--profile', '--emit', '--adapter', '--model'] as const) {
+for (const name of ['--profile', '--emit', '--adapter', '--model', '--task'] as const) {
   const err = validateArgFlag(name, rawArgs);
   if (err) { process.stderr.write(`${err}\n`); process.exit(1); }
 }
@@ -86,6 +86,8 @@ export const route = args.has('--route');
 export const stream = args.has('--stream');
 export const expandContext = args.has('--expand-context');
 export const listRuns = args.has('--list-runs');
+export const evaluate = args.has('--evaluate');
+export const report = args.has('--report');
 
 export function getArgValue(name: string): string | null {
   for (let index = 0; index < rawArgs.length; index += 1) {

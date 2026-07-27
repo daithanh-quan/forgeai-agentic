@@ -167,6 +167,8 @@ export type CompiledContextArtifact = {
   schema_version: 1;
   kind: 'forgeai_compiled_context';
   objective: string;
+  task_id: string | null;
+  artifact_role: 'primary' | 'expansion';
   repository: {
     revision: string | null;
     fingerprint: string;
@@ -268,6 +270,7 @@ export type RunRecord = {
   model: string;
   artifact: string;
   objective: string;
+  task_id: string | null;
   budget_tokens: number;
   estimated_tokens: number;
   input_tokens: number | null;
@@ -278,4 +281,45 @@ export type RunRecord = {
   outcome: 'ok' | 'quota' | 'auth' | 'error';
   retry_count: number;
   error: string | null;
+};
+
+export type EvaluationOutcome = 'pass' | 'fail' | 'partial';
+
+export type EvaluationRecord = {
+  kind: 'forgeai_evaluation_record';
+  schema_version: 1;
+  evaluation_id: string;
+  task_id: string;
+  generated_at: string;
+  outcome: EvaluationOutcome;
+  outcome_source: { type: 'review_scorecard'; scorecard: string; verdict: string };
+  validation: {
+    status: 'pass' | 'fail' | 'partial';
+    evidence_count: number;
+    results: { pass: number; fail: number; skipped: number };
+  };
+  run_ids: string[];
+  context_artifact: string | null;
+  task_journal: string;
+  tier: string;
+  metrics: {
+    context: {
+      selected_files: number;
+      excerpts: number;
+      omitted_candidates: number;
+      budget_limit_tokens: number;
+      budget_estimated_tokens: number;
+      budget_utilization: number;
+      expansion_rounds: number;
+      context_escapes: number | null;
+    };
+    calls: {
+      model_calls: number;
+      input_tokens: number;
+      output_tokens: number;
+      cached_tokens: number;
+      latency_ms: number;
+      retries: number;
+    };
+  };
 };

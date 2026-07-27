@@ -221,6 +221,14 @@ Deliverables:
 Build evaluation on structured adapter and context records, not manually entered
 dashboard data.
 
+**Phase 13A shipped in 3.9.0.** Structured evaluation records
+(`--evaluate --task <id>`) linking a task's scorecard verdict, validation
+evidence, run records, and context artifact by a `task_id` key; a consistency
+gate that never guesses an outcome; context and call metrics; the
+`--report [--json]` aggregate grouped by model tier; and soft-deprecation of the
+manual `--check-evaluation` path. Deferred to 13B: baseline/compact experiment
+modes, the sample-sufficiency gate, and advisory routing recommendations.
+
 Deliverables:
 
 - JSON run records for model calls, context artifacts, outcomes, and validation.

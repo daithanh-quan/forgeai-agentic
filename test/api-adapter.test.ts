@@ -12,6 +12,8 @@ export function minimalArtifact(): CompiledContextArtifact {
     schema_version: 1,
     kind: 'forgeai_compiled_context',
     objective: 'test objective',
+    task_id: null,
+    artifact_role: 'primary',
     repository: { revision: null, fingerprint: 'abc123' },
     budget: { limit_tokens: 6000, estimated_tokens: 100, estimator: 'characters_divided_by_4', exhausted: false },
     selection: { max_depth: 2, max_nodes: 10, files: [] },

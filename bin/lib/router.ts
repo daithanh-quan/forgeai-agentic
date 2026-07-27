@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import type { ArtifactValidationResult, CompiledContextArtifact, AdapterConfig } from './types.js';
 import { computeArtifactEstimate } from './context-compiler.js';
 import { checkDependencyGraphHealth, readDependencyGraph } from './dependency-graph.js';
-import { formatStatus, getErrorMessage } from './utils.js';
+import { formatStatus, getErrorMessage, isValidTaskId } from './utils.js';
 import { root, getArgValue, stream as streamFlag } from './context.js';
 import { ADAPTERS_RELATIVE } from './model-routing.js';
 import { loadApiAdapters, callApiAdapter, API_ADAPTERS_RELATIVE } from './api-adapter.js';
@@ -22,12 +22,21 @@ function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 
-function checkStructure(raw: unknown): string | null {
+// Pure structural validator (no fingerprint/graph freshness). Exported so
+// `--evaluate` can screen candidate artifacts without rejecting ones compiled at
+// an earlier revision.
+export function checkArtifactStructure(raw: unknown): string | null {
   if (typeof raw !== 'object' || raw === null) return 'artifact is not an object';
   const a = raw as Record<string, unknown>;
   if (a.kind !== 'forgeai_compiled_context') return `kind must be 'forgeai_compiled_context', got '${String(a.kind)}'`;
   if (a.schema_version !== 1) return `schema_version must be 1, got ${String(a.schema_version)}`;
   if (typeof a.objective !== 'string' || a.objective.length === 0) return 'objective must be a non-empty string';
+  if (a.task_id !== null && a.task_id !== undefined && (typeof a.task_id !== 'string' || !isValidTaskId(a.task_id))) {
+    return 'task_id must be null or a valid TASK-YYYYMMDD-slug string';
+  }
+  if (a.artifact_role !== undefined && a.artifact_role !== 'primary' && a.artifact_role !== 'expansion') {
+    return "artifact_role must be 'primary' or 'expansion'";
+  }
   const repo = a.repository as Record<string, unknown> | undefined;
   if (!repo || typeof repo.fingerprint !== 'string' || repo.fingerprint.length === 0) return 'repository.fingerprint must be a non-empty string';
   if (!repo || !('revision' in repo) || (repo.revision !== null && typeof repo.revision !== 'string')) return 'repository.revision must be string or null';
@@ -95,7 +104,7 @@ export function validateArtifact(artifactPath: string, repositoryRoot: string): 
   }
 
   // Structural check
-  const structureError = checkStructure(raw);
+  const structureError = checkArtifactStructure(raw);
   if (structureError) return { status: 'invalid', detail: structureError };
   const artifact = raw as CompiledContextArtifact;
 
@@ -128,7 +137,12 @@ export function validateArtifact(artifactPath: string, repositoryRoot: string): 
     return { status: 'invalid', detail: `estimated_tokens ${artifact.budget.estimated_tokens} exceeds limit_tokens ${artifact.budget.limit_tokens}` };
   }
 
-  return { status: 'ok', artifact };
+  // Normalize the new fields only on return, so the estimate above was computed
+  // against the raw (possibly pre-3.9.0) shape.
+  return {
+    status: 'ok',
+    artifact: { ...artifact, task_id: artifact.task_id ?? null, artifact_role: artifact.artifact_role ?? 'primary' }
+  };
 }
 
 export function runValidateArtifact(): void {

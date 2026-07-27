@@ -1,5 +1,42 @@
 # Changelog
 
+## 3.9.0 — 2026-07-25
+
+### Added
+
+- **Structured evaluation records** (Phase 13A): `--evaluate --task <id>` joins a
+  task's review scorecard, journal, run records, and compiled-context artifact by
+  a real `task_id` key, enforces a consistency gate, derives the outcome from the
+  review `Verdict` (`approve→pass`, `request changes→fail`, `needs human
+  decision→partial`), and writes one JSON record to
+  `.ai/state/evaluations/<task_id>.json`. The gate is stricter than
+  `--check-review`: it fails (and writes nothing) on verdict/evidence
+  contradictions (approve with a `fail` validation row, a `fail` scorecard
+  dimension, or unresolved blockers), scorecard/journal id mismatch, remaining
+  `TODO`s, missing dimensions/evidence, or more than one primary artifact.
+- **`--report [--json]`**: aggregates evaluation records by model tier (pass
+  rate, total/mean token cost, mean latency, retries). `--json` emits the
+  aggregate for CI.
+- **`task_id` linkage**: `--compile-context --task <id>` stamps `task_id` and
+  `artifact_role` (`primary`/`expansion`) into the compiled-context artifact;
+  `--route` carries `task_id` into the run record. Both additions are additive
+  (`schema_version` stays `1`); pre-3.9.0 artifacts/records read as `task_id:
+  null` / `artifact_role: 'primary'`.
+- Evaluation records are gitignored (local derived state) and preserved on
+  `--upgrade`.
+
+### Changed
+
+- **`--check-evaluation` is deprecated** (soft): it still validates the manual
+  `.ai/evaluation/*.md` files but prints a notice pointing to `--evaluate` /
+  `--report`. Removal deferred to a later phase.
+
+### Migration
+
+Run `forgeai-init --upgrade`. Additive change — see `docs/migrations/3.9.0.md`.
+Historical (pre-3.9.0) artifacts and run records lack `task_id` and are not
+retro-evaluated.
+
 ## 3.8.0 — 2026-07-23
 
 ### Added
