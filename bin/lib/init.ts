@@ -27,7 +27,7 @@ export function usage(): string {
   forgeai-init --check-evaluation
   forgeai-init --decompose --objective "<description>" [--compact] [--output <file>]
   forgeai-init --context-pack --objective "<description>" [--max-depth <0-5>] [--max-nodes <1-50>] [--output <file>]
-  forgeai-init --compile-context --objective "<description>" [--budget <tokens>] [--output <json>]
+  forgeai-init --compile-context --objective "<description>" [--task <id>] [--mode baseline|compact] [--experiment <EXP-id>] [--budget <tokens>] [--output <json>]
   forgeai-init --status-summary
   forgeai-init --diff-summary
   forgeai-init --test-summary
@@ -93,9 +93,11 @@ Options:
   --evaluate --task <id>
                 Build a structured evaluation record for a task from its review
                 scorecard, journal, run records, and context artifact.
-  --report [--json]
+  --report [--json] [--min-samples <n>]
                 Aggregate evaluation records by model tier (pass rate, token
-                cost, latency, retries). --json emits the aggregate for CI.
+                cost, latency, retries) plus a baseline/compact experiments
+                section with an advisory. --json emits the aggregate for CI;
+                --min-samples overrides the advisory pair threshold.
   --decompose   Emit a scored task decomposition template for an objective.
                 Requires --objective "<description>". Add --compact for a
                 smaller delegation-ready assignment plan. Use --output <file>

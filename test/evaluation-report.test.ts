@@ -10,7 +10,7 @@ import { cli, runTs } from './helpers.js';
 function rec(tier: string, outcome: EvaluationRecord['outcome'], input: number): EvaluationRecord {
   return {
     kind: 'forgeai_evaluation_record', schema_version: 1, evaluation_id: 'e', task_id: 't',
-    generated_at: '2026-07-24T00:00:00.000Z', outcome,
+    generated_at: '2026-07-24T00:00:00.000Z', outcome, mode: 'compact', experiment_id: null, comparability: null,
     outcome_source: { type: 'review_scorecard', scorecard: 's', verdict: 'approve' },
     validation: { status: 'pass', evidence_count: 1, results: { pass: 1, fail: 0, skipped: 0 } },
     run_ids: [], context_artifact: null, task_journal: '.ai/state/tasks/t.md', tier,

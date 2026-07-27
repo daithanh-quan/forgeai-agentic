@@ -331,3 +331,29 @@ test('--expand-context works when curated graph is absent (uses dep graph export
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+test('expansion artifact carries mode and experiment_id from the primary', async () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-expand-carry-'));
+  try {
+    buildFixture(target);
+    const compiled = compile(target, 'login function', 4000);
+    // Mark the primary as a baseline experiment and re-stamp the estimate so it validates.
+    const { computeArtifactEstimate } = await import('../bin/lib/context-compiler.js');
+    const primary: CompiledContextArtifact = { ...compiled, mode: 'baseline', experiment_id: 'EXP-20260727-e' };
+    primary.budget = { ...primary.budget, estimated_tokens: computeArtifactEstimate(primary) };
+    const artifactPath = path.join(target, '.ai', 'state', 'context', 'TASK-01.json');
+    fs.mkdirSync(path.dirname(artifactPath), { recursive: true });
+    fs.writeFileSync(artifactPath, JSON.stringify(primary, null, 2) + '\n');
+    const needContextPath = writeNeedContext(target, artifactPath, [
+      { kind: 'file', path: 'src/auth.ts', reason: 'need private helper' }
+    ]);
+    const outputPath = path.join(target, '.ai', 'state', 'context', 'TASK-01-expansion-1.json');
+    runTs(cli, ['--expand-context', '--artifact', artifactPath, '--need-context', needContextPath, '--output', outputPath], { cwd: target });
+    const expansion = JSON.parse(fs.readFileSync(outputPath, 'utf8')) as CompiledContextArtifact;
+    assert.equal(expansion.artifact_role, 'expansion');
+    assert.equal(expansion.mode, 'baseline');
+    assert.equal(expansion.experiment_id, 'EXP-20260727-e');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});

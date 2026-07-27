@@ -20,7 +20,7 @@ import type {
   DependencyGraph,
   ResolvedContextRequest
 } from './types.js';
-import { formatStatus, getErrorMessage, isValidTaskId } from './utils.js';
+import { formatStatus, getErrorMessage, isValidTaskId, isValidExperimentId } from './utils.js';
 
 const DEFAULT_BUDGET = 6000;
 const DEFAULT_MAX_NODES = 12;
@@ -85,6 +85,21 @@ function excerptFromDeclaration(
     source_end_line: lineAtOffset(content, Math.max(declaration.start, declaration.end - 1)),
     mode,
     content: mode === 'signature' ? declaration.signature! : content.slice(declaration.start, declaration.end).trim()
+  };
+}
+
+function wholeFileExcerpt(repositoryRoot: string, selected: SelectedContextNode): CompiledContextExcerpt {
+  const content = readVerifiedSource(repositoryRoot, selected.node);
+  const lineCount = content.length === 0 ? 1 : content.split('\n').length;
+  return {
+    path: selected.node.path,
+    kind: 'file',
+    name: selected.node.path,
+    reason: `baseline: whole selected file (${selected.reason})`,
+    source_start_line: 1,
+    source_end_line: Math.max(1, lineCount),
+    mode: 'full',
+    content
   };
 }
 
@@ -198,24 +213,27 @@ export function compileContext(
   curatedGraph: NonNullable<ReturnType<typeof readCuratedCodeGraph>>,
   dependencyGraph: DependencyGraph,
   repositoryRoot: string,
-  options: { budget?: number; maxNodes?: number; maxDepth?: number; taskId?: string | null } = {}
+  options: { budget?: number; maxNodes?: number; maxDepth?: number; taskId?: string | null; mode?: 'baseline' | 'compact'; experimentId?: string | null } = {}
 ): CompiledContextArtifact {
   const budget = options.budget ?? DEFAULT_BUDGET;
   const maxNodes = options.maxNodes ?? DEFAULT_MAX_NODES;
   const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
+  const mode = options.mode ?? 'compact';
   const selection = selectContextForObjective(objective, curatedGraph, dependencyGraph, { maxNodes, maxDepth });
   const contracts = Array.from(new Set(selection.curated.flatMap((node) => node.public_contracts ?? []))).sort();
   const entrypoints = Array.from(new Set(selection.curated.flatMap((node) => node.entrypoints ?? []))).sort();
   const rules = selectApplicableRules(repositoryRoot, selection.terms);
   const diagnostics = collectDiagnostics(repositoryRoot);
-  const candidates = deduplicateCandidates(
-    selection.selected.flatMap((selected) => candidatesForFile(repositoryRoot, selected, selection.terms))
-  ).sort((a, b) =>
-    a.priority - b.priority
-    || a.full.path.localeCompare(b.full.path)
-    || a.full.source_start_line - b.full.source_start_line
-    || a.full.name.localeCompare(b.full.name)
-  );
+  const candidates = mode === 'compact'
+    ? deduplicateCandidates(
+        selection.selected.flatMap((selected) => candidatesForFile(repositoryRoot, selected, selection.terms))
+      ).sort((a, b) =>
+        a.priority - b.priority
+        || a.full.path.localeCompare(b.full.path)
+        || a.full.source_start_line - b.full.source_start_line
+        || a.full.name.localeCompare(b.full.name)
+      )
+    : [];
 
   const artifact: CompiledContextArtifact = {
     schema_version: 1,
@@ -223,6 +241,8 @@ export function compileContext(
     objective,
     task_id: options.taskId ?? null,
     artifact_role: 'primary',
+    mode,
+    experiment_id: options.experimentId ?? null,
     repository: {
       revision: dependencyGraph.repository.revision,
       fingerprint: dependencyGraph.repository.fingerprint
@@ -255,6 +275,20 @@ export function compileContext(
   const baseEstimate = artifact.budget.estimated_tokens;
   if (baseEstimate > budget) {
     throw new ContextBudgetError(`budget ${budget} is too small for required selection, rules, and diagnostics; minimum is ${baseEstimate}`);
+  }
+
+  if (mode === 'baseline') {
+    // Baseline sends every selected file whole — no excerpting, no packing.
+    for (const selected of selection.selected) {
+      artifact.excerpts.push(wholeFileExcerpt(repositoryRoot, selected));
+    }
+    artifact.omitted_candidates = 0;
+    artifact.budget.exhausted = false;
+    artifact.budget.estimated_tokens = computeArtifactEstimate(artifact);
+    if (artifact.budget.estimated_tokens > budget) {
+      throw new ContextBudgetError(`baseline mode needs ${artifact.budget.estimated_tokens} tokens for whole selected files; raise --budget (currently ${budget})`);
+    }
+    return artifact;
   }
 
   for (const candidate of candidates) {
@@ -391,6 +425,8 @@ export function compileContextExpansion(
     objective: `[expansion] ${primary.objective}`,
     task_id: primary.task_id,
     artifact_role: 'expansion',
+    mode: primary.mode,
+    experiment_id: primary.experiment_id,
     repository: primary.repository,
     budget: {
       limit_tokens: budget,
@@ -489,6 +525,18 @@ export function runCompileContext(): void {
     process.exitCode = 1;
     return;
   }
+  const modeArg = getArgValue('--mode') ?? 'compact';
+  if (modeArg !== 'baseline' && modeArg !== 'compact') {
+    process.stderr.write("Error: --mode must be 'baseline' or 'compact'.\n");
+    process.exitCode = 1;
+    return;
+  }
+  const experimentArg = getArgValue('--experiment');
+  if (experimentArg !== null && !isValidExperimentId(experimentArg)) {
+    process.stderr.write('Error: --experiment must be a valid experiment id (EXP-YYYYMMDD-slug).\n');
+    process.exitCode = 1;
+    return;
+  }
   const budget = parseIntegerArg('--budget', DEFAULT_BUDGET, MIN_BUDGET, MAX_BUDGET);
   const maxDepth = parseIntegerArg('--max-depth', DEFAULT_MAX_DEPTH, 0, MAX_DEPTH);
   const maxNodes = parseIntegerArg('--max-nodes', DEFAULT_MAX_NODES, 1, MAX_NODES);
@@ -505,7 +553,7 @@ export function runCompileContext(): void {
   }
 
   try {
-    const artifact = compileContext(objective, curatedGraph, dependencyGraph!, root, { budget, maxDepth, maxNodes, taskId: taskIdArg });
+    const artifact = compileContext(objective, curatedGraph, dependencyGraph!, root, { budget, maxDepth, maxNodes, taskId: taskIdArg, mode: modeArg, experimentId: experimentArg });
     const json = `${JSON.stringify(artifact, null, 2)}\n`;
     const outputArg = getArgValue('--output');
     if (!outputArg) {

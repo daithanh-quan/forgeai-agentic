@@ -226,8 +226,16 @@ dashboard data.
 evidence, run records, and context artifact by a `task_id` key; a consistency
 gate that never guesses an outcome; context and call metrics; the
 `--report [--json]` aggregate grouped by model tier; and soft-deprecation of the
-manual `--check-evaluation` path. Deferred to 13B: baseline/compact experiment
-modes, the sample-sufficiency gate, and advisory routing recommendations.
+manual `--check-evaluation` path.
+
+**Phase 13B shipped in 3.10.0.** Baseline/compact context experiment modes
+(`--compile-context --mode --experiment`), an evaluation `mode`/`experiment_id`
+link plus a `comparability` block, a `--report` Experiments section that pairs
+baseline vs compact by `experiment_id` under a comparability gate, an
+experiment-run provenance gate in `--evaluate`, a sample-sufficiency gate
+(`--min-samples`), and an advisory context-mode recommendation. Still deferred:
+model-tier routing recommendations, real `context_escapes` measurement,
+`parent_artifact` linkage, and a `--outcome` manual override.
 
 Deliverables:
 

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { CompiledContextArtifact, EvaluationRecord, RunRecord } from './types.js';
-import { formatStatus, isValidTaskId } from './utils.js';
+import { formatStatus, isValidTaskId, isValidExperimentId } from './utils.js';
 import { root, getArgValue } from './context.js';
 import { listRunRecords } from './run-record.js';
 import { listTaskJournalFiles, parseTaskJournal, extractBulletValue } from './lifecycle.js';
@@ -96,6 +96,18 @@ function isValidEvaluationRecord(raw: unknown): raw is EvaluationRecord {
   for (const f of ['model_calls', 'input_tokens', 'output_tokens', 'cached_tokens', 'retries']) {
     if (!isNonNegativeInt(calls[f])) return false;
   }
+  const md = r['mode'];
+  if (md !== undefined && md !== 'baseline' && md !== 'compact') return false;
+  const exp = r['experiment_id'];
+  if (exp !== undefined && exp !== null && (typeof exp !== 'string' || !isValidExperimentId(exp))) return false;
+  const comp = r['comparability'];
+  if (comp !== undefined && comp !== null) {
+    if (typeof comp !== 'object') return false;
+    const c = comp as Record<string, unknown>;
+    if (typeof c['objective'] !== 'string' || typeof c['repository_fingerprint'] !== 'string'
+      || typeof c['selection_signature'] !== 'string' || typeof c['acceptance_signature'] !== 'string'
+      || typeof c['routing_signature'] !== 'string') return false;
+  }
   return true;
 }
 
@@ -105,7 +117,9 @@ export function readEvaluationRecord(taskId: string, repositoryRoot: string): Ev
   if (!fs.existsSync(filePath)) return null;
   try {
     const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    return isValidEvaluationRecord(raw) ? raw : null;
+    return isValidEvaluationRecord(raw)
+      ? { ...raw, mode: raw.mode ?? 'compact', experiment_id: raw.experiment_id ?? null, comparability: raw.comparability ?? null }
+      : null;
   } catch {
     return null;
   }
@@ -128,7 +142,9 @@ export function listEvaluationRecords(repositoryRoot: string): EvaluationRecord[
       const raw = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'));
       // Filename must equal `${task_id}.json` — records are keyed by task id, so a
       // mismatch means a stray/renamed file that would duplicate or misattribute.
-      if (isValidEvaluationRecord(raw) && name === `${raw.task_id}.json`) records.push(raw);
+      if (isValidEvaluationRecord(raw) && name === `${raw.task_id}.json`) {
+        records.push({ ...raw, mode: raw.mode ?? 'compact', experiment_id: raw.experiment_id ?? null, comparability: raw.comparability ?? null });
+      }
     } catch {
       // skip malformed
     }
@@ -293,6 +309,21 @@ export function buildEvaluationRecord(input: BuildInput): BuildResult {
     run_ids: input.runs.map((r) => r.run_id),
     context_artifact: input.artifactPath,
     task_journal: input.journalPath,
+    mode: input.artifact?.mode ?? 'compact',
+    experiment_id: input.artifact?.experiment_id ?? null,
+    comparability: input.artifact
+      ? {
+          objective: input.artifact.objective,
+          repository_fingerprint: input.artifact.repository.fingerprint,
+          selection_signature: `${input.artifact.selection.max_depth}:${input.artifact.selection.max_nodes}:${input.artifact.selection.files.map((f) => f.path).sort().join(',')}`,
+          // Commands And Validation columns are | Date | Command | Result |, so the command is
+          // cells[1] (matching review.ts isRealEvidenceRow's [date, command, result]). Date
+          // (cells[0]) and Result (cells[2]) are intentionally excluded.
+          acceptance_signature: [...new Set(evidenceRows.map((cells) => (cells[1] ?? '').trim()))].sort().join('\n'),
+          // provider/model set of the matched runs — proves both modes used the same model(s).
+          routing_signature: [...new Set(input.runs.map((r) => `${r.provider}/${r.model}`))].sort().join(','),
+        }
+      : null,
     tier: resolveTierForRuns(input.runs, input.tiers),
     metrics: computeMetrics(input.artifact, input.runs, input.expansionCount),
   };
@@ -317,9 +348,20 @@ function findArtifactsForTask(taskId: string, repositoryRoot: string): ArtifactL
     // artifact compiled against an earlier revision is still evaluable. Malformed
     // artifacts are skipped, never crashing computeMetrics.
     if (checkArtifactStructure(raw) !== null) continue;
-    const artifact = raw as CompiledContextArtifact;
+    // Normalize the additive fields so a pre-3.10.0 artifact reads as a
+    // non-experiment (mode: compact, experiment_id: null) rather than leaving
+    // experiment_id undefined — otherwise the provenance gate (which tests
+    // `experiment_id !== null`) would wrongly fire on legacy artifacts.
+    const rawRecord = raw as Record<string, unknown>;
+    const artifact: CompiledContextArtifact = {
+      ...(raw as CompiledContextArtifact),
+      task_id: (rawRecord['task_id'] as string | null | undefined) ?? null,
+      artifact_role: (rawRecord['artifact_role'] as CompiledContextArtifact['artifact_role'] | undefined) ?? 'primary',
+      mode: (rawRecord['mode'] as CompiledContextArtifact['mode'] | undefined) ?? 'compact',
+      experiment_id: (rawRecord['experiment_id'] as string | null | undefined) ?? null,
+    };
     if (artifact.task_id !== taskId) continue;
-    if ((artifact.artifact_role ?? 'primary') === 'expansion') { lookup.expansionCount += 1; continue; }
+    if (artifact.artifact_role === 'expansion') { lookup.expansionCount += 1; continue; }
     primaries.push({ rel: `.ai/state/context/${name}`, artifact });
   }
   if (primaries.length > 1) lookup.multiplePrimary = true;
@@ -373,6 +415,33 @@ export function runEvaluate(): void {
 
   const runs = listRunRecords(root).filter((r) => r.task_id === taskId);
   const tiers = readRoutingTiers(root);
+
+  // Experiment provenance gate: applies only when the primary artifact is part of
+  // an experiment. An experiment record must be backed by runs that actually came
+  // from this mode's artifact — otherwise the comparison would be meaningless.
+  if (artifact && artifact.experiment_id !== null) {
+    const provErrors: string[] = [];
+    if (runs.length === 0) {
+      provErrors.push(`experiment task ${taskId} has no run records to compare`);
+    }
+    for (const r of runs) {
+      if (r.mode !== artifact.mode) {
+        provErrors.push(`run ${r.run_id} mode '${r.mode}' does not match artifact mode '${artifact.mode}'`);
+      }
+      if (artifactPath === null || path.resolve(root, r.artifact) !== path.resolve(root, artifactPath)) {
+        provErrors.push(`run ${r.run_id} did not route the primary artifact`);
+      }
+    }
+    if (provErrors.length > 0) {
+      console.log('ForgeAI evaluation');
+      console.log('');
+      for (const err of provErrors) console.log(formatStatus('invalid', err));
+      console.log('');
+      console.log('Result: evaluation failed. No record written.');
+      process.exitCode = 1;
+      return;
+    }
+  }
 
   const result = buildEvaluationRecord({
     taskId, journalContent, journalPath: journalFiles[0], scorecardContent, scorecardPath: scorecardRel,

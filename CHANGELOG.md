@@ -1,5 +1,37 @@
 # Changelog
 
+## 3.10.0 — 2026-07-27
+
+Context experiments and advisory mode recommendation (Phase 13B).
+
+### Added
+
+- `--compile-context --mode baseline|compact --experiment <EXP-id>`: `baseline`
+  sends the same selected files whole (uncompiled, `kind: 'file'` excerpts);
+  `compact` is the existing bounded compilation. Baseline is budget-honest — it
+  errors and asks for a larger `--budget` rather than truncating.
+- `mode` and `experiment_id` on compiled-context artifacts and evaluation
+  records; evaluation records also gain a `comparability` block used to pair
+  experiments; run records gain `mode`. All additive; `schema_version` stays 1.
+  Pre-3.10.0 data normalizes to `mode: compact`, `experiment_id: null`,
+  `comparability: null`.
+- `--report` gains an Experiments section that pairs baseline/compact evaluation
+  records by `experiment_id` and reports per-pair and aggregate token/latency
+  savings and pass-rate deltas.
+- Comparability gate: a pair is only counted when the two records share tier
+  (via provider/model routing signature), objective, repository fingerprint,
+  selection, and acceptance criteria, and neither recorded an expansion round —
+  so differences are attributable to context mode, not model/task/routing noise.
+  Non-comparable pairs are skipped.
+- Experiment provenance gate: `--evaluate` refuses to write an experiment record
+  whose runs are missing or did not route that mode's primary artifact.
+- Sample-sufficiency gate: the advisory is withheld below MIN_EXPERIMENT_PAIRS
+  (5) complete pairs; override with `--report --min-samples <n>`.
+- Advisory context-mode recommendation: `[advisory] prefer compact` only when the
+  pass-rate drop is within tolerance (5 pts) and token or latency savings are
+  material (15%); otherwise `keep baseline` or `no material difference`.
+- `--report --json` extended with `experiments` and `recommendation` objects.
+
 ## 3.9.0 — 2026-07-25
 
 ### Added
