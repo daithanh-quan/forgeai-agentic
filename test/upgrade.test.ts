@@ -205,6 +205,22 @@ test('forgeai-init creates .gitignore with context-state entries when absent', (
     assert.match(gitignore, /\.ai\/state\/context\//);
     assert.match(gitignore, /\.ai\/state\/context-routes\.md/);
     assert.match(gitignore, /\.ai\/state\/runs\//);
+    assert.match(gitignore, /\.ai\/state\/evaluations\//);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('evaluation records are preserved on upgrade', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-eval-preserve-'));
+  try {
+    runTs(cli, [], { cwd: target });
+    const evalDir = path.join(target, '.ai/state/evaluations');
+    fs.mkdirSync(evalDir, { recursive: true });
+    const recordPath = path.join(evalDir, 'TASK-20260724-x.json');
+    fs.writeFileSync(recordPath, '{"kind":"forgeai_evaluation_record"}');
+    runTs(cli, ['--upgrade'], { cwd: target });
+    assert.equal(fs.readFileSync(recordPath, 'utf8'), '{"kind":"forgeai_evaluation_record"}');
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }

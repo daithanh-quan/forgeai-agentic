@@ -5,6 +5,8 @@ import path from 'node:path';
 import test from 'node:test';
 import type { CompiledContextArtifact } from '../bin/lib/types.js';
 import { cli, type ExecError, runTs } from './helpers.js';
+import { validateArtifact } from '../bin/lib/router.js';
+import { computeArtifactEstimate } from '../bin/lib/context-compiler.js';
 
 function initAndCompile(target: string, objective = 'change runCli implementation'): CompiledContextArtifact {
   fs.mkdirSync(path.join(target, 'src'), { recursive: true });
@@ -515,4 +517,50 @@ test('globMatches mid-word ** matches paths including separators', async () => {
   const { globMatches } = await import('../bin/lib/context-pack.js');
   assert.ok(globMatches('foo**bar', 'foo/a/bar'), 'mid-word ** must match path with separators');
   assert.ok(globMatches('foo**bar', 'foobar'), 'mid-word ** must match zero chars');
+});
+
+test('validateArtifact normalizes a legacy artifact without task_id/artifact_role', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-validate-legacy-'));
+  try {
+    const artifact = initAndCompile(target);
+    const legacy = { ...artifact } as Record<string, unknown>;
+    delete legacy.task_id;
+    delete legacy.artifact_role;
+    // Recompute the estimate for the field-less shape so the record stays self-consistent.
+    legacy.budget = { ...(legacy.budget as Record<string, unknown>) };
+    (legacy.budget as Record<string, unknown>).estimated_tokens = computeArtifactEstimate(legacy as unknown as CompiledContextArtifact);
+    const artifactPath = writeArtifact(target, legacy as unknown as CompiledContextArtifact);
+    const result = validateArtifact(artifactPath, target);
+    assert.equal(result.status, 'ok');
+    if (result.status === 'ok') {
+      assert.equal(result.artifact.task_id, null);
+      assert.equal(result.artifact.artifact_role, 'primary');
+    }
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('validateArtifact rejects a malformed task_id', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-validate-badtask-'));
+  try {
+    const artifact = initAndCompile(target);
+    (artifact as Record<string, unknown>).task_id = 'not-a-task-id';
+    const artifactPath = writeArtifact(target, artifact);
+    assert.equal(validateArtifact(artifactPath, target).status, 'invalid');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('validateArtifact rejects an unknown artifact_role', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-validate-badrole-'));
+  try {
+    const artifact = initAndCompile(target);
+    (artifact as Record<string, unknown>).artifact_role = 'sidecar';
+    const artifactPath = writeArtifact(target, artifact);
+    assert.equal(validateArtifact(artifactPath, target).status, 'invalid');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
 });

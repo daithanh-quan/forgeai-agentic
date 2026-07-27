@@ -20,7 +20,7 @@ import type {
   DependencyGraph,
   ResolvedContextRequest
 } from './types.js';
-import { formatStatus, getErrorMessage } from './utils.js';
+import { formatStatus, getErrorMessage, isValidTaskId } from './utils.js';
 
 const DEFAULT_BUDGET = 6000;
 const DEFAULT_MAX_NODES = 12;
@@ -198,7 +198,7 @@ export function compileContext(
   curatedGraph: NonNullable<ReturnType<typeof readCuratedCodeGraph>>,
   dependencyGraph: DependencyGraph,
   repositoryRoot: string,
-  options: { budget?: number; maxNodes?: number; maxDepth?: number } = {}
+  options: { budget?: number; maxNodes?: number; maxDepth?: number; taskId?: string | null } = {}
 ): CompiledContextArtifact {
   const budget = options.budget ?? DEFAULT_BUDGET;
   const maxNodes = options.maxNodes ?? DEFAULT_MAX_NODES;
@@ -221,6 +221,8 @@ export function compileContext(
     schema_version: 1,
     kind: 'forgeai_compiled_context',
     objective,
+    task_id: options.taskId ?? null,
+    artifact_role: 'primary',
     repository: {
       revision: dependencyGraph.repository.revision,
       fingerprint: dependencyGraph.repository.fingerprint
@@ -387,6 +389,8 @@ export function compileContextExpansion(
     schema_version: 1,
     kind: 'forgeai_compiled_context',
     objective: `[expansion] ${primary.objective}`,
+    task_id: primary.task_id,
+    artifact_role: 'expansion',
     repository: primary.repository,
     budget: {
       limit_tokens: budget,
@@ -475,8 +479,14 @@ function markdownOutputPath(jsonOutput: string, explicit: string | null): string
 export function runCompileContext(): void {
   const objective = getArgValue('--objective');
   if (!objective) {
-    process.stderr.write('Usage: forgeai-init --compile-context --objective "<description>" [--budget <256-200000>] [--max-depth <0-5>] [--max-nodes <1-50>] [--output <json>] [--markdown-output <md>]\n');
+    process.stderr.write('Usage: forgeai-init --compile-context --objective "<description>" [--task <id>] [--budget <256-200000>] [--max-depth <0-5>] [--max-nodes <1-50>] [--output <json>] [--markdown-output <md>]\n');
     process.exitCode = 2;
+    return;
+  }
+  const taskIdArg = getArgValue('--task');
+  if (taskIdArg !== null && !isValidTaskId(taskIdArg)) {
+    process.stderr.write('Error: --task must be a valid task id (TASK-YYYYMMDD-slug).\n');
+    process.exitCode = 1;
     return;
   }
   const budget = parseIntegerArg('--budget', DEFAULT_BUDGET, MIN_BUDGET, MAX_BUDGET);
@@ -495,7 +505,7 @@ export function runCompileContext(): void {
   }
 
   try {
-    const artifact = compileContext(objective, curatedGraph, dependencyGraph!, root, { budget, maxDepth, maxNodes });
+    const artifact = compileContext(objective, curatedGraph, dependencyGraph!, root, { budget, maxDepth, maxNodes, taskId: taskIdArg });
     const json = `${JSON.stringify(artifact, null, 2)}\n`;
     const outputArg = getArgValue('--output');
     if (!outputArg) {

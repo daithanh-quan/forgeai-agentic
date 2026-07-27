@@ -152,3 +152,11 @@ export function firstNonEmptyLine(value: string): string | null {
     .map((line) => line.trim())
     .find(Boolean) ?? null;
 }
+
+// A valid ForgeAI task id: TASK-<8 digits>-<lowercase alphanumeric slug>.
+// Rejects empty strings and the journal/scorecard template placeholders.
+const TASK_ID_PATTERN = /^TASK-\d{8}-[a-z0-9][a-z0-9-]*$/;
+
+export function isValidTaskId(id: string): boolean {
+  return typeof id === 'string' && TASK_ID_PATTERN.test(id);
+}

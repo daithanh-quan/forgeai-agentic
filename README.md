@@ -247,6 +247,52 @@ edit files or execute tools; downstream automation must apply or consume the
 response. This differs from CLI adapters (Claude Code, Codex) which run
 interactive agents with filesystem access.
 
+## Evaluation
+
+Turn a completed task into a structured, auditable evaluation record derived from
+data you already produce — no hand-entered dashboards.
+
+```bash
+# 1. Compile context stamped with a task id
+forgeai-init --compile-context --objective "refactor router fallback" \
+  --task TASK-20260724-router --output .ai/state/context/TASK-20260724-router.json
+
+# 2. Route it (the run record inherits the task id)
+forgeai-init --route --artifact .ai/state/context/TASK-20260724-router.json --adapter anthropic
+
+# 3. After review, build the evaluation record
+forgeai-init --evaluate --task TASK-20260724-router
+
+# 4. Aggregate across tasks
+forgeai-init --report            # human-readable, grouped by model tier
+forgeai-init --report --json     # machine-readable aggregate for CI
+```
+
+`--evaluate` joins the task journal, review scorecard, run records, and
+compiled-context artifact by `task_id` (not by filename), then writes one JSON
+record to `.ai/state/evaluations/<task_id>.json`. The **outcome** comes from the
+review scorecard `Verdict`:
+
+| Verdict | Outcome |
+|---------|---------|
+| Approve | `pass` |
+| Request changes | `fail` |
+| Needs human decision | `partial` |
+
+A strict consistency gate runs first and **writes nothing on failure** — it
+rejects a verdict that contradicts its evidence (an `Approve` with a `fail`
+validation row, a `fail` scorecard dimension, or unresolved blockers), a
+scorecard/journal id mismatch, remaining `TODO`s, missing dimensions or
+evidence, or more than one primary artifact for the task. The record stores
+provenance (verdict source, scorecard and journal paths, run ids) plus context
+and call metrics.
+
+Records are gitignored (local derived state) and preserved on `--upgrade`.
+`context_escapes` is reported as `null` in this release (not yet measured).
+
+> The older manual system — `--check-evaluation` over `.ai/evaluation/*.md` — is
+> deprecated but still works; it now prints a notice pointing here.
+
 ## Profiles
 
 ForgeAI ships with **11 stack-specific profiles**. Each profile installs

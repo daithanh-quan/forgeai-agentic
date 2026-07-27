@@ -88,8 +88,14 @@ Options:
                 (review, revision, acceptance, delivery, closed) lack an
                 ## Approval section with a human sign-off date.
   --check-evaluation
-                Validate evaluation run files in .ai/evaluation/ for required
-                fields (Run ID, Date, Task, Mode, Outcome).
+                [deprecated] Validate the manual .ai/evaluation/*.md run files.
+                Superseded by --evaluate / --report.
+  --evaluate --task <id>
+                Build a structured evaluation record for a task from its review
+                scorecard, journal, run records, and context artifact.
+  --report [--json]
+                Aggregate evaluation records by model tier (pass rate, token
+                cost, latency, retries). --json emits the aggregate for CI.
   --decompose   Emit a scored task decomposition template for an objective.
                 Requires --objective "<description>". Add --compact for a
                 smaller delegation-ready assignment plan. Use --output <file>
@@ -207,6 +213,9 @@ export function isPreservedOnUpgrade(dest: string): boolean {
   if (/^\.ai\/state\/reviews\/.+\.md$/.test(relative) && relative !== '.ai/state/reviews/_template.md') {
     return true;
   }
+  if (/^\.ai\/state\/evaluations\/.+\.json$/.test(relative)) {
+    return true;
+  }
   return false;
 }
 
@@ -261,7 +270,7 @@ export function copyRecursive(src: string, dest: string): void {
   console.log(`created ${relativePath}`);
 }
 
-const CONTEXT_GITIGNORE_ENTRIES = ['.ai/state/context/', '.ai/state/context-routes.md', '.ai/state/runs/'];
+const CONTEXT_GITIGNORE_ENTRIES = ['.ai/state/context/', '.ai/state/context-routes.md', '.ai/state/runs/', '.ai/state/evaluations/'];
 
 export function maintainContextGitignore(repositoryRoot: string, isDryRun: boolean): void {
   const gitignorePath = path.join(repositoryRoot, '.gitignore');

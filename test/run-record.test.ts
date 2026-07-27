@@ -17,6 +17,7 @@ function makeRecord(overrides: Partial<RunRecord> = {}): RunRecord {
     model: 'claude-sonnet-4-6',
     artifact: '.ai/state/context/TASK-01.json',
     objective: 'test objective',
+    task_id: null,
     budget_tokens: 6000,
     estimated_tokens: 4000,
     input_tokens: 4100,
@@ -51,6 +52,26 @@ test('listRunRecords: rejects negative or decimal retry_count', () => {
   fs.writeFileSync(path.join(dir, 'neg.json'), JSON.stringify({ ...makeRecord({ run_id: 'neg' }), retry_count: -1 }));
   fs.writeFileSync(path.join(dir, 'dec.json'), JSON.stringify({ ...makeRecord({ run_id: 'dec' }), retry_count: 1.5 }));
   assert.equal(listRunRecords(tmp).length, 0);
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+test('listRunRecords normalizes a pre-3.9.0 record without task_id to null', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fa-run-'));
+  const dir = path.join(tmp, '.ai/state/runs');
+  fs.mkdirSync(dir, { recursive: true });
+  const legacy = makeRecord({ run_id: 'run-legacy' }) as Record<string, unknown>;
+  delete legacy.task_id;
+  fs.writeFileSync(path.join(dir, 'run-legacy.json'), JSON.stringify(legacy));
+  const [record] = listRunRecords(tmp);
+  assert.equal(record.task_id, null);
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+test('listRunRecords preserves a valid task_id', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fa-run-'));
+  writeRunRecord(makeRecord({ task_id: 'TASK-20260724-x' }), tmp);
+  const [record] = listRunRecords(tmp);
+  assert.equal(record.task_id, 'TASK-20260724-x');
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 

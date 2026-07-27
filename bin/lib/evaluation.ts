@@ -29,6 +29,8 @@ export function parseEvaluationRun(content: string): Record<string, string> {
 export function runCheckEvaluation(): void {
   console.log('ForgeAI evaluation check');
   console.log('');
+  console.log(formatStatus('warn', '[deprecated] --check-evaluation validates the manual .ai/evaluation/*.md files; structured evaluation is now --evaluate / --report (see CHANGELOG 3.9.0).'));
+  console.log('');
 
   const evalDir = path.join(root, EVALUATION_DIR);
 
