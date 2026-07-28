@@ -171,6 +171,7 @@ export type CompiledContextArtifact = {
   artifact_role: 'primary' | 'expansion';
   mode: 'baseline' | 'compact';
   experiment_id: string | null;
+  parent_artifact: string | null;
   repository: {
     revision: string | null;
     fingerprint: string;
@@ -215,6 +216,39 @@ export type NeedContextArtifact = {
   schema_version: 1;
   artifact: string;
   requests: NeedContextRequestItem[];
+};
+
+export type EscapeReasonCode =
+  | 'missing_reason' | 'missing_path' | 'missing_name'
+  | 'ignored_path' | 'path_not_in_graph' | 'symbol_not_found'
+  | 'unknown_kind' | 'budget_exceeded' | 'no_new_context';
+
+// A persisted snapshot of the request that was declined. It is deliberately NOT
+// a NeedContextRequestItem: escapes such as missing_reason / missing_name /
+// unknown_kind are recorded precisely because the submitted request was malformed.
+export type RejectedRequestSnapshot = Record<string, unknown>;
+
+export type ContextEscapeEvent = {
+  schema_version: 1;
+  kind: 'forgeai_context_escape_event';
+  escape_id: string;
+  task_id: string;
+  recorded_at: string;
+  primary_artifact: string;
+  primary_digest: string;
+  request: RejectedRequestSnapshot;
+  status: 'rejected';
+  reason_code: EscapeReasonCode;
+  detail: string;
+};
+
+export type ContextEscapeObservation = {
+  schema_version: 1;
+  kind: 'forgeai_context_escape_observation';
+  task_id: string;
+  recorded_at: string;
+  primary_artifact: string;
+  primary_digest: string;
 };
 
 export type ArtifactValidationResult =

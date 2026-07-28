@@ -206,6 +206,25 @@ test('forgeai-init creates .gitignore with context-state entries when absent', (
     assert.match(gitignore, /\.ai\/state\/context-routes\.md/);
     assert.match(gitignore, /\.ai\/state\/runs\//);
     assert.match(gitignore, /\.ai\/state\/evaluations\//);
+    assert.match(gitignore, /\.ai\/state\/context-escapes\//);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('context-escape records are preserved on upgrade', async () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-esc-preserve-'));
+  try {
+    const { isPreservedOnUpgrade } = await import('../bin/lib/init.js');
+    const abs = path.join(process.cwd(), '.ai/state/context-escapes/TASK-20260727-esc/events/deadbeefdeadbeef.json');
+    assert.equal(isPreservedOnUpgrade(abs), true);
+    runTs(cli, [], { cwd: target });
+    const evDir = path.join(target, '.ai/state/context-escapes/TASK-20260727-esc/events');
+    fs.mkdirSync(evDir, { recursive: true });
+    const recordPath = path.join(evDir, 'deadbeefdeadbeef.json');
+    fs.writeFileSync(recordPath, '{"kind":"forgeai_context_escape_event"}');
+    runTs(cli, ['--upgrade'], { cwd: target });
+    assert.equal(fs.readFileSync(recordPath, 'utf8'), '{"kind":"forgeai_context_escape_event"}');
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }

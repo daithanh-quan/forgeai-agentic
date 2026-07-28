@@ -243,6 +243,7 @@ export function compileContext(
     artifact_role: 'primary',
     mode,
     experiment_id: options.experimentId ?? null,
+    parent_artifact: null,
     repository: {
       revision: dependencyGraph.repository.revision,
       fingerprint: dependencyGraph.repository.fingerprint
@@ -309,7 +310,7 @@ export function compileContextExpansion(
   curatedGraph: ReturnType<typeof readCuratedCodeGraph>,
   dependencyGraph: DependencyGraph,
   repositoryRoot: string,
-  options: { budget?: number } = {}
+  options: { budget?: number; parentArtifact?: string | null } = {}
 ): CompiledContextArtifact {
   const remainingCapacity = primary.budget.limit_tokens - primary.budget.estimated_tokens;
   const budget = options.budget ?? remainingCapacity;
@@ -427,6 +428,7 @@ export function compileContextExpansion(
     artifact_role: 'expansion',
     mode: primary.mode,
     experiment_id: primary.experiment_id,
+    parent_artifact: options.parentArtifact ?? null,
     repository: primary.repository,
     budget: {
       limit_tokens: budget,
@@ -492,7 +494,8 @@ export function renderCompiledContextMarkdown(artifact: CompiledContextArtifact)
     `### ${rule.heading}\n\n- Source: ${rule.path}:${rule.source_start_line}-${rule.source_end_line}\n- Reason: ${rule.reason}\n\n${rule.content}`
   ).join('\n\n');
   const diagnosticFence = markdownFence(JSON.stringify(artifact.diagnostics, null, 2));
-  return `# ForgeAI Compiled Context\n\n- Objective: ${artifact.objective}\n- Repository fingerprint: ${artifact.repository.fingerprint}\n- Estimated tokens: ${artifact.budget.estimated_tokens}/${artifact.budget.limit_tokens}\n- Estimator: ${artifact.budget.estimator}\n- Omitted candidates: ${artifact.omitted_candidates}\n\n## Selected Files\n\n| Path | Depth | Reason | Graph path |\n| --- | ---: | --- | --- |\n${files || '| none | n/a | no objective match | n/a |'}\n\n## Applicable Rules\n\n${rules || 'No applicable rule section was found.'}\n\n## Diagnostics\n\n${diagnosticFence}json\n${JSON.stringify(artifact.diagnostics, null, 2)}\n${diagnosticFence}\n\n## Contracts\n\n${artifact.contracts.map((value) => `- ${value}`).join('\n') || '- none'}\n\n## Entrypoints\n\n${artifact.entrypoints.map((value) => `- ${value}`).join('\n') || '- none'}\n\n## Source Excerpts\n\n${excerpts || 'No syntax node fit the configured budget.'}\n`;
+  const parentLine = artifact.parent_artifact ? `\n- Parent artifact: ${artifact.parent_artifact}` : '';
+  return `# ForgeAI Compiled Context\n\n- Objective: ${artifact.objective}${parentLine}\n- Repository fingerprint: ${artifact.repository.fingerprint}\n- Estimated tokens: ${artifact.budget.estimated_tokens}/${artifact.budget.limit_tokens}\n- Estimator: ${artifact.budget.estimator}\n- Omitted candidates: ${artifact.omitted_candidates}\n\n## Selected Files\n\n| Path | Depth | Reason | Graph path |\n| --- | ---: | --- | --- |\n${files || '| none | n/a | no objective match | n/a |'}\n\n## Applicable Rules\n\n${rules || 'No applicable rule section was found.'}\n\n## Diagnostics\n\n${diagnosticFence}json\n${JSON.stringify(artifact.diagnostics, null, 2)}\n${diagnosticFence}\n\n## Contracts\n\n${artifact.contracts.map((value) => `- ${value}`).join('\n') || '- none'}\n\n## Entrypoints\n\n${artifact.entrypoints.map((value) => `- ${value}`).join('\n') || '- none'}\n\n## Source Excerpts\n\n${excerpts || 'No syntax node fit the configured budget.'}\n`;
 }
 
 function parseIntegerArg(name: string, fallback: number, minimum: number, maximum: number): number | null {

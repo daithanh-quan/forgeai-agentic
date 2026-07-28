@@ -208,6 +208,16 @@ test('computeMetrics sums call metrics and derives context metrics', () => {
   assert.equal(metrics.calls.retries, 1);
 });
 
+test('computeMetrics records a provided escape count and defaults to null', () => {
+  const artifact = {
+    selection: { files: [] }, excerpts: [], omitted_candidates: 0,
+    budget: { limit_tokens: 6000, estimated_tokens: 0 },
+  } as unknown as CompiledContextArtifact;
+  assert.equal(computeMetrics(artifact, [], 0).context.context_escapes, null);
+  assert.equal(computeMetrics(artifact, [], 0, 3).context.context_escapes, 3);
+  assert.equal(computeMetrics(artifact, [], 0, 0).context.context_escapes, 0);
+});
+
 test('computeMetrics handles a null artifact and empty runs', () => {
   const metrics = computeMetrics(null, [], 0);
   assert.equal(metrics.context.selected_files, 0);
@@ -250,6 +260,7 @@ function baseInput(overrides = {}) {
     artifact: null,
     artifactPath: null,
     expansionCount: 0,
+    escapeCount: null,
     tiers: {},
     now: '2026-07-24T00:00:00.000Z',
     ...overrides,

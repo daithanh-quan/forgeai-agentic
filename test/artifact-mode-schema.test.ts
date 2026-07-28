@@ -45,3 +45,10 @@ test('checkArtifactStructure accepts a whole-file excerpt of kind "file"', () =>
   }];
   assert.equal(checkArtifactStructure(a), null);
 });
+
+test('checkArtifactStructure accepts a missing, null, or string parent_artifact and rejects other types', () => {
+  assert.equal(checkArtifactStructure(baseArtifact()), null); // absent is fine
+  assert.equal(checkArtifactStructure({ ...baseArtifact(), parent_artifact: null }), null);
+  assert.equal(checkArtifactStructure({ ...baseArtifact(), parent_artifact: '.ai/state/context/P.json' }), null);
+  assert.match(String(checkArtifactStructure({ ...baseArtifact(), parent_artifact: 5 })), /parent_artifact must be null or a string/);
+});

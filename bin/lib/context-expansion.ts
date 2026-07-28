@@ -4,14 +4,23 @@ import type {
   NeedContextArtifact,
   NeedContextRequestItem,
   ResolvedContextRequest,
-  DependencyGraph
+  DependencyGraph,
+  EscapeReasonCode
 } from './types.js';
 import { validateArtifact } from './router.js';
 import { compileContextExpansion, renderCompiledContextMarkdown, ContextBudgetError, NoNewContextError } from './context-compiler.js';
 import { tryReadCuratedCodeGraph, globMatches } from './context-pack.js';
 import { readDependencyGraph, checkDependencyGraphHealth, IGNORED_DIRECTORIES } from './dependency-graph.js';
+import { artifactDigest, recordEscapes, recordObservation, type NewEscape } from './context-escapes.js';
 import { root, getArgValue } from './context.js';
 import { formatStatus, getErrorMessage } from './utils.js';
+
+// Maps a resolved request back to a request snapshot for whole-set escapes.
+function resolvedToRequestItem(r: ResolvedContextRequest): NeedContextRequestItem {
+  return r.requestKind === 'symbol'
+    ? { kind: 'symbol', name: r.symbol!, reason: r.reason }
+    : { kind: r.requestKind, path: r.path, reason: r.reason };
+}
 
 const MIN_BUDGET = 256;
 const MAX_BUDGET = 200_000;
@@ -28,7 +37,11 @@ function validateNeedContextSchema(raw: unknown): NeedContextArtifact | string {
   if (!isNonEmptyString(n.artifact)) return 'artifact must be a non-empty string';
   if (!Array.isArray(n.requests) || n.requests.length === 0) return 'requests must be a non-empty array';
   for (const item of n.requests as unknown[]) {
-    if (typeof item !== 'object' || item === null) return 'requests items must be objects';
+    // Reject arrays too: an array item would fall through to `unknown_kind`, be
+    // persisted as an escape with `request: []`, and then be rejected on read
+    // (arrays are not plain objects) — corrupting the store so --evaluate always
+    // reports it malformed.
+    if (typeof item !== 'object' || item === null || Array.isArray(item)) return 'requests items must be objects';
   }
   return raw as NeedContextArtifact;
 }
@@ -37,7 +50,7 @@ export function validateNeedContext(
   request: NeedContextArtifact,
   dependencyGraph: DependencyGraph,
   curatedGraph: ReturnType<typeof tryReadCuratedCodeGraph>
-): { valid: ResolvedContextRequest[]; rejected: Array<{ item: NeedContextRequestItem; reason: string }> } {
+): { valid: ResolvedContextRequest[]; rejected: Array<{ item: NeedContextRequestItem; reason_code: EscapeReasonCode; detail: string }> } {
   const depPaths = new Set(dependencyGraph.nodes.map((n) => n.path));
   const ignoredSegments = new Set(IGNORED_DIRECTORIES as readonly string[]);
 
@@ -46,26 +59,26 @@ export function validateNeedContext(
   }
 
   const valid: ResolvedContextRequest[] = [];
-  const rejected: Array<{ item: NeedContextRequestItem; reason: string }> = [];
+  const rejected: Array<{ item: NeedContextRequestItem; reason_code: EscapeReasonCode; detail: string }> = [];
   const seenKeys = new Set<string>();
 
   for (const item of request.requests) {
     if (item.kind === 'file' || item.kind === 'test') {
       if (!isNonEmptyString(item.reason as unknown)) {
-        rejected.push({ item, reason: `${item.kind} request must have a non-empty string reason` });
+        rejected.push({ item, reason_code: 'missing_reason', detail: `${item.kind} request must have a non-empty string reason` });
         continue;
       }
       const p = item.path;
       if (!isNonEmptyString(p)) {
-        rejected.push({ item, reason: `${item.kind} request must have a non-empty path` });
+        rejected.push({ item, reason_code: 'missing_path', detail: `${item.kind} request must have a non-empty path` });
         continue;
       }
       if (isIgnoredPath(p)) {
-        rejected.push({ item, reason: `path '${p}' is in an ignored directory` });
+        rejected.push({ item, reason_code: 'ignored_path', detail: `path '${p}' is in an ignored directory` });
         continue;
       }
       if (!depPaths.has(p)) {
-        rejected.push({ item, reason: `path '${p}' not found in dependency graph` });
+        rejected.push({ item, reason_code: 'path_not_in_graph', detail: `path '${p}' not found in dependency graph` });
         continue;
       }
       const key = `${item.kind}:${p}:`;
@@ -74,12 +87,12 @@ export function validateNeedContext(
       valid.push({ requestKind: item.kind, path: p, reason: item.reason });
     } else if (item.kind === 'symbol') {
       if (!isNonEmptyString(item.reason as unknown)) {
-        rejected.push({ item, reason: 'symbol request must have a non-empty string reason' });
+        rejected.push({ item, reason_code: 'missing_reason', detail: 'symbol request must have a non-empty string reason' });
         continue;
       }
       const name = item.name;
       if (!isNonEmptyString(name)) {
-        rejected.push({ item, reason: 'symbol request must have a non-empty name' });
+        rejected.push({ item, reason_code: 'missing_name', detail: 'symbol request must have a non-empty name' });
         continue;
       }
       const resolvedPaths: string[] = [];
@@ -102,7 +115,7 @@ export function validateNeedContext(
         }
       }
       if (resolvedPaths.length === 0) {
-        rejected.push({ item, reason: `symbol '${name}' not found in dependency graph exports or public_contracts` });
+        rejected.push({ item, reason_code: 'symbol_not_found', detail: `symbol '${name}' not found in dependency graph exports or public_contracts` });
         continue;
       }
       for (const p of resolvedPaths) {
@@ -113,7 +126,7 @@ export function validateNeedContext(
         valid.push({ requestKind: 'symbol', path: p, symbol: name, reason: item.reason });
       }
     } else {
-      rejected.push({ item, reason: `unknown request kind '${String((item as Record<string, unknown>).kind)}'` });
+      rejected.push({ item, reason_code: 'unknown_kind', detail: `unknown request kind '${String((item as Record<string, unknown>).kind)}'` });
     }
   }
   return { valid, rejected };
@@ -138,6 +151,26 @@ export function runExpandContext(): void {
     return;
   }
   const primary = primaryResult.artifact;
+
+  // Boundary guards: an escape must attribute to exactly one in-repo primary.
+  if (primary.artifact_role === 'expansion') {
+    process.stderr.write('Error: --artifact must be a primary compiled-context artifact; expansion-of-expansion is not supported.\n');
+    process.exitCode = 1;
+    return;
+  }
+  // Normalize via realpath so a symlinked temp/root (e.g. macOS /var -> /private/var)
+  // does not read as out-of-root; the primary file exists (validateArtifact passed).
+  const realRoot = fs.realpathSync(root);
+  let realArtifact: string;
+  try { realArtifact = fs.realpathSync(artifactPath); } catch { realArtifact = artifactPath; }
+  const parentRel = path.relative(realRoot, realArtifact).split(path.sep).join('/');
+  // Reject only real traversal — a file literally named e.g. "..cache/x.json"
+  // inside the repo is fine, but "..", "../…", or an absolute path is not.
+  if (parentRel === '' || parentRel === '..' || parentRel.startsWith('../') || path.isAbsolute(parentRel)) {
+    process.stderr.write('Error: --artifact must resolve inside the repository root.\n');
+    process.exitCode = 1;
+    return;
+  }
 
   // Step 2: Validate need_context schema
   let rawNeedContext: unknown;
@@ -165,9 +198,36 @@ export function runExpandContext(): void {
     return;
   }
   const curatedGraph = tryReadCuratedCodeGraph(root);
+
+  // Syntactic --budget validation first (usage error, exit 2) — no side effects yet.
+  const remainingCapacity = primary.budget.limit_tokens - primary.budget.estimated_tokens;
+  const budgetArg = getArgValue('--budget');
+  let explicitBudget: number | null = null;
+  if (budgetArg !== null) {
+    const parsed = Number(budgetArg);
+    if (!Number.isInteger(parsed) || parsed < MIN_BUDGET || parsed > MAX_BUDGET) {
+      process.stderr.write(`Error: --budget must be between ${MIN_BUDGET} and ${MAX_BUDGET}.\n`);
+      process.exitCode = 2;
+      return;
+    }
+    explicitBudget = parsed;
+  }
+
+  // Preconditions passed: record the observation for this primary (once, idempotent).
+  const primaryDigest = artifactDigest(fs.readFileSync(artifactPath, 'utf8'));
+  if (primary.task_id !== null) {
+    recordObservation(primary.task_id, { primary_artifact: parentRel, primary_digest: primaryDigest }, root);
+  }
+
+  // Resolve requests and record per-request escapes.
   const { valid, rejected } = validateNeedContext(needContext, depGraph!, curatedGraph);
+  const escapes: NewEscape[] = [];
   for (const r of rejected) {
-    process.stderr.write(`${formatStatus('warn', `rejected: ${r.reason}`)}\n`);
+    process.stderr.write(`${formatStatus('warn', `rejected: ${r.detail}`)}\n`);
+    escapes.push({ primary_artifact: parentRel, primary_digest: primaryDigest, request: r.item, reason_code: r.reason_code, detail: r.detail });
+  }
+  if (primary.task_id !== null && escapes.length > 0) {
+    recordEscapes(primary.task_id, escapes, root);
   }
   if (valid.length === 0) {
     process.stderr.write('Error: no requests passed validation.\n');
@@ -175,19 +235,19 @@ export function runExpandContext(): void {
     return;
   }
 
-  // Expansion budget
-  const remainingCapacity = primary.budget.limit_tokens - primary.budget.estimated_tokens;
-  const budgetArg = getArgValue('--budget');
+  // Resolve the effective budget (capacity too small is a real escape).
   let budget: number;
-  if (budgetArg !== null) {
-    budget = Number(budgetArg);
-    if (!Number.isInteger(budget) || budget < MIN_BUDGET || budget > MAX_BUDGET) {
-      process.stderr.write(`Error: --budget must be between ${MIN_BUDGET} and ${MAX_BUDGET}.\n`);
-      process.exitCode = 2;
-      return;
-    }
+  if (explicitBudget !== null) {
+    budget = explicitBudget;
   } else {
     if (remainingCapacity < MIN_BUDGET) {
+      if (primary.task_id !== null) {
+        recordEscapes(primary.task_id, valid.map((r) => ({
+          primary_artifact: parentRel, primary_digest: primaryDigest, request: resolvedToRequestItem(r),
+          reason_code: 'budget_exceeded' as EscapeReasonCode,
+          detail: `remaining primary capacity (${remainingCapacity}) is below minimum ${MIN_BUDGET}`,
+        })), root);
+      }
       process.stderr.write(`Error: remaining primary capacity (${remainingCapacity}) is below minimum ${MIN_BUDGET}. Pass --budget explicitly.\n`);
       process.exitCode = 1;
       return;
@@ -198,8 +258,17 @@ export function runExpandContext(): void {
   // Step 4: Compile expansion
   let expansion;
   try {
-    expansion = compileContextExpansion(primary, valid, curatedGraph, depGraph!, root, { budget });
+    expansion = compileContextExpansion(primary, valid, curatedGraph, depGraph!, root, { budget, parentArtifact: parentRel });
   } catch (error) {
+    let code: EscapeReasonCode | null = null;
+    if (error instanceof ContextBudgetError) code = 'budget_exceeded';
+    else if (error instanceof NoNewContextError) code = 'no_new_context';
+    if (code && primary.task_id !== null) {
+      recordEscapes(primary.task_id, valid.map((r) => ({
+        primary_artifact: parentRel, primary_digest: primaryDigest, request: resolvedToRequestItem(r),
+        reason_code: code!, detail: error instanceof Error ? error.message : String(error),
+      })), root);
+    }
     if (error instanceof ContextBudgetError) {
       process.stderr.write(`Error: expansion budget is too small for the requested context; increase --budget.\n`);
       process.exitCode = 2;

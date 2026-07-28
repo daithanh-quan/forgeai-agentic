@@ -10,9 +10,12 @@
 
 ## Global Constraints
 
-- Target version: **3.10.0** (from 3.9.0). Bump in `package.json`, `package-lock.json` (top-level `version` **and** `packages[""].version`), `CHANGELOG.md`, `ROADMAP.md`, `README.md`, and add `docs/migrations/3.10.0.md`.
+- Target version: **3.9.0** (from the last published `3.8.0`). Phase 13B is
+  included in the single consolidated Phase 13 release; update `package.json`,
+  both version locations in `package-lock.json`, `CHANGELOG.md`, `ROADMAP.md`,
+  `README.md`, and the existing consolidated `docs/migrations/3.9.0.md`.
 - `schema_version` stays **`1`** on every artifact/record. All new fields are additive and optional-on-read.
-- Backward compatibility: pre-3.10.0 artifacts, run records, and evaluation records normalize to `mode: 'compact'`, `experiment_id: null`, and are excluded from experiment pairing but still counted in the existing overall/per-tier `--report` summary.
+- Backward compatibility: pre-3.9.0 artifacts, run records, and evaluation records normalize to `mode: 'compact'`, `experiment_id: null`, and are excluded from experiment pairing but still counted in the existing overall/per-tier `--report` summary.
 - The test command is `npm test` = `tsc -p tsconfig.json && tsc -p tsconfig.build.json && node --import tsx --test test/*.test.ts`. **`tsconfig.json` includes `test/**/*.ts`, so every task must keep the whole project — source and tests — type-clean.** When a task adds a required field to a shared type, that same task updates every literal (source and test) the compiler flags. Run a single test file with `node --import tsx --test test/<file>.test.ts`.
 - Threshold constants (Task 7), documented named constants: `MIN_EXPERIMENT_PAIRS = 5`, `MAX_PASS_RATE_DROP_PCT = 5`, `MIN_TOKEN_SAVING_PCT = 15`, `MIN_LATENCY_SAVING_PCT = 15`.
 - The user commits every change themselves — **do not run `git commit`**. Each task's final step stages the change and states the message for the user to commit.
@@ -1571,15 +1574,15 @@ git add bin/lib/evaluation-report.ts bin/lib/context.ts bin/lib/init.ts test/exp
 
 ---
 
-### Task 9: Documentation and version bump to 3.10.0
+### Task 9: Add Phase 13B to the consolidated 3.9.0 release
 
 **Files:**
 - Modify: `package.json` (`version`)
 - Modify: `package-lock.json` (top-level `version` and `packages[""].version`)
-- Modify: `CHANGELOG.md` (new 3.10.0 entry at top)
+- Modify: `CHANGELOG.md` (consolidated 3.9.0 entry)
 - Modify: `ROADMAP.md` (Phase 13 section ~line 224)
 - Modify: `README.md` (Evaluation section — add an Experiments subsection)
-- Create: `docs/migrations/3.10.0.md`
+- Modify: `docs/migrations/3.9.0.md`
 
 **Interfaces:** none (documentation + metadata).
 
@@ -1588,17 +1591,19 @@ git add bin/lib/evaluation-report.ts bin/lib/context.ts bin/lib/init.ts test/exp
 In `package.json`, set:
 
 ```json
-  "version": "3.10.0",
+  "version": "3.9.0",
 ```
 
-In `package-lock.json`, update **both** the top-level `"version": "3.9.0"` and the `packages[""]` entry `"version": "3.9.0"` to `"3.10.0"`.
+In `package-lock.json`, update **both** the top-level version and the
+`packages[""]` entry from `3.8.0` to `3.9.0`.
 
 - [ ] **Step 2: Add the CHANGELOG entry**
 
-At the top of `CHANGELOG.md` (below the header, above the 3.9.0 entry), add:
+Within the consolidated `3.9.0` entry in `CHANGELOG.md`, add the Phase 13B
+material:
 
 ```markdown
-## 3.10.0
+## 3.9.0
 
 Context experiments and advisory mode recommendation (Phase 13B).
 
@@ -1608,7 +1613,7 @@ Context experiments and advisory mode recommendation (Phase 13B).
   errors and asks for a larger `--budget` rather than truncating.
 - `mode` and `experiment_id` added to compiled-context artifacts and evaluation
   records; `mode` added to run records. All additive; `schema_version` stays 1.
-  Pre-3.10.0 data normalizes to `mode: compact`, `experiment_id: null`.
+  Pre-3.9.0 data normalizes to `mode: compact`, `experiment_id: null`.
 - `--report` gains an Experiments section that pairs baseline/compact evaluation
   records by `experiment_id` and reports per-pair and aggregate token/latency
   savings and pass-rate deltas.
@@ -1629,7 +1634,7 @@ Context experiments and advisory mode recommendation (Phase 13B).
 In `ROADMAP.md`, Phase 13 section (~line 224), after the "Phase 13A shipped" paragraph add:
 
 ```markdown
-**Phase 13B shipped in 3.10.0.** Baseline/compact context experiment modes
+**Phase 13B is included in Phase 13 shipped in 3.9.0.** Baseline/compact context experiment modes
 (`--compile-context --mode --experiment`), an evaluation `mode`/`experiment_id`
 link, a `--report` Experiments section pairing baseline vs compact by
 `experiment_id`, a sample-sufficiency gate (`--min-samples`), and an advisory
@@ -1701,10 +1706,11 @@ but still counted in the overall and per-tier summary.
 
 - [ ] **Step 5: Add the migration note**
 
-Create `docs/migrations/3.10.0.md`:
+Add the following Phase 13B material to the consolidated
+`docs/migrations/3.9.0.md`:
 
 ```markdown
-# Migrating to 3.10.0
+# Migrating to 3.9.0
 
 Additive change — run `forgeai-init --upgrade`. No breaking schema or config
 change.
@@ -1720,7 +1726,7 @@ Phase 13B adds context experiments:
   advisory recommendation; `--report --json` gains `experiments` and
   `recommendation` objects.
 
-Pre-3.10.0 artifacts, run records, and evaluation records have no `mode`/
+Pre-3.9.0 artifacts, run records, and evaluation records have no `mode`/
 `experiment_id`/`comparability`; they read as `mode: compact`,
 `experiment_id: null`, `comparability: null` and are excluded from experiment
 pairing (but still counted in the overall and per-tier summary). Historical runs
@@ -1729,7 +1735,7 @@ are not retro-paired.
 
 - [ ] **Step 6: Verify version consistency and build**
 
-Run: `grep -rn '3.10.0' package.json package-lock.json CHANGELOG.md`
+Run: `grep -rn '3.9.0' package.json package-lock.json CHANGELOG.md`
 Expected: `package.json` (1), `package-lock.json` (2), `CHANGELOG.md` (≥1).
 Run: `npm test`
 Expected: typecheck + build clean, all tests pass.
@@ -1737,8 +1743,8 @@ Expected: typecheck + build clean, all tests pass.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add package.json package-lock.json CHANGELOG.md ROADMAP.md README.md docs/migrations/3.10.0.md
-# docs(release): 3.10.0 — context experiments and advisory mode recommendation (Phase 13B)
+git add package.json package-lock.json CHANGELOG.md ROADMAP.md README.md docs/migrations/3.9.0.md
+# docs(release): 3.9.0 — context experiments and advisory mode recommendation (Phase 13B)
 ```
 
 ---

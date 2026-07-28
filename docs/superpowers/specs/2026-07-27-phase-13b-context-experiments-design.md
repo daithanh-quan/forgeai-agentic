@@ -1,9 +1,9 @@
 # Phase 13B — Context Experiments and Advisory Mode Recommendation Design
 
 Status: approved, ready for implementation planning.
-Target version: 3.10.0 (from 3.9.0).
+Target version: 3.9.0 (from the last published release, 3.8.0).
 Depends on: Phase 13A (evaluation records, `--evaluate`, `--report`, `task_id`
-linking, shipped 3.9.0), Phase 10 (context compiler), Phase 11 (enforced
+linking, included in the same consolidated 3.9.0 release), Phase 10 (context compiler), Phase 11 (enforced
 context boundary), Phase 12A/12B (`RunRecord`), Phase 4 (review scorecards).
 
 ## Goal
@@ -48,7 +48,7 @@ manual override / CI import escape hatch.
    opt-in evidence, not a default.
 4. **Additive and backward compatible.** `schema_version` stays `1`. `mode`,
    `experiment_id`, and `comparability` are optional-on-read; artifacts, run
-   records, and evaluation records written before 3.10.0 read as
+   records, and evaluation records written before 3.9.0 read as
    `mode: 'compact'`, `experiment_id: null`, `comparability: null` and are simply
    excluded from experiment analysis (they still count in the overall/per-tier
    summary).
@@ -125,11 +125,11 @@ note:
     the experiment-id shape (see §2), rejecting present-but-empty/malformed.
   - **Backward-compatible normalization (required), mirroring 13A's `task_id`
     handling.** `computeArtifactEstimate` serializes the whole artifact, so
-    adding `mode`/`experiment_id` to a pre-3.10.0 artifact would change its
+    adding `mode`/`experiment_id` to a pre-3.9.0 artifact would change its
     estimated-token count. `validateArtifact` must recompute the estimate against
     the **raw** parsed object first, then return a normalized artifact
     `{ ...raw, task_id: raw.task_id ?? null, artifact_role: raw.artifact_role ?? 'primary', mode: raw.mode ?? 'compact', experiment_id: raw.experiment_id ?? null }`.
-    New (3.10.0+) artifacts include both fields at creation, so their declared
+    New (3.9.0+) artifacts include both fields at creation, so their declared
     estimate is already self-consistent.
 - `RunRecord`: add `mode: 'baseline' | 'compact' | null`. Same pattern as
   `task_id` in 13A — `isValidRunRecordInput` accepts `mode` when absent, `null`,
@@ -171,7 +171,7 @@ alongside `isValidTaskId`) rejects the template placeholder
   as 13A copies `artifact.task_id`. No new route flag — the mode rides on the
   artifact.
 
-Backward compatibility: artifacts/run records produced before 3.10.0 have no
+Backward compatibility: artifacts/run records produced before 3.9.0 have no
 `mode`/`experiment_id`; they load as `mode: 'compact'`, `experiment_id: null`.
 
 ### 3. Baseline excerpt generation (13B.1)
@@ -267,7 +267,7 @@ New `EvaluationRecord` fields:
 
 `isValidEvaluationRecord` (the full structural read validator from 13A) is
 extended: `mode` must be `'baseline'`/`'compact'` when present (absent normalizes
-to `'compact'` for pre-3.10.0 records), and `experiment_id` must be `null` or a
+to `'compact'` for pre-3.9.0 records), and `experiment_id` must be `null` or a
 non-empty string when present (absent normalizes to `null`). All other 13A
 invariants — `evaluation_id === \`eval-${task_id}\``, canonical `generated_at`,
 non-negative integer metrics, `evidence_count === pass + fail + skipped`,
@@ -399,25 +399,28 @@ backward compatible for repositories with no experiments.
 
 ### 9. Documentation and version
 
-Bump `3.9.0 → 3.10.0` in every version location:
+Phase 13B is included in the single consolidated Phase 13 release, `3.9.0`.
+Set every version location from the last published `3.8.0` to `3.9.0` once:
 
 - `package.json` `version`.
 - `package-lock.json` — both the top-level `version` and the root package entry
   under `packages[""]`.
-- `CHANGELOG.md`: 3.10.0 entry — experiment modes (`--compile-context --mode
+- `CHANGELOG.md`: add the Phase 13B material to the consolidated 3.9.0 entry —
+  experiment modes (`--compile-context --mode
   baseline|compact --experiment`), `mode`/`experiment_id` on artifacts, run
   records, and evaluation records, the `--report` Experiments section, the
   sample-sufficiency gate (`--min-samples`), and the advisory context-mode
   recommendation.
-- `ROADMAP.md`: mark Phase 13B shipped in 3.10.0; note the still-deferred items
+- `ROADMAP.md`: mark Phase 13B as part of Phase 13 shipped in 3.9.0; note the still-deferred items
   (model-tier recommendations, real `context_escapes`, `parent_artifact`
   linkage, `--outcome` override).
 - `README.md`: add an Experiments subsection to the Evaluation section
   documenting the workflow (`--compile-context --mode baseline --experiment E` →
   `--route` → `--evaluate`; repeat with `--mode compact`; then `--report`), the
   new record fields, the threshold constants, and how to read the advisory.
-- `docs/migrations/3.10.0.md`: additive change; run `forgeai-init --upgrade`. No
-  breaking schema or config change. Pre-3.10.0 artifacts/run/evaluation records
+- `docs/migrations/3.9.0.md`: add the Phase 13B migration notes to the single
+  consolidated guide; run `forgeai-init --upgrade`. No
+  breaking schema or config change. Pre-3.9.0 artifacts/run/evaluation records
   read as `mode: 'compact'`, `experiment_id: null` and are excluded from
   experiment analysis (no retro-pairing of historical runs).
 
@@ -429,12 +432,12 @@ Bump `3.9.0 → 3.10.0` in every version location:
   - Artifact validator accepts absent/valid `mode` and absent/null/valid
     `experiment_id`; rejects an unknown `mode` string and a present-but-empty
     `experiment_id`.
-  - **Legacy artifact normalization:** a 3.9.0 artifact with no
+  - **Legacy artifact normalization:** a 3.8.0 artifact with no
     `mode`/`experiment_id` validates OK (estimate recomputed on the raw shape)
     and normalizes to `mode: 'compact'`, `experiment_id: null`. Cover both
     `--route` and `--expand-context` reading such an artifact.
   - `isValidRunRecordInput` accepts absent/null/valid `mode`; `listRunRecords`
-    normalizes a pre-3.10.0 record (no field) to `mode: 'compact'`.
+    normalizes a pre-3.9.0 record (no field) to `mode: 'compact'`.
   - `--compile-context --mode baseline` stamps `mode: 'baseline'`, emits
     whole-file excerpts (assert an excerpt equals a full source file, no node
     extraction), and copies mode/experiment to the `--expand-context` artifact;
@@ -491,8 +494,8 @@ Bump `3.9.0 → 3.10.0` in every version location:
   parseable object with `experiments` + `recommendation`; malformed record files
   are still skipped, not fatal; the 13A overall/per-tier output is unchanged when
   no experiments exist.
-- **Upgrade/backward compat:** a 3.9.0 evaluations directory reports cleanly
-  under 3.10.0 with no experiments; records survive a simulated `--upgrade`
+- **Upgrade/backward compat:** a 3.8.0 evaluations directory reports cleanly
+  under 3.9.0 with no experiments; records survive a simulated `--upgrade`
   (unchanged from 13A).
 
 ## Out of scope (13B)

@@ -7,6 +7,7 @@ import { listRunRecords } from './run-record.js';
 import { listTaskJournalFiles, parseTaskJournal, extractBulletValue } from './lifecycle.js';
 import { extractTableRows, extractLabeledValue, isRealEvidenceRow, validRecommendations } from './review.js';
 import { checkArtifactStructure } from './router.js';
+import { artifactDigest, resolveEscapeCount } from './context-escapes.js';
 
 const EVAL_DIR = '.ai/state/evaluations';
 
@@ -188,7 +189,7 @@ export function resolveTierForRuns(runs: RunRecord[], tiers: Record<string, { pr
   return resolved.size === 1 ? [...resolved][0] : 'unknown';
 }
 
-export function computeMetrics(artifact: CompiledContextArtifact | null, runs: RunRecord[], expansionCount: number): EvaluationRecord['metrics'] {
+export function computeMetrics(artifact: CompiledContextArtifact | null, runs: RunRecord[], expansionCount: number, escapeCount: number | null = null): EvaluationRecord['metrics'] {
   const limit = artifact ? artifact.budget.limit_tokens : 0;
   const estimated = artifact ? artifact.budget.estimated_tokens : 0;
   const sum = (pick: (r: RunRecord) => number | null) => runs.reduce((total, r) => total + (pick(r) ?? 0), 0);
@@ -202,9 +203,10 @@ export function computeMetrics(artifact: CompiledContextArtifact | null, runs: R
       budget_utilization: limit > 0 ? Math.round((estimated / limit) * 1000) / 1000 : 0,
       // Count of expansion artifacts recorded for this task (see runEvaluate).
       expansion_rounds: expansionCount,
-      // null = not measured in 13A: rejected need_context requests are only
-      // warned to stderr, never persisted. 0 would falsely assert "no escapes".
-      context_escapes: null,
+      // Distinct declined context needs resolved from the per-task escape store in
+      // runEvaluate; null when there is no primary artifact or the primary was
+      // never observed by an --expand-context run (never a silent 0).
+      context_escapes: escapeCount,
     },
     calls: {
       model_calls: runs.length,
@@ -229,6 +231,7 @@ type BuildInput = {
   artifact: CompiledContextArtifact | null;
   artifactPath: string | null;
   expansionCount: number;
+  escapeCount: number | null;
   tiers: Record<string, { provider: string; model: string }>;
   now: string;
 };
@@ -325,7 +328,7 @@ export function buildEvaluationRecord(input: BuildInput): BuildResult {
         }
       : null,
     tier: resolveTierForRuns(input.runs, input.tiers),
-    metrics: computeMetrics(input.artifact, input.runs, input.expansionCount),
+    metrics: computeMetrics(input.artifact, input.runs, input.expansionCount, input.escapeCount),
   };
   return { ok: true, record };
 }
@@ -348,7 +351,7 @@ function findArtifactsForTask(taskId: string, repositoryRoot: string): ArtifactL
     // artifact compiled against an earlier revision is still evaluable. Malformed
     // artifacts are skipped, never crashing computeMetrics.
     if (checkArtifactStructure(raw) !== null) continue;
-    // Normalize the additive fields so a pre-3.10.0 artifact reads as a
+    // Normalize the additive fields so a pre-3.9.0 artifact reads as a
     // non-experiment (mode: compact, experiment_id: null) rather than leaving
     // experiment_id undefined — otherwise the provenance gate (which tests
     // `experiment_id !== null`) would wrongly fire on legacy artifacts.
@@ -359,6 +362,7 @@ function findArtifactsForTask(taskId: string, repositoryRoot: string): ArtifactL
       artifact_role: (rawRecord['artifact_role'] as CompiledContextArtifact['artifact_role'] | undefined) ?? 'primary',
       mode: (rawRecord['mode'] as CompiledContextArtifact['mode'] | undefined) ?? 'compact',
       experiment_id: (rawRecord['experiment_id'] as string | null | undefined) ?? null,
+      parent_artifact: (rawRecord['parent_artifact'] as string | null | undefined) ?? null,
     };
     if (artifact.task_id !== taskId) continue;
     if (artifact.artifact_role === 'expansion') { lookup.expansionCount += 1; continue; }
@@ -443,9 +447,27 @@ export function runEvaluate(): void {
     }
   }
 
+  // Context-escape store: hard-fail on any malformed record; otherwise resolve the
+  // count attributable to the evaluated primary artifact by its content digest.
+  let escapeCount: number | null = null;
+  if (artifact !== null && artifactPath !== null) {
+    const digest = artifactDigest(fs.readFileSync(path.join(root, artifactPath), 'utf8'));
+    const resolved = resolveEscapeCount(taskId, digest, root);
+    if (!resolved.ok) {
+      console.log('ForgeAI evaluation');
+      console.log('');
+      console.log(formatStatus('invalid', `context-escape store unreadable: ${resolved.reason}`));
+      console.log('');
+      console.log('Result: evaluation failed. No record written.');
+      process.exitCode = 1;
+      return;
+    }
+    escapeCount = resolved.count;
+  }
+
   const result = buildEvaluationRecord({
     taskId, journalContent, journalPath: journalFiles[0], scorecardContent, scorecardPath: scorecardRel,
-    runs, artifact, artifactPath, expansionCount: lookup.expansionCount, tiers, now: new Date().toISOString(),
+    runs, artifact, artifactPath, expansionCount: lookup.expansionCount, escapeCount, tiers, now: new Date().toISOString(),
   });
 
   if (!result.ok) {
