@@ -43,6 +43,9 @@ export function checkArtifactStructure(raw: unknown): string | null {
   if (a.experiment_id !== null && a.experiment_id !== undefined && (typeof a.experiment_id !== 'string' || !isValidExperimentId(a.experiment_id))) {
     return 'experiment_id must be null or a valid EXP-YYYYMMDD-slug string';
   }
+  if (a.parent_artifact !== null && a.parent_artifact !== undefined && typeof a.parent_artifact !== 'string') {
+    return 'parent_artifact must be null or a string';
+  }
   const repo = a.repository as Record<string, unknown> | undefined;
   if (!repo || typeof repo.fingerprint !== 'string' || repo.fingerprint.length === 0) return 'repository.fingerprint must be a non-empty string';
   if (!repo || !('revision' in repo) || (repo.revision !== null && typeof repo.revision !== 'string')) return 'repository.revision must be string or null';
@@ -153,6 +156,7 @@ export function validateArtifact(artifactPath: string, repositoryRoot: string): 
       artifact_role: artifact.artifact_role ?? 'primary',
       mode: artifact.mode ?? 'compact',
       experiment_id: artifact.experiment_id ?? null,
+      parent_artifact: artifact.parent_artifact ?? null,
     }
   };
 }

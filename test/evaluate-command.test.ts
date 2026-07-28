@@ -233,8 +233,8 @@ test('--evaluate rejects an experiment run that routed a different artifact', ()
 
 test('--evaluate treats a legacy artifact (no mode/experiment_id) as a non-experiment', () => {
   const dir = setupRepo();
-  // Init the harness + graph, compile a normal artifact, then strip the 3.10.0 fields
-  // to simulate a pre-3.10.0 primary artifact (no run record, like an old evaluation).
+  // Init the harness + graph, compile a normal artifact, then strip the additive
+  // fields to simulate a pre-3.9.0 primary artifact (no run record, like an old evaluation).
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'src', 'entry.ts'), 'export function runCli() { return 42; }\n');
   runTs(cli, [], { cwd: dir });
@@ -253,4 +253,43 @@ test('--evaluate treats a legacy artifact (no mode/experiment_id) as a non-exper
   const record = JSON.parse(fs.readFileSync(path.join(dir, '.ai/state/evaluations/TASK-20260724-x.json'), 'utf8'));
   assert.equal(record.mode, 'compact');
   assert.equal(record.experiment_id, null);
+});
+
+test('--evaluate counts observed escapes and fails on a malformed escape record', async () => {
+  const dir = setupRepo();
+  const compiled = compileArtifact(dir, 'TASK-20260724-x');
+  const ctxDir = path.join(dir, '.ai/state/context');
+  fs.mkdirSync(ctxDir, { recursive: true });
+  const primaryRel = '.ai/state/context/primary.json';
+  fs.writeFileSync(path.join(dir, primaryRel), compiled);
+
+  const { artifactDigest, recordObservation, recordEscapes } = await import('../bin/lib/context-escapes.js');
+  const digest = artifactDigest(fs.readFileSync(path.join(dir, primaryRel), 'utf8'));
+  recordObservation('TASK-20260724-x', { primary_artifact: primaryRel, primary_digest: digest }, dir);
+  recordEscapes('TASK-20260724-x', [{
+    primary_artifact: primaryRel, primary_digest: digest,
+    request: { kind: 'file', path: 'src/x.ts', reason: 'r' }, reason_code: 'path_not_in_graph', detail: 'd',
+  }], dir);
+
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x']).status, 0);
+  const record = JSON.parse(fs.readFileSync(path.join(dir, '.ai/state/evaluations/TASK-20260724-x.json'), 'utf8'));
+  assert.equal(record.metrics.context.context_escapes, 1);
+
+  // malformed event -> evaluate fails, writes no record
+  fs.rmSync(path.join(dir, '.ai/state/evaluations/TASK-20260724-x.json'));
+  fs.writeFileSync(path.join(dir, '.ai/state/context-escapes/TASK-20260724-x/events/deadbeefdeadbeef.json'), '{ broken');
+  const res = run(dir, ['--evaluate', '--task', 'TASK-20260724-x']);
+  assert.notEqual(res.status, 0);
+  assert.match(res.stdout + res.stderr, /unreadable|malformed|not valid JSON/);
+  assert.equal(fs.existsSync(path.join(dir, '.ai/state/evaluations/TASK-20260724-x.json')), false);
+});
+
+test('--evaluate reports context_escapes null when there is no escape store', () => {
+  const dir = setupRepo();
+  const compiled = compileArtifact(dir, 'TASK-20260724-x');
+  fs.mkdirSync(path.join(dir, '.ai/state/context'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.ai/state/context/primary.json'), compiled);
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x']).status, 0);
+  const record = JSON.parse(fs.readFileSync(path.join(dir, '.ai/state/evaluations/TASK-20260724-x.json'), 'utf8'));
+  assert.equal(record.metrics.context.context_escapes, null);
 });

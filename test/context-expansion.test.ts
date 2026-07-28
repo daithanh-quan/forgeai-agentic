@@ -273,7 +273,8 @@ test('invalid reason type per item is rejected; valid sibling still processed', 
     } as any;
     const { valid, rejected } = validateNeedContext(request, depGraph, curatedGraph);
     assert.equal(rejected.length, 1, 'one item should be rejected');
-    assert.match(rejected[0]!.reason, /reason/);
+    assert.equal(rejected[0]!.reason_code, 'missing_reason');
+    assert.match(rejected[0]!.detail, /reason/);
     assert.equal(valid.length, 1, 'valid sibling must still be processed');
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
@@ -356,4 +357,201 @@ test('expansion artifact carries mode and experiment_id from the primary', async
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }
+});
+
+test('compileContextExpansion stamps parent_artifact and compileContext leaves it null', async () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-parent-'));
+  buildFixture(target);
+  const { compileContextExpansion } = await import('../bin/lib/context-compiler.js');
+  const { readDependencyGraph } = await import('../bin/lib/dependency-graph.js');
+  const { tryReadCuratedCodeGraph } = await import('../bin/lib/context-pack.js');
+  const primaryRel = '.ai/state/context/TASK-20260727-parent.json';
+  const primaryPath = path.join(target, primaryRel);
+  runTs(cli, ['--compile-context', '--task', 'TASK-20260727-parent', '--objective', 'login', '--budget', '6000', '--output', primaryRel], { cwd: target });
+  const primary = JSON.parse(fs.readFileSync(primaryPath, 'utf8')) as CompiledContextArtifact;
+  assert.equal(primary.parent_artifact, null, 'primary parent_artifact is null');
+  const depGraph = readDependencyGraph(target);
+  const curatedGraph = tryReadCuratedCodeGraph(target);
+  const requests: ResolvedContextRequest[] = [{ requestKind: 'file', path: 'src/auth.ts', reason: 'need private helper' }];
+  const expansion = compileContextExpansion(primary, requests, curatedGraph, depGraph!, target, { budget: 4000, parentArtifact: primaryRel });
+  assert.equal(expansion.artifact_role, 'expansion');
+  assert.equal(expansion.parent_artifact, primaryRel);
+});
+
+test('validateNeedContext returns reason_code and detail for rejected requests', async () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-rc-'));
+  buildFixture(target);
+  const { validateNeedContext } = await import('../bin/lib/context-expansion.js');
+  const { readDependencyGraph } = await import('../bin/lib/dependency-graph.js');
+  const { tryReadCuratedCodeGraph } = await import('../bin/lib/context-pack.js');
+  const depGraph = readDependencyGraph(target)!;
+  const curatedGraph = tryReadCuratedCodeGraph(target);
+  const request = { kind: 'forgeai_need_context', schema_version: 1, artifact: 'x',
+    requests: [{ kind: 'file', path: 'does/not/exist.ts', reason: 'x' }] } as never;
+  const { rejected } = validateNeedContext(request, depGraph, curatedGraph);
+  assert.equal(rejected.length, 1);
+  assert.equal(rejected[0]!.reason_code, 'path_not_in_graph');
+  assert.match(rejected[0]!.detail, /not found in dependency graph/);
+});
+
+test('--expand-context records observation + escape files; forbids expansion-of-expansion', async () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-esc-cli-'));
+  buildFixture(target);
+  const taskId = 'TASK-20260727-esc';
+  const primaryRel = `.ai/state/context/${taskId}.json`;
+  runTs(cli, ['--compile-context', '--task', taskId, '--objective', 'login', '--budget', '6000', '--output', primaryRel], { cwd: target });
+  const needContextPath = writeNeedContext(target, primaryRel, [{ kind: 'file', path: 'does/not/exist.ts', reason: 'need missing' }]);
+  // fully rejected -> exit 1, no expansion artifact, but observation + escape recorded
+  assert.throws(() => runTs(cli, ['--expand-context', '--artifact', primaryRel, '--need-context', path.relative(target, needContextPath)], { cwd: target }));
+  const escBase = path.join(target, '.ai/state/context-escapes', taskId);
+  assert.equal(fs.readdirSync(path.join(escBase, 'observed')).length, 1, 'one observation marker');
+  const events = fs.readdirSync(path.join(escBase, 'events'));
+  assert.equal(events.length, 1);
+  const ev = JSON.parse(fs.readFileSync(path.join(escBase, 'events', events[0]!), 'utf8'));
+  assert.equal(ev.reason_code, 'path_not_in_graph');
+  assert.equal(ev.primary_artifact, primaryRel);
+  assert.match(ev.primary_digest, /^[0-9a-f]{64}$/);
+
+  // Feeding an expansion artifact back in is rejected.
+  const okNeed = writeNeedContext(target, primaryRel, [{ kind: 'file', path: 'src/auth.ts', reason: 'need helper' }]);
+  runTs(cli, ['--expand-context', '--artifact', primaryRel, '--need-context', path.relative(target, okNeed), '--output', '.ai/state/context/exp.json'], { cwd: target });
+  let err: unknown = null;
+  try { runTs(cli, ['--expand-context', '--artifact', '.ai/state/context/exp.json', '--need-context', path.relative(target, okNeed)], { cwd: target }); } catch (e) { err = e; }
+  assert.ok(err, 'expansion-of-expansion should exit non-zero');
+});
+
+test('--expand-context: successful expansion records only an observation (count 0)', async () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-esc-ok-'));
+  buildFixture(target);
+  const taskId = 'TASK-20260727-ok';
+  const primaryRel = `.ai/state/context/${taskId}.json`;
+  runTs(cli, ['--compile-context', '--task', taskId, '--objective', 'login', '--budget', '6000', '--output', primaryRel], { cwd: target });
+  const okNeed = writeNeedContext(target, primaryRel, [{ kind: 'file', path: 'src/auth.ts', reason: 'need helper' }]);
+  runTs(cli, ['--expand-context', '--artifact', primaryRel, '--need-context', path.relative(target, okNeed), '--output', '.ai/state/context/exp.json'], { cwd: target });
+  const escBase = path.join(target, '.ai/state/context-escapes', taskId);
+  assert.equal(fs.readdirSync(path.join(escBase, 'observed')).length, 1);
+  const evDir = path.join(escBase, 'events');
+  assert.equal(fs.existsSync(evDir) ? fs.readdirSync(evDir).length : 0, 0);
+});
+
+test('--expand-context: an invalid --budget writes no observation marker', async () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-esc-badbudget-'));
+  buildFixture(target);
+  const taskId = 'TASK-20260727-bad';
+  const primaryRel = `.ai/state/context/${taskId}.json`;
+  runTs(cli, ['--compile-context', '--task', taskId, '--objective', 'login', '--budget', '6000', '--output', primaryRel], { cwd: target });
+  const okNeed = writeNeedContext(target, primaryRel, [{ kind: 'file', path: 'src/auth.ts', reason: 'need helper' }]);
+  assert.throws(() => runTs(cli, ['--expand-context', '--artifact', primaryRel, '--need-context', path.relative(target, okNeed), '--budget', '5'], { cwd: target }));
+  assert.equal(fs.existsSync(path.join(target, '.ai/state/context-escapes', taskId)), false, 'no store written on usage error');
+});
+
+test('validateNeedContext maps each rejection to its reason_code', async () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-rc-table-'));
+  buildFixture(target);
+  const { validateNeedContext } = await import('../bin/lib/context-expansion.js');
+  const { readDependencyGraph } = await import('../bin/lib/dependency-graph.js');
+  const { tryReadCuratedCodeGraph } = await import('../bin/lib/context-pack.js');
+  const depGraph = readDependencyGraph(target)!;
+  const curatedGraph = tryReadCuratedCodeGraph(target);
+  const cases: Array<[Record<string, unknown>, string]> = [
+    [{ kind: 'file', path: 'src/auth.ts', reason: '' }, 'missing_reason'],
+    [{ kind: 'file', reason: 'r' }, 'missing_path'],
+    [{ kind: 'symbol', reason: 'r' }, 'missing_name'],
+    [{ kind: 'file', path: 'node_modules/x.ts', reason: 'r' }, 'ignored_path'],
+    [{ kind: 'file', path: 'does/not/exist.ts', reason: 'r' }, 'path_not_in_graph'],
+    [{ kind: 'symbol', name: 'noSuchSymbol', reason: 'r' }, 'symbol_not_found'],
+    [{ kind: 'weird', reason: 'r' }, 'unknown_kind'],
+  ];
+  for (const [item, expected] of cases) {
+    const request = { kind: 'forgeai_need_context', schema_version: 1, artifact: 'x', requests: [item] } as never;
+    const { rejected } = validateNeedContext(request, depGraph, curatedGraph);
+    assert.equal(rejected.length, 1, `${expected}: expected one rejection`);
+    assert.equal(rejected[0]!.reason_code, expected);
+  }
+});
+
+test('--expand-context persists no_new_context when the request duplicates the primary', async () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-esc-nonew-'));
+  buildFixture(target);
+  const taskId = 'TASK-20260727-nonew';
+  const primaryRel = `.ai/state/context/${taskId}.json`;
+  runTs(cli, ['--compile-context', '--task', taskId, '--objective', 'login function', '--budget', '6000', '--output', primaryRel], { cwd: target });
+  const need = writeNeedContext(target, primaryRel, [{ kind: 'symbol', name: 'login', reason: 'already present at full mode' }]);
+  assert.throws(() => runTs(cli, ['--expand-context', '--artifact', primaryRel, '--need-context', path.relative(target, need)], { cwd: target }));
+  const evDir = path.join(target, '.ai/state/context-escapes', taskId, 'events');
+  const events = fs.readdirSync(evDir).map((f) => JSON.parse(fs.readFileSync(path.join(evDir, f), 'utf8')));
+  assert.ok(events.some((e) => e.reason_code === 'no_new_context'), 'a no_new_context escape is persisted');
+});
+
+test('--expand-context persists budget_exceeded on the low-capacity early return', async () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-esc-lowcap-'));
+  buildFixture(target);
+  const taskId = 'TASK-20260727-lowcap';
+  const primaryRel = `.ai/state/context/${taskId}.json`;
+  runTs(cli, ['--compile-context', '--task', taskId, '--objective', 'login function', '--budget', '6000', '--output', primaryRel], { cwd: target });
+  // Shrink remaining capacity below MIN_BUDGET (256) without exceeding the limit.
+  const primaryAbs = path.join(target, primaryRel);
+  const primary = JSON.parse(fs.readFileSync(primaryAbs, 'utf8'));
+  primary.budget.limit_tokens = primary.budget.estimated_tokens + 50;
+  fs.writeFileSync(primaryAbs, JSON.stringify(primary, null, 2) + '\n');
+  const need = writeNeedContext(target, primaryRel, [{ kind: 'file', path: 'src/auth.ts', reason: 'need helper' }]);
+  // No --budget -> uses remaining capacity (50) which is below MIN_BUDGET -> exit 1.
+  assert.throws(() => runTs(cli, ['--expand-context', '--artifact', primaryRel, '--need-context', path.relative(target, need)], { cwd: target }));
+  const evDir = path.join(target, '.ai/state/context-escapes', taskId, 'events');
+  const events = fs.readdirSync(evDir).map((f) => JSON.parse(fs.readFileSync(path.join(evDir, f), 'utf8')));
+  assert.ok(events.some((e) => e.reason_code === 'budget_exceeded'), 'a budget_exceeded escape is persisted');
+});
+
+test('--expand-context rejects an --artifact resolving outside the repository root', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-esc-outside-'));
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-esc-elsewhere-'));
+  buildFixture(target);
+  const taskId = 'TASK-20260727-outside';
+  const primaryRel = `.ai/state/context/${taskId}.json`;
+  runTs(cli, ['--compile-context', '--task', taskId, '--objective', 'login function', '--budget', '6000', '--output', primaryRel], { cwd: target });
+  // A valid-for-target artifact placed physically outside the repo root.
+  const outsideArtifact = path.join(outside, 'primary.json');
+  fs.copyFileSync(path.join(target, primaryRel), outsideArtifact);
+  const need = writeNeedContext(target, primaryRel, [{ kind: 'file', path: 'src/auth.ts', reason: 'need helper' }]);
+  let err: { stderr?: unknown } | null = null;
+  try { runTs(cli, ['--expand-context', '--artifact', outsideArtifact, '--need-context', path.relative(target, need)], { cwd: target }); } catch (e) { err = e as { stderr?: unknown }; }
+  assert.ok(err, 'out-of-root --artifact should exit non-zero');
+  assert.match(String(err!.stderr ?? ''), /inside the repository root/);
+  assert.equal(fs.existsSync(path.join(target, '.ai/state/context-escapes', taskId)), false, 'no store written');
+});
+
+test('--expand-context persists budget_exceeded on a ContextBudgetError from compilation', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-esc-budgeterr-'));
+  buildFixture(target);
+  // A large source node that cannot fit a small explicit budget — added before compile
+  // so the primary's fingerprint stays fresh.
+  fs.writeFileSync(path.join(target, 'src', 'big.ts'), `export function big() { return "${'x'.repeat(4000)}"; }\n`);
+  runTs(cli, ['--refresh-codegraph'], { cwd: target });
+  const taskId = 'TASK-20260727-budgeterr';
+  const primaryRel = `.ai/state/context/${taskId}.json`;
+  runTs(cli, ['--compile-context', '--task', taskId, '--objective', 'login function', '--budget', '6000', '--output', primaryRel], { cwd: target });
+  const need = writeNeedContext(target, primaryRel, [{ kind: 'file', path: 'src/big.ts', reason: 'need big body' }]);
+  // Explicit budget is syntactically valid (>= MIN_BUDGET) but too small for big.ts.
+  let err: unknown = null;
+  try { runTs(cli, ['--expand-context', '--artifact', primaryRel, '--need-context', path.relative(target, need), '--budget', '256'], { cwd: target }); } catch (e) { err = e; }
+  assert.ok(err, 'ContextBudgetError should exit non-zero');
+  const evDir = path.join(target, '.ai/state/context-escapes', taskId, 'events');
+  const events = fs.readdirSync(evDir).map((f) => JSON.parse(fs.readFileSync(path.join(evDir, f), 'utf8')));
+  assert.ok(events.some((e) => e.reason_code === 'budget_exceeded'), 'a budget_exceeded escape is persisted');
+});
+
+test('--expand-context rejects an array request item and writes no escape store', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-esc-arr-'));
+  buildFixture(target);
+  const taskId = 'TASK-20260727-arr';
+  const primaryRel = `.ai/state/context/${taskId}.json`;
+  runTs(cli, ['--compile-context', '--task', taskId, '--objective', 'login function', '--budget', '6000', '--output', primaryRel], { cwd: target });
+  // A malformed need_context whose request item is an array.
+  const ncPath = path.join(target, '.ai/state/context/nc-array.json');
+  fs.writeFileSync(ncPath, JSON.stringify({ kind: 'forgeai_need_context', schema_version: 1, artifact: primaryRel, requests: [[]] }, null, 2));
+  let err: { stderr?: unknown } | null = null;
+  try { runTs(cli, ['--expand-context', '--artifact', primaryRel, '--need-context', path.relative(target, ncPath)], { cwd: target }); } catch (e) { err = e as { stderr?: unknown }; }
+  assert.ok(err, 'array request item should exit non-zero');
+  assert.match(String(err!.stderr ?? ''), /requests items must be objects/);
+  assert.equal(fs.existsSync(path.join(target, '.ai/state/context-escapes', taskId)), false, 'no store written');
 });

@@ -221,21 +221,26 @@ Deliverables:
 Build evaluation on structured adapter and context records, not manually entered
 dashboard data.
 
-**Phase 13A shipped in 3.9.0.** Structured evaluation records
-(`--evaluate --task <id>`) linking a task's scorecard verdict, validation
-evidence, run records, and context artifact by a `task_id` key; a consistency
-gate that never guesses an outcome; context and call metrics; the
-`--report [--json]` aggregate grouped by model tier; and soft-deprecation of the
-manual `--check-evaluation` path.
+**Phase 13 (A/B/C) shipped in 3.9.0.**
 
-**Phase 13B shipped in 3.10.0.** Baseline/compact context experiment modes
-(`--compile-context --mode --experiment`), an evaluation `mode`/`experiment_id`
-link plus a `comparability` block, a `--report` Experiments section that pairs
-baseline vs compact by `experiment_id` under a comparability gate, an
-experiment-run provenance gate in `--evaluate`, a sample-sufficiency gate
-(`--min-samples`), and an advisory context-mode recommendation. Still deferred:
-model-tier routing recommendations, real `context_escapes` measurement,
-`parent_artifact` linkage, and a `--outcome` manual override.
+- *13A — structured evaluation.* Evaluation records (`--evaluate --task <id>`)
+  linking a task's scorecard verdict, validation evidence, run records, and
+  context artifact by a `task_id` key; a consistency gate that never guesses an
+  outcome; context and call metrics; the `--report [--json]` aggregate grouped by
+  model tier; and soft-deprecation of the manual `--check-evaluation` path.
+- *13B — context experiments.* Baseline/compact context experiment modes
+  (`--compile-context --mode --experiment`), an evaluation `mode`/`experiment_id`
+  link plus a `comparability` block, a `--report` Experiments section that pairs
+  baseline vs compact by `experiment_id` under a comparability gate, an
+  experiment-run provenance gate in `--evaluate`, a sample-sufficiency gate
+  (`--min-samples`), and an advisory context-mode recommendation.
+- *13C — context escapes and lineage.* Real `context_escapes` measurement from a
+  per-task, digest-attributed escape store (observation markers + per-request
+  event files) written by `--expand-context`, and `parent_artifact` linkage on
+  expansion artifacts; `--expand-context` rejects expansion-of-expansion.
+
+Still deferred: model-tier routing recommendations and a `--outcome` manual
+override.
 
 Deliverables:
 

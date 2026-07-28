@@ -218,6 +218,9 @@ export function isPreservedOnUpgrade(dest: string): boolean {
   if (/^\.ai\/state\/evaluations\/.+\.json$/.test(relative)) {
     return true;
   }
+  if (/^\.ai\/state\/context-escapes\/.+\.json$/.test(relative)) {
+    return true;
+  }
   return false;
 }
 
@@ -272,7 +275,7 @@ export function copyRecursive(src: string, dest: string): void {
   console.log(`created ${relativePath}`);
 }
 
-const CONTEXT_GITIGNORE_ENTRIES = ['.ai/state/context/', '.ai/state/context-routes.md', '.ai/state/runs/', '.ai/state/evaluations/'];
+const CONTEXT_GITIGNORE_ENTRIES = ['.ai/state/context/', '.ai/state/context-routes.md', '.ai/state/runs/', '.ai/state/evaluations/', '.ai/state/context-escapes/'];
 
 export function maintainContextGitignore(repositoryRoot: string, isDryRun: boolean): void {
   const gitignorePath = path.join(repositoryRoot, '.gitignore');

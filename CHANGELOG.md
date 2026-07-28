@@ -1,73 +1,63 @@
 # Changelog
 
-## 3.10.0 — 2026-07-27
+## 3.9.0 — 2026-07-28
 
-Context experiments and advisory mode recommendation (Phase 13B).
-
-### Added
-
-- `--compile-context --mode baseline|compact --experiment <EXP-id>`: `baseline`
-  sends the same selected files whole (uncompiled, `kind: 'file'` excerpts);
-  `compact` is the existing bounded compilation. Baseline is budget-honest — it
-  errors and asks for a larger `--budget` rather than truncating.
-- `mode` and `experiment_id` on compiled-context artifacts and evaluation
-  records; evaluation records also gain a `comparability` block used to pair
-  experiments; run records gain `mode`. All additive; `schema_version` stays 1.
-  Pre-3.10.0 data normalizes to `mode: compact`, `experiment_id: null`,
-  `comparability: null`.
-- `--report` gains an Experiments section that pairs baseline/compact evaluation
-  records by `experiment_id` and reports per-pair and aggregate token/latency
-  savings and pass-rate deltas.
-- Comparability gate: a pair is only counted when the two records share tier
-  (via provider/model routing signature), objective, repository fingerprint,
-  selection, and acceptance criteria, and neither recorded an expansion round —
-  so differences are attributable to context mode, not model/task/routing noise.
-  Non-comparable pairs are skipped.
-- Experiment provenance gate: `--evaluate` refuses to write an experiment record
-  whose runs are missing or did not route that mode's primary artifact.
-- Sample-sufficiency gate: the advisory is withheld below MIN_EXPERIMENT_PAIRS
-  (5) complete pairs; override with `--report --min-samples <n>`.
-- Advisory context-mode recommendation: `[advisory] prefer compact` only when the
-  pass-rate drop is within tolerance (5 pts) and token or latency savings are
-  material (15%); otherwise `keep baseline` or `no material difference`.
-- `--report --json` extended with `experiments` and `recommendation` objects.
-
-## 3.9.0 — 2026-07-25
+Phase 13 — structured evaluation, context experiments, and context-escape
+measurement. All schema changes are additive (`schema_version` stays `1`); data
+written by earlier 3.x versions reads back with safe defaults.
 
 ### Added
 
-- **Structured evaluation records** (Phase 13A): `--evaluate --task <id>` joins a
+- **Structured evaluation records** (13A): `--evaluate --task <id>` joins a
   task's review scorecard, journal, run records, and compiled-context artifact by
-  a real `task_id` key, enforces a consistency gate, derives the outcome from the
-  review `Verdict` (`approve→pass`, `request changes→fail`, `needs human
-  decision→partial`), and writes one JSON record to
-  `.ai/state/evaluations/<task_id>.json`. The gate is stricter than
-  `--check-review`: it fails (and writes nothing) on verdict/evidence
-  contradictions (approve with a `fail` validation row, a `fail` scorecard
-  dimension, or unresolved blockers), scorecard/journal id mismatch, remaining
-  `TODO`s, missing dimensions/evidence, or more than one primary artifact.
-- **`--report [--json]`**: aggregates evaluation records by model tier (pass
-  rate, total/mean token cost, mean latency, retries). `--json` emits the
-  aggregate for CI.
-- **`task_id` linkage**: `--compile-context --task <id>` stamps `task_id` and
-  `artifact_role` (`primary`/`expansion`) into the compiled-context artifact;
-  `--route` carries `task_id` into the run record. Both additions are additive
-  (`schema_version` stays `1`); pre-3.9.0 artifacts/records read as `task_id:
-  null` / `artifact_role: 'primary'`.
-- Evaluation records are gitignored (local derived state) and preserved on
-  `--upgrade`.
+  a real `task_id` key, enforces a strict consistency gate, derives the outcome
+  from the review `Verdict` (`approve→pass`, `request changes→fail`, `needs human
+  decision→partial`), and writes `.ai/state/evaluations/<task_id>.json`.
+- **`--report [--json]`** (13A): aggregates evaluation records by model tier
+  (pass rate, token cost, latency, retries); `--json` emits the aggregate for CI.
+- **`task_id` linkage** (13A): `--compile-context --task <id>` stamps `task_id`
+  and `artifact_role` into the artifact; `--route` carries `task_id` into the run
+  record.
+- **Context experiments** (13B): `--compile-context --mode baseline|compact
+  --experiment <EXP-id>`. `baseline` sends selected files whole (budget-honest);
+  `compact` is the bounded compilation. Artifacts/evaluation records gain `mode`
+  and `experiment_id`; evaluation records gain a `comparability` block; run
+  records gain `mode`.
+- **Experiment report** (13B): `--report` pairs baseline/compact records by
+  `experiment_id` under a comparability gate, reports per-pair and aggregate
+  token/latency savings and pass-rate deltas, honors a sample-sufficiency gate
+  (`--min-samples`, default 5), and prints an advisory context-mode
+  recommendation. `--report --json` gains `experiments` and `recommendation`.
+- **Context escapes** (13C): `--expand-context` records every declined
+  `need_context` request to a per-task, digest-attributed store at
+  `.ai/state/context-escapes/<task_id>/` (`observed/<primary_digest>.json`
+  markers + `events/<escape_id>.json` records), covering schema/graph rejections,
+  whole-set `budget_exceeded`/`no_new_context`, and the low-capacity early
+  return. Records are deduped by `escape_id` filename with atomic writes.
+- **`context_escapes` metric** (13C): `--evaluate` reports the count of distinct
+  declined context needs for the evaluated primary by content digest — `null`
+  when the primary was never observed, `0` when observed with no escapes, `N`
+  otherwise; a malformed store fails evaluation and writes no record.
+- **`parent_artifact`** (13C): expansion artifacts record their primary's path
+  (`null` for primary artifacts).
+- Evaluation records and the context-escape store are gitignored (local derived
+  state) and preserved on `--upgrade`.
 
 ### Changed
 
-- **`--check-evaluation` is deprecated** (soft): it still validates the manual
+- **`--check-evaluation` deprecated (soft)**: it still validates the manual
   `.ai/evaluation/*.md` files but prints a notice pointing to `--evaluate` /
-  `--report`. Removal deferred to a later phase.
+  `--report`. No files are removed.
+- **`--expand-context` rejects an expansion artifact as `--artifact`**
+  (expansion-of-expansion is not supported) and an artifact outside the
+  repository root.
 
 ### Migration
 
-Run `forgeai-init --upgrade`. Additive change — see `docs/migrations/3.9.0.md`.
-Historical (pre-3.9.0) artifacts and run records lack `task_id` and are not
-retro-evaluated.
+Run `forgeai-init --upgrade`. Additive — see `docs/migrations/3.9.0.md`.
+Artifacts and run records written before 3.9.0 lack `task_id` / `mode` /
+`experiment_id` / `parent_artifact` and read as `null` / `compact`; they are not
+retro-evaluated or retro-paired.
 
 ## 3.8.0 — 2026-07-23
 

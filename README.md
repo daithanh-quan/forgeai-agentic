@@ -288,10 +288,29 @@ provenance (verdict source, scorecard and journal paths, run ids) plus context
 and call metrics.
 
 Records are gitignored (local derived state) and preserved on `--upgrade`.
-`context_escapes` is reported as `null` in this release (not yet measured).
 
 > The older manual system — `--check-evaluation` over `.ai/evaluation/*.md` — is
 > deprecated but still works; it now prints a notice pointing here.
+
+### Context escapes
+
+When a delegated model asks for context outside its compiled boundary via
+`--expand-context`, each declined `need_context` request is recorded under
+`.ai/state/context-escapes/<task_id>/events/`, and every run records an
+observation marker under `observed/`, keyed by the primary artifact's content
+digest. Expansion-of-expansion is not supported — `--expand-context` requires a
+primary artifact resolving inside the repository.
+
+`--evaluate` then reports `metrics.context.context_escapes` for the evaluated
+primary:
+
+- `null` — the primary was never observed by an `--expand-context` run.
+- `0` — observed, with no declined requests for that exact primary.
+- `N` — `N` **distinct** declined context needs (a request retried across runs is
+  counted once).
+
+A malformed escape record fails `--evaluate` rather than reporting a misleading
+`0`. The store is gitignored and preserved across `--upgrade`.
 
 ### Experiments (baseline vs compact)
 
