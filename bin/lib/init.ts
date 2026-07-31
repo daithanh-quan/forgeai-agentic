@@ -44,8 +44,9 @@ Options:
   --dry-run     Print files that would be created without writing them.
   --force       Overwrite existing harness files during initialization.
   --upgrade     Overwrite installed ForgeAI harness files with this package version.
-  --profile     Apply an optional stack profile: auto, nextjs, node-api, tauri, monorepo,
-                python-api, mobile, go, rust, fastapi, django, or react-native.
+  --profile     Apply an optional stack profile: auto, nextjs, sveltekit, node-api,
+                tauri, monorepo, python-api, mobile, go, rust, fastapi, django,
+                or react-native.
                 Combine profiles with +: --profile nextjs+monorepo.
   --check       Validate installed ForgeAI harness files and model adapters.
   --check-updates
@@ -90,14 +91,26 @@ Options:
   --check-evaluation
                 [deprecated] Validate the manual .ai/evaluation/*.md run files.
                 Superseded by --evaluate / --report.
-  --evaluate --task <id>
+  --evaluate --task <id> [--outcome pass|fail --reason "<text>" [--by "<name>"]]
+             [--clear-outcome] [--force]
                 Build a structured evaluation record for a task from its review
-                scorecard, journal, run records, and context artifact.
+                scorecard, journal, run records, and context artifact. For a
+                "Needs human decision" verdict, --outcome pass|fail (with a
+                required --reason, and optional --by naming the decider) records a
+                human override with provenance. Re-evaluating without override
+                flags PRESERVES an existing override while its verdict is still
+                "Needs human decision" (refreshing metrics only); if the verdict
+                has changed, or the prior record is corrupt, it exits 1 — use
+                --clear-outcome to re-derive, --outcome to re-decide, or --force to
+                overwrite a corrupt record. Do not run --evaluate on one task
+                concurrently (last-writer-wins; no locking).
   --report [--json] [--min-samples <n>]
                 Aggregate evaluation records by model tier (pass rate, token
                 cost, latency, retries) plus a baseline/compact experiments
-                section with an advisory. --json emits the aggregate for CI;
-                --min-samples overrides the advisory pair threshold.
+                section with an advisory, and a Routing advisory (lowest-token
+                tier within tolerance). --json emits the aggregate for CI;
+                --min-samples overrides both sample gates: the experiment
+                advisory pair threshold and the routing tier sample gate.
   --decompose   Emit a scored task decomposition template for an objective.
                 Requires --objective "<description>". Add --compact for a
                 smaller delegation-ready assignment plan. Use --output <file>

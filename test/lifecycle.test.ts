@@ -237,6 +237,7 @@ test('list-profiles reports supported profiles', () => {
 
   assert.match(output, /^base$/m);
   assert.match(output, /^nextjs$/m);
+  assert.match(output, /^sveltekit$/m);
   assert.match(output, /^node-api$/m);
   assert.match(output, /^tauri$/m);
   assert.match(output, /^monorepo$/m);

@@ -239,8 +239,13 @@ dashboard data.
   event files) written by `--expand-context`, and `parent_artifact` linkage on
   expansion artifacts; `--expand-context` rejects expansion-of-expansion.
 
-Still deferred: model-tier routing recommendations and a `--outcome` manual
-override.
+- *13D — routing feedback and outcome override (3.10.0).* A `--report` model-tier
+  routing advisory (lowest-token tier holding pass rate within tolerance,
+  sample-gated at 20, mixed/missing-signature tiers excluded, surfaced as a
+  heuristic; corrupt records surfaced as `invalid_records` and routing withheld),
+  and a `--evaluate --outcome pass|fail --reason [--by]` human override (preserved on
+  re-evaluate, cleared with `--clear-outcome`) for `Needs human decision` tasks, with
+  provenance (`decided_by`/`decided_at`). Phase 13 is complete.
 
 Deliverables:
 

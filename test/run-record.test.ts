@@ -46,6 +46,15 @@ test('listRunRecords: 3.7.0 record without retry_count normalizes to 0', () => {
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
+test('listRunRecords: a run with an empty or whitespace-only model is filtered out', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'fa-run-model-'));
+  writeRunRecord(makeRecord({ run_id: 'r-ok', model: 'claude-sonnet-4-6' }), root);
+  writeRunRecord(makeRecord({ run_id: 'r-empty', model: '' }), root);
+  writeRunRecord(makeRecord({ run_id: 'r-ws', model: '   ' }), root);
+  assert.deepEqual(listRunRecords(root).map((r) => r.model), ['claude-sonnet-4-6']);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
 test('listRunRecords: rejects negative or decimal retry_count', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fa-run-'));
   const dir = path.join(tmp, '.ai/state/runs');

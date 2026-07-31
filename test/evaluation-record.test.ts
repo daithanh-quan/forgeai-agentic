@@ -27,6 +27,7 @@ function makeEval(overrides: Partial<EvaluationRecord> = {}): EvaluationRecord {
     comparability: null,
     outcome: 'pass',
     outcome_source: { type: 'review_scorecard', scorecard: '.ai/state/reviews/TASK-20260724-x.md', verdict: 'approve' },
+    routing_signatures: [],
     validation: { status: 'pass', evidence_count: 2, results: { pass: 2, fail: 0, skipped: 0 } },
     run_ids: ['run-1'],
     context_artifact: '.ai/state/context/TASK-20260724-x.json',
@@ -39,6 +40,75 @@ function makeEval(overrides: Partial<EvaluationRecord> = {}): EvaluationRecord {
     ...overrides,
   };
 }
+
+// ─── outcome_source + routing_signatures validation ──────────────────────────
+
+test('a manual_override outcome_source round-trips; a tampered one is rejected', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-ovr-'));
+  const override = {
+    type: 'manual_override', scorecard: 's', verdict: 'needs human decision',
+    decided_outcome: 'pass', reason: 'ok after review', decided_by: 'Alice',
+    decided_at: '2026-07-28T00:00:00.000Z',
+  } as const;
+  const base = makeEval({ outcome: 'pass', outcome_source: override });
+  writeEvaluationRecord(base, dir);
+  assert.ok(readEvaluationRecord('TASK-20260724-x', dir), 'valid manual_override round-trips');
+
+  const tamper = (patch: Record<string, unknown>) =>
+    ({ ...base, outcome_source: { ...override, ...patch } } as unknown as EvaluationRecord);
+
+  writeEvaluationRecord({ ...base, outcome: 'fail' } as EvaluationRecord, dir); // outcome != decided_outcome
+  assert.equal(readEvaluationRecord('TASK-20260724-x', dir), null);
+  writeEvaluationRecord(tamper({ verdict: 'approve' }), dir);
+  assert.equal(readEvaluationRecord('TASK-20260724-x', dir), null);
+  writeEvaluationRecord(tamper({ reason: '' }), dir);
+  assert.equal(readEvaluationRecord('TASK-20260724-x', dir), null);
+  writeEvaluationRecord(tamper({ reason: '   ' }), dir);
+  assert.equal(readEvaluationRecord('TASK-20260724-x', dir), null);
+  // control-only reason/decider (e.g. \x01): rejected by the same printable-content
+  // check the CLI uses — a bare .trim() would have let it through.
+  writeEvaluationRecord(tamper({ reason: String.fromCharCode(1, 2) }), dir);
+  assert.equal(readEvaluationRecord('TASK-20260724-x', dir), null);
+  writeEvaluationRecord(tamper({ decided_by: String.fromCharCode(1) }), dir);
+  assert.equal(readEvaluationRecord('TASK-20260724-x', dir), null);
+  writeEvaluationRecord(tamper({ decided_by: '' }), dir);
+  assert.equal(readEvaluationRecord('TASK-20260724-x', dir), null);
+  writeEvaluationRecord(tamper({ decided_at: 'not-a-date' }), dir);
+  assert.equal(readEvaluationRecord('TASK-20260724-x', dir), null);
+  // parseable but NON-canonical ISO (missing ms) — must be rejected.
+  writeEvaluationRecord(tamper({ decided_at: '2026-07-28T00:00:00Z' }), dir);
+  assert.equal(readEvaluationRecord('TASK-20260724-x', dir), null);
+
+  // an unparseable generated_at must read back invalid, NOT throw (validator is total).
+  writeEvaluationRecord({ ...base, generated_at: 'invalid' } as unknown as EvaluationRecord, dir);
+  assert.equal(readEvaluationRecord('TASK-20260724-x', dir), null);
+
+  // a legacy review_scorecard record still validates.
+  writeEvaluationRecord(makeEval(), dir);
+  assert.ok(readEvaluationRecord('TASK-20260724-x', dir), 'review_scorecard still validates');
+});
+
+test('routing_signatures must be structured with non-empty provider/model', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-sig-'));
+  const withSigs = (sigs: unknown) =>
+    ({ ...makeEval(), routing_signatures: sigs } as unknown as EvaluationRecord);
+  writeEvaluationRecord(withSigs([{ provider: 'anthropic', model: 'claude-opus-4-8' }]), dir);
+  assert.ok(readEvaluationRecord('TASK-20260724-x', dir), 'one canonical signature is valid');
+  // a model id containing "/" and "," is fine — stored structured, never parsed.
+  writeEvaluationRecord(withSigs([{ provider: 'openrouter', model: 'meta-llama/llama-3.1,exp' }]), dir);
+  assert.ok(readEvaluationRecord('TASK-20260724-x', dir), 'structured storage handles / and , in model');
+  writeEvaluationRecord(withSigs([{ provider: 'anthropic', model: '' }]), dir);
+  assert.equal(readEvaluationRecord('TASK-20260724-x', dir), null, 'empty model rejected');
+  writeEvaluationRecord(withSigs([{ provider: '   ', model: 'x' }]), dir);
+  assert.equal(readEvaluationRecord('TASK-20260724-x', dir), null, 'whitespace provider rejected');
+  writeEvaluationRecord(withSigs('not-an-array'), dir);
+  assert.equal(readEvaluationRecord('TASK-20260724-x', dir), null, 'non-array rejected');
+  // a legacy record without the field reads back valid, normalised to [].
+  const legacy = makeEval() as unknown as Record<string, unknown>;
+  delete legacy['routing_signatures'];
+  writeEvaluationRecord(legacy as unknown as EvaluationRecord, dir);
+  assert.deepEqual(readEvaluationRecord('TASK-20260724-x', dir)?.routing_signatures, []);
+});
 
 // ─── storage ──────────────────────────────────────────────────────────────────
 
@@ -262,6 +332,8 @@ function baseInput(overrides = {}) {
     expansionCount: 0,
     escapeCount: null,
     tiers: {},
+    override: null as { outcome: 'pass' | 'fail'; reason: string; decidedBy: string } | null,
+    preservedSource: null as Extract<import('../bin/lib/types.js').EvaluationOutcomeSource, { type: 'manual_override' }> | null,
     now: '2026-07-24T00:00:00.000Z',
     ...overrides,
   };
