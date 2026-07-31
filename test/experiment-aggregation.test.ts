@@ -18,6 +18,7 @@ function rec(opts: {
     generated_at: '2026-07-27T00:00:00.000Z', outcome: opts.outcome, mode: opts.mode, experiment_id: opts.exp,
     comparability: opts.comparability === undefined ? CMP : opts.comparability,
     outcome_source: { type: 'review_scorecard', scorecard: 's', verdict: opts.outcome === 'pass' ? 'approve' : opts.outcome === 'fail' ? 'request changes' : 'needs human decision' },
+    routing_signatures: [{ provider: 'anthropic', model: 'claude-opus-4-8' }],
     validation: { status: 'pass', evidence_count: 1, results: { pass: 1, fail: 0, skipped: 0 } },
     run_ids: [], context_artifact: '.ai/state/context/x.json', task_journal: 't', tier: opts.tier ?? 'standard',
     metrics: {

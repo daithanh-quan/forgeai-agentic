@@ -49,6 +49,66 @@ test('check-profile warns about a secondary stack inside a monorepo', () => {
   }
 });
 
+// --- SvelteKit profile ---
+
+test('auto profile detects SvelteKit from @sveltejs/kit dependency', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-sveltekit-dep-'));
+  try {
+    fs.writeFileSync(
+      path.join(target, 'package.json'),
+      JSON.stringify({ devDependencies: { '@sveltejs/kit': '^2.0.0', svelte: '^5.0.0' } }, null, 2)
+    );
+    runTs(cli, ['--profile', 'auto'], { cwd: target });
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')
+    ) as HarnessManifest;
+    assert.equal(manifest.profile, 'sveltekit');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('auto profile detects SvelteKit from svelte.config.js and src/routes', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-sveltekit-config-'));
+  try {
+    fs.writeFileSync(path.join(target, 'svelte.config.js'), 'export default {};\n');
+    fs.mkdirSync(path.join(target, 'src/routes'), { recursive: true });
+    runTs(cli, ['--profile', 'auto'], { cwd: target });
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')
+    ) as HarnessManifest;
+    assert.equal(manifest.profile, 'sveltekit');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('auto profile does not treat a Svelte-only config as SvelteKit', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-svelte-only-'));
+  try {
+    fs.writeFileSync(path.join(target, 'svelte.config.js'), 'export default {};\n');
+    runTs(cli, ['--profile', 'auto'], { cwd: target });
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(target, '.ai', 'manifest.json'), 'utf8')
+    ) as HarnessManifest;
+    assert.equal(manifest.profile, 'base');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('sveltekit profile initializes expected guide, skill, and workflow files', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-sveltekit-profile-'));
+  try {
+    runTs(cli, ['--profile', 'sveltekit'], { cwd: target });
+    assert.ok(fs.existsSync(path.join(target, '.ai', 'profiles', 'sveltekit.md')));
+    assert.ok(fs.existsSync(path.join(target, '.ai', 'skills', 'sveltekit-implementation', 'SKILL.md')));
+    assert.ok(fs.existsSync(path.join(target, '.ai', 'workflows', 'sveltekit-change.md')));
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 // --- Task 1: Go and Rust profiles ---
 
 test('auto profile detects Go from go.mod', () => {
@@ -749,8 +809,9 @@ test('auto profile detects Django after a dep with extras in PEP 621 array', () 
 
 // --- Task 6: Help text ---
 
-test('--help lists new 3.5.0 profiles and composite syntax', () => {
+test('--help lists supported profiles and composite syntax', () => {
   const output = runTs(cli, ['--help'], { cwd: os.tmpdir() });
+  assert.match(output, /sveltekit/);
   assert.match(output, /\bgo\b/);
   assert.match(output, /\brust\b/);
   assert.match(output, /\bfastapi\b/);

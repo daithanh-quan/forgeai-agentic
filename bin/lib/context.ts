@@ -40,10 +40,28 @@ export function validateArgFlag(name: string, argv: string[]): string | null {
 // Eagerly validate value-requiring flags at module load: rejects bare flags, empty/whitespace values,
 // values starting with "--", and duplicate occurrences. Value check runs before the duplicate count
 // so a bare trailing flag reports the most actionable error ("requires a value", not "specified more than once").
-for (const name of ['--profile', '--emit', '--adapter', '--model', '--task', '--mode', '--experiment', '--min-samples'] as const) {
+for (const name of ['--profile', '--emit', '--adapter', '--model', '--task', '--mode', '--experiment', '--min-samples', '--outcome', '--reason', '--by'] as const) {
   const err = validateArgFlag(name, rawArgs);
   if (err) { process.stderr.write(`${err}\n`); process.exit(1); }
 }
+
+// Boolean flags carry no value and must appear at most once, never as --flag=...
+for (const name of ['--clear-outcome'] as const) {
+  const bare = rawArgs.filter((a) => a === name).length;
+  const withValue = rawArgs.some((a) => a.startsWith(`${name}=`));
+  if (withValue || bare > 1) {
+    process.stderr.write(`Error: ${name} is a boolean flag; pass it at most once with no value.\n`);
+    process.exit(1);
+  }
+}
+
+// The human-override flags only mean anything to --evaluate. The dispatcher enforces
+// that --evaluate is the *selected* command before honoring them (a higher-precedence
+// command would otherwise run and silently drop the decision) — see forgeai-init.ts.
+// `overrideFlag` is the first such flag present (or null), for that check's message.
+export const overrideFlag: string | null = ['--outcome', '--reason', '--by', '--clear-outcome'].find(
+  (f) => rawArgs.some((a) => a === f || a.startsWith(`${f}=`)),
+) ?? null;
 
 export const help = args.has('--help') || args.has('-h');
 export const version = args.has('--version') || args.has('-v');

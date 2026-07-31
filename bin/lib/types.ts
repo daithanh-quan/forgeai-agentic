@@ -330,6 +330,25 @@ export type EvaluationComparability = {
   routing_signature: string;
 };
 
+// The origin of an evaluation record's outcome. `review_scorecard` derives it from
+// the review verdict (today's behaviour); `manual_override` records a human decision
+// on a `needs human decision` verdict, with provenance.
+export type EvaluationOutcomeSource =
+  | { type: 'review_scorecard'; scorecard: string; verdict: string }
+  | {
+      type: 'manual_override';
+      scorecard: string;
+      verdict: string;
+      decided_outcome: 'pass' | 'fail';
+      reason: string;
+      decided_by: string;
+      decided_at: string;
+    };
+
+// A single provider/model pair, derived from a record's runs. Stored structured (not
+// as a `provider/model` string) so a model id containing "/" or "," can't break it.
+export type RoutingSignature = { provider: string; model: string };
+
 export type EvaluationRecord = {
   kind: 'forgeai_evaluation_record';
   schema_version: 1;
@@ -340,7 +359,8 @@ export type EvaluationRecord = {
   experiment_id: string | null;
   comparability: EvaluationComparability | null;
   outcome: EvaluationOutcome;
-  outcome_source: { type: 'review_scorecard'; scorecard: string; verdict: string };
+  outcome_source: EvaluationOutcomeSource;
+  routing_signatures: RoutingSignature[];
   validation: {
     status: 'pass' | 'fail' | 'partial';
     evidence_count: number;
@@ -370,4 +390,18 @@ export type EvaluationRecord = {
       retries: number;
     };
   };
+};
+
+// The shape the validator accepts off disk: a legacy (3.9.0) record may omit the
+// fields the reader normalises (`mode`/`experiment_id`/`comparability`/
+// `routing_signatures`), so they are optional here. `isValidEvaluationRecord` narrows
+// to this; the read path fills the defaults to produce a full `EvaluationRecord`.
+export type EvaluationRecordWire = Omit<
+  EvaluationRecord,
+  'mode' | 'experiment_id' | 'comparability' | 'routing_signatures'
+> & {
+  mode?: EvaluationRecord['mode'];
+  experiment_id?: EvaluationRecord['experiment_id'];
+  comparability?: EvaluationRecord['comparability'];
+  routing_signatures?: RoutingSignature[];
 };

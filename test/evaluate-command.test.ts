@@ -26,6 +26,19 @@ function setupRepo(): string {
   return dir;
 }
 
+// A repo whose review verdict is "Needs human decision" (derived outcome partial).
+function setupHumanDecisionRepo(): string {
+  const dir = setupRepo();
+  fs.writeFileSync(path.join(dir, '.ai/state/reviews/TASK-20260724-x.md'),
+    ['- Task ID: `TASK-20260724-x`', '', '## Scorecard', '| Dimension | Rating | Notes |', '| --- | --- | --- |', '| Correctness | concern | needs a human |', '', 'Unresolved blockers: none', '', 'Verdict: Needs human decision'].join('\n'));
+  return dir;
+}
+
+const EVAL_PATH = '.ai/state/evaluations/TASK-20260724-x.json';
+function readEval(dir: string): Record<string, unknown> {
+  return JSON.parse(fs.readFileSync(path.join(dir, EVAL_PATH), 'utf8'));
+}
+
 // Compiles a real, structurally-valid artifact stamped with the given task id,
 // then returns its JSON string.
 function compileArtifact(dir: string, taskId: string): string {
@@ -292,4 +305,240 @@ test('--evaluate reports context_escapes null when there is no escape store', ()
   assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x']).status, 0);
   const record = JSON.parse(fs.readFileSync(path.join(dir, '.ai/state/evaluations/TASK-20260724-x.json'), 'utf8'));
   assert.equal(record.metrics.context.context_escapes, null);
+});
+
+// ─── manual override (--outcome / --reason / --by / --clear-outcome) ──────────
+
+test('--outcome overrides a needs-human-decision task with recorded provenance', () => {
+  const dir = setupHumanDecisionRepo();
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--reason', 'approved after manual review']).status, 0);
+  const rec = readEval(dir);
+  const src = rec.outcome_source as Record<string, unknown>;
+  assert.equal(rec.outcome, 'pass');
+  assert.equal(src.type, 'manual_override');
+  assert.equal(src.decided_outcome, 'pass');
+  assert.equal(src.verdict, 'needs human decision');
+  assert.equal(src.reason, 'approved after manual review');
+  assert.ok(typeof src.decided_by === 'string' && (src.decided_by as string).length > 0);
+  assert.ok(!Number.isNaN(Date.parse(src.decided_at as string)));
+});
+
+test('--by records the decider verbatim; --outcome fail is honored; equals form works', () => {
+  const dir = setupHumanDecisionRepo();
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'fail', '--reason', 'rejected', '--by', 'Alice Reviewer']).status, 0);
+  let rec = readEval(dir);
+  assert.equal(rec.outcome, 'fail');
+  assert.equal((rec.outcome_source as Record<string, unknown>).decided_by, 'Alice Reviewer');
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome=pass', '--reason=ok now']).status, 0);
+  rec = readEval(dir);
+  assert.equal(rec.outcome, 'pass');
+  assert.equal((rec.outcome_source as Record<string, unknown>).reason, 'ok now');
+});
+
+test('--by without --outcome/--reason is a usage error, not silently ignored', () => {
+  const dir = setupHumanDecisionRepo();
+  const res = run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--by', 'Alice']);
+  assert.equal(res.status, 1);
+  assert.match(res.stderr, /--by is only valid with --outcome and --reason/);
+  assert.equal(fs.existsSync(path.join(dir, EVAL_PATH)), false);
+});
+
+test('--outcome without --reason, and an invalid --outcome value, are usage errors', () => {
+  const dir = setupHumanDecisionRepo();
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass']).status, 1);
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--reason', 'x']).status, 1);
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'maybe', '--reason', 'x']).status, 1);
+});
+
+for (const verdict of ['Approve', 'Request changes'] as const) {
+  test(`--outcome on a ${verdict} verdict is rejected and writes nothing`, () => {
+    const dir = setupRepo();
+    fs.writeFileSync(path.join(dir, '.ai/state/reviews/TASK-20260724-x.md'),
+      ['- Task ID: `TASK-20260724-x`', '', '## Scorecard', '| Dimension | Rating | Notes |', '| --- | --- | --- |',
+       '| Correctness | pass | ok |', '', 'Unresolved blockers: none', '', `Verdict: ${verdict}`].join('\n'));
+    const res = run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'fail', '--reason', 'x']);
+    assert.notEqual(res.status, 0);
+    assert.match(res.stdout + res.stderr, /only allowed when the review Verdict is 'Needs human decision'/);
+    assert.equal(fs.existsSync(path.join(dir, EVAL_PATH)), false);
+  });
+}
+
+test('a new --outcome replaces a prior override; no decision_history is kept', () => {
+  const dir = setupHumanDecisionRepo();
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--reason', 'first', '--by', 'Alice']).status, 0);
+  assert.equal(readEval(dir).outcome, 'pass');
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'fail', '--reason', 'second', '--by', 'Bob']).status, 0);
+  const second = readEval(dir);
+  assert.equal(second.outcome, 'fail');
+  assert.equal((second.outcome_source as Record<string, unknown>).reason, 'second');
+  assert.equal((second.outcome_source as Record<string, unknown>).decided_by, 'Bob');
+  assert.equal(second.decision_history, undefined);
+});
+
+test('a plain re-evaluate PRESERVES a prior override verbatim', () => {
+  const dir = setupHumanDecisionRepo();
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--reason', 'approved', '--by', 'Alice']).status, 0);
+  const first = readEval(dir).outcome_source as Record<string, unknown>;
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x']).status, 0);
+  const again = readEval(dir).outcome_source as Record<string, unknown>;
+  assert.equal(readEval(dir).outcome, 'pass');
+  assert.equal(again.type, 'manual_override');
+  assert.equal(again.reason, 'approved');
+  assert.equal(again.decided_by, 'Alice');
+  assert.equal(again.decided_at, first.decided_at); // NOT restamped
+});
+
+test('verdict drift fails a plain re-evaluate closed; explicit flags recover', () => {
+  const dir = setupHumanDecisionRepo();
+  const p = path.join(dir, EVAL_PATH);
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--reason', 'approved']).status, 0);
+  const before = fs.readFileSync(p, 'utf8');
+  fs.writeFileSync(path.join(dir, '.ai/state/reviews/TASK-20260724-x.md'),
+    ['- Task ID: `TASK-20260724-x`', '', '## Scorecard', '| Dimension | Rating | Notes |', '| --- | --- | --- |', '| Correctness | fail | regressed |', '', 'Unresolved blockers: none', '', 'Verdict: Request changes'].join('\n'));
+  const drift = run(dir, ['--evaluate', '--task', 'TASK-20260724-x']);
+  assert.equal(drift.status, 1);
+  assert.match(drift.stdout + drift.stderr, /Verdict is now 'request changes'/);
+  assert.equal(fs.readFileSync(p, 'utf8'), before); // untouched
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--clear-outcome']).status, 0);
+  assert.equal(readEval(dir).outcome, 'fail'); // request changes -> fail
+});
+
+test('--clear-outcome drops the override and re-derives', () => {
+  const dir = setupHumanDecisionRepo();
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--reason', 'approved']).status, 0);
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--clear-outcome']).status, 0);
+  const cleared = readEval(dir);
+  assert.equal(cleared.outcome, 'partial');
+  assert.equal((cleared.outcome_source as Record<string, unknown>).type, 'review_scorecard');
+});
+
+test('--clear-outcome combined with an override, or as =value / duplicate, is a usage error', () => {
+  const dir = setupHumanDecisionRepo();
+  assert.match(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--clear-outcome', '--outcome', 'pass', '--reason', 'x']).stderr, /--clear-outcome cannot be combined with --outcome/);
+  assert.match(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--clear-outcome=true']).stderr, /--clear-outcome is a boolean flag/);
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--clear-outcome', '--clear-outcome']).status, 1);
+});
+
+test('a corrupt prior record fails closed unless --force (which backs it up first)', () => {
+  const dir = setupHumanDecisionRepo();
+  const p = path.join(dir, EVAL_PATH);
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, '{ this is not valid json');
+  for (const extra of [[], ['--outcome', 'pass', '--reason', 'x'], ['--clear-outcome']]) {
+    const res = run(dir, ['--evaluate', '--task', 'TASK-20260724-x', ...extra]);
+    assert.equal(res.status, 1);
+    assert.match(res.stderr, /Refusing to overwrite an invalid evaluation record/);
+    assert.equal(fs.readFileSync(p, 'utf8'), '{ this is not valid json');
+  }
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--reason', 'x', '--force']).status, 0);
+  assert.equal(readEval(dir).outcome, 'pass');
+  const backups = fs.readdirSync(path.dirname(p)).filter((f) => f.startsWith('TASK-20260724-x.json.corrupt-'));
+  assert.equal(backups.length, 1);
+  assert.equal(fs.readFileSync(path.join(path.dirname(p), backups[0]), 'utf8'), '{ this is not valid json');
+});
+
+test('a record whose task_id does not match its filename fails closed', () => {
+  const dir = setupHumanDecisionRepo();
+  const p = path.join(dir, EVAL_PATH);
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  const foreign = {
+    kind: 'forgeai_evaluation_record', schema_version: 1, evaluation_id: 'eval-TASK-20260724-y', task_id: 'TASK-20260724-y',
+    generated_at: '2026-07-28T00:00:00.000Z', mode: 'compact', experiment_id: null, comparability: null, outcome: 'pass',
+    outcome_source: { type: 'manual_override', scorecard: 's', verdict: 'needs human decision', decided_outcome: 'pass', reason: 'foreign', decided_by: 'Eve', decided_at: '2026-07-28T00:00:00.000Z' },
+    routing_signatures: [],
+    validation: { status: 'partial', evidence_count: 1, results: { pass: 0, fail: 0, skipped: 1 } },
+    run_ids: [], context_artifact: null, task_journal: 'j', tier: 'standard',
+    metrics: { context: { selected_files: 0, excerpts: 0, omitted_candidates: 0, budget_limit_tokens: 0, budget_estimated_tokens: 0, budget_utilization: 0, expansion_rounds: 0, context_escapes: null },
+      calls: { model_calls: 0, input_tokens: 0, output_tokens: 0, cached_tokens: 0, latency_ms: 0, retries: 0 } },
+  };
+  fs.writeFileSync(p, JSON.stringify(foreign));
+  const res = run(dir, ['--evaluate', '--task', 'TASK-20260724-x']);
+  assert.equal(res.status, 1);
+  assert.match(res.stderr, /task_id "TASK-20260724-y" does not match/);
+  assert.equal(fs.readFileSync(p, 'utf8'), JSON.stringify(foreign));
+});
+
+test('the success line collapses control chars/line separators in reason and by', () => {
+  const dir = setupHumanDecisionRepo();
+  const res = run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--reason', 'first\nmid end', '--by', 'a\tb']);
+  assert.equal(res.status, 0);
+  assert.match(res.stdout, /by a b: first mid end/);
+  const src = readEval(dir).outcome_source as Record<string, unknown>;
+  assert.equal(src.reason, 'first\nmid end'); // raw preserved in the record
+  assert.equal(src.decided_by, 'a\tb');
+});
+
+test('a reason/--by empty once line-breakers are stripped is a usage error', () => {
+  const dir = setupHumanDecisionRepo();
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--reason', '\x01\x02']).status, 1);
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--reason', 'ok', '--by', ' ']).status, 1);
+  assert.equal(fs.existsSync(path.join(dir, EVAL_PATH)), false);
+});
+
+test('the shared flag validator rejects duplicate/bare/whitespace --outcome/--reason', () => {
+  const dir = setupHumanDecisionRepo();
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--outcome', 'fail', '--reason', 'x']).status, 1);
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--reason', 'a', '--reason', 'b']).status, 1);
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--reason', '   ']).status, 1);
+  assert.equal(fs.existsSync(path.join(dir, EVAL_PATH)), false);
+});
+
+test('a run with an empty/whitespace model never yields a record the reader rejects', () => {
+  const dir = setupHumanDecisionRepo();
+  writeRunRecord(dir, 'run-1', 'TASK-20260724-x', 'anthropic', '   ');
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--reason', 'ok']).status, 0);
+  assert.deepEqual(readEval(dir).routing_signatures, []); // empty, not [{ model: '   ' }]
+  // The record round-trips valid: a plain re-evaluate reads the prior via
+  // readEvaluationRecordStatus and preserves it (exit 0). A corrupt record would exit 1.
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x']).status, 0);
+  assert.equal((readEval(dir).outcome_source as Record<string, unknown>).type, 'manual_override');
+});
+
+test('a manual override is listed, aggregated, and drives the routing recommendation', () => {
+  const dir = setupHumanDecisionRepo();
+  writeRunRecord(dir, 'run-1', 'TASK-20260724-x', 'anthropic', 'claude-sonnet-4-6');
+  fs.mkdirSync(path.join(dir, '.ai'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.ai/model-routing.yaml'), 'tiers:\n  standard:\n    provider: anthropic\n    model: claude-sonnet-4-6\n');
+  assert.equal(run(dir, ['--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--reason', 'ok after review']).status, 0);
+
+  // A second, higher-token tier so routing has >= 2 tiers to compare.
+  const premium = {
+    kind: 'forgeai_evaluation_record', schema_version: 1, evaluation_id: 'eval-TASK-20260728-pr', task_id: 'TASK-20260728-pr',
+    generated_at: '2026-07-28T00:00:00.000Z', mode: 'compact', experiment_id: null, comparability: null, outcome: 'pass',
+    outcome_source: { type: 'review_scorecard', scorecard: 's', verdict: 'approve' },
+    routing_signatures: [{ provider: 'anthropic', model: 'claude-opus-4-8' }],
+    validation: { status: 'pass', evidence_count: 1, results: { pass: 1, fail: 0, skipped: 0 } },
+    run_ids: [], context_artifact: null, task_journal: 'j', tier: 'premium',
+    metrics: { context: { selected_files: 0, excerpts: 0, omitted_candidates: 0, budget_limit_tokens: 0, budget_estimated_tokens: 0, budget_utilization: 0, expansion_rounds: 0, context_escapes: null },
+      calls: { model_calls: 1, input_tokens: 5000, output_tokens: 10, cached_tokens: 0, latency_ms: 100, retries: 0 } },
+  };
+  fs.writeFileSync(path.join(dir, '.ai/state/evaluations/TASK-20260728-pr.json'), JSON.stringify(premium));
+
+  const payload = JSON.parse(run(dir, ['--report', '--json', '--min-samples', '1']).stdout);
+  assert.equal(payload.outcomes.pass, 2);
+  assert.equal(payload.byTier.standard.pass, 1); // overridden record aggregated under its tier
+  assert.deepEqual(payload.invalid_records, []);
+  assert.equal(payload.routing.withheld, false);
+  assert.equal(payload.routing.recommended_tier, 'standard'); // the override's lower-token tier
+});
+
+test('override flags are a usage error unless --evaluate is the selected command', () => {
+  const dir = setupRepo();
+  for (const extra of [
+    // (a) no --evaluate at all
+    ['--dry-run', '--outcome', 'pass', '--reason', 'reviewed'],
+    ['--report', '--outcome', 'pass', '--reason', 'reviewed'],
+    ['--outcome', 'pass', '--reason', 'reviewed'], // default command
+    ['--report', '--clear-outcome'],
+    ['--report', '--by', 'Alice', '--outcome', 'pass', '--reason', 'x'],
+    // (b) --evaluate present but a higher-precedence command wins the dispatch — the
+    // override would be silently dropped, so this must fail rather than exit 0.
+    ['--version', '--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--reason', 'reviewed'],
+    ['--help', '--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--reason', 'reviewed'],
+    ['--check', '--evaluate', '--task', 'TASK-20260724-x', '--outcome', 'pass', '--reason', 'reviewed'],
+  ]) {
+    const res = run(dir, extra);
+    assert.equal(res.status, 1, extra.join(' '));
+    assert.match(res.stderr, /is only valid with --evaluate/);
+  }
 });

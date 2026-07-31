@@ -36,6 +36,7 @@ import {
   evaluate,
   report,
   checkUpgrade,
+  overrideFlag,
 } from './lib/context.js';
 import { runValidateArtifact, runRoute } from './lib/router.js';
 import { runExpandContext } from './lib/context-expansion.js';
@@ -66,6 +67,26 @@ import { runEvaluate } from './lib/evaluation-record.js';
 import { runReport } from './lib/evaluation-report.js';
 
 runUpdatePreflight();
+
+// The human-override flags (--outcome/--reason/--by/--clear-outcome) are honored only
+// by --evaluate. Because the dispatch chain below picks the FIRST matching command, a
+// higher-precedence command (e.g. --version, --check) would run and silently drop the
+// decision. Require that --evaluate is the *selected* command: it is, iff --evaluate is
+// set and none of the commands dispatched before it are. Keep this list in sync with the
+// order of the chain below (every command that appears before `evaluate`).
+if (overrideFlag) {
+  const commandsBeforeEvaluate = [
+    help, version, listProfiles, checkGit, checkSessions, checkLifecycle, checkCodeGraph,
+    refreshCodeGraph, checkProfile, checkReview, checkSecurity, checkMemory, checkAll,
+    check, checkUpdates, addModel, listModels, removeModel, decompose, contextPack,
+    compileContext, checkApproval, checkEvaluation, statusSummary, diffSummary,
+    testSummary, watch, emit, validateArtifactFlag, route, listRuns,
+  ];
+  if (!evaluate || commandsBeforeEvaluate.some(Boolean)) {
+    process.stderr.write(`Error: ${overrideFlag} is only valid with --evaluate.\n`);
+    process.exit(1);
+  }
+}
 
 if (help) console.log(usage());
 else if (version) console.log(getPackageVersion());

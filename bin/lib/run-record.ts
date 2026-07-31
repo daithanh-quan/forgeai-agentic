@@ -36,7 +36,9 @@ function isValidRunRecordInput(raw: unknown): boolean {
   if (r['schema_version'] !== 1) return false;
   if (typeof r['run_id'] !== 'string' || typeof r['timestamp'] !== 'string') return false;
   if (typeof r['adapter'] !== 'string' || typeof r['artifact'] !== 'string' || typeof r['objective'] !== 'string') return false;
-  if (typeof r['model'] !== 'string') return false;
+  // model must be non-empty after trimming: an empty model would flow into an
+  // evaluation record's routing_signatures, which the evaluation validator rejects.
+  if (typeof r['model'] !== 'string' || r['model'].trim().length === 0) return false;
   if (!VALID_PROVIDERS_REC.has(r['provider'] as string)) return false;
   if (!VALID_OUTCOMES_REC.has(r['outcome'] as string)) return false;
   if (typeof r['latency_ms'] !== 'number' || !Number.isFinite(r['latency_ms'] as number) || (r['latency_ms'] as number) < 0) return false;

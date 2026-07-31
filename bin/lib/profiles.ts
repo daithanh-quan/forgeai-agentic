@@ -229,6 +229,8 @@ export function detectProjectStacks(): string[] {
   if (fileExists('src-tauri') || fileExists('tauri.conf.json') || fileExists('tauri.conf.json5')) stacks.push('tauri');
   if (fileExists('pnpm-workspace.yaml') || fileExists('turbo.json') || fileExists('nx.json') || fileExists('lerna.json') || packageJson?.workspaces) stacks.push('monorepo');
   if (hasDependency(packageJson, ['next']) || fileExists('next.config.js') || fileExists('next.config.mjs') || fileExists('next.config.ts')) stacks.push('nextjs');
+  const hasSvelteConfig = fileExists('svelte.config.js') || fileExists('svelte.config.mjs');
+  if (hasDependency(packageJson, ['@sveltejs/kit']) || (hasSvelteConfig && fileExists('src/routes'))) stacks.push('sveltekit');
   if (hasDependency(packageJson, ['express', 'fastify', '@nestjs/core', 'hono', 'koa'])) stacks.push('node-api');
   const hasPythonProjectFiles = fileExists('pyproject.toml') || fileExists('requirements.txt') || fileExists('uv.lock') || fileExists('poetry.lock') || fileExists('Pipfile');
   if (hasPythonProjectFiles) {

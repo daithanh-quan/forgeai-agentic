@@ -1,10 +1,10 @@
-import type { EvaluationRecord } from './types.js';
+import type { EvaluationRecord, RoutingSignature } from './types.js';
 import { root, args, getArgValue } from './context.js';
 import { formatStatus } from './utils.js';
-import { listEvaluationRecords } from './evaluation-record.js';
+import { listEvaluationRecordsDetailed } from './evaluation-record.js';
 
-type TierAgg = { count: number; pass: number; partial: number; fail: number; input_tokens: number; output_tokens: number; latency_ms: number; retries: number };
-type Aggregate = { total: number; outcomes: { pass: number; partial: number; fail: number }; byTier: Record<string, TierAgg> };
+type TierAgg = { count: number; pass: number; partial: number; fail: number; input_tokens: number; output_tokens: number; latency_ms: number; retries: number; signatures?: RoutingSignature[] };
+export type Aggregate = { total: number; outcomes: { pass: number; partial: number; fail: number }; byTier: Record<string, TierAgg> };
 
 export function aggregateEvaluations(records: EvaluationRecord[]): Aggregate {
   const agg: Aggregate = { total: records.length, outcomes: { pass: 0, partial: 0, fail: 0 }, byTier: {} };
@@ -17,6 +17,15 @@ export function aggregateEvaluations(records: EvaluationRecord[]): Aggregate {
     tier.output_tokens += r.metrics.calls.output_tokens;
     tier.latency_ms += r.metrics.calls.latency_ms;
     tier.retries += r.metrics.calls.retries;
+    // Track distinct {provider, model} pairs per tier so a tier remapped across models
+    // is excluded (mixed) and a tier with no signature is excluded (missing), rather
+    // than blended/trusted. A record with an empty routing_signatures adds none.
+    for (const s of r.routing_signatures) {
+      tier.signatures ??= [];
+      if (!tier.signatures.some((x) => x.provider === s.provider && x.model === s.model)) {
+        tier.signatures.push(s);
+      }
+    }
   }
   return agg;
 }
@@ -31,6 +40,94 @@ export const MIN_EXPERIMENT_PAIRS = 5;
 export const MAX_PASS_RATE_DROP_PCT = 5;
 export const MIN_TOKEN_SAVING_PCT = 15;
 export const MIN_LATENCY_SAVING_PCT = 15;
+
+// ─── model-tier routing recommendation (13D) ──────────────────────────────────
+
+// Routing needs a stronger gate than the 5-pair experiment default — at 5 evals a
+// pass rate moves in 20-pt steps, degenerate against a 5-pt tolerance.
+export const MIN_TIER_SAMPLES = 20;
+
+// The pick is the lowest-*token* tier (not cost), gated on per-tier eval count only;
+// it does not control for task difficulty/class. A tier with mixed or missing routing
+// signatures is excluded, not merely caveated. Surfaced as an explicit heuristic.
+export const ROUTING_CAVEAT =
+  'Lowest-token tier (token count, not cost); gated on per-tier eval count only; does not control for task difficulty or task class.';
+
+export type TierExclusionCode = 'missing_signature' | 'mixed_signatures' | 'insufficient_samples';
+export type TierRouting = {
+  tier: string;
+  count: number;
+  pass_rate: number;
+  mean_tokens_per_eval: number;
+  routing_signatures: RoutingSignature[];
+  excluded_reason: string | null;
+  excluded_reason_code: TierExclusionCode | null;
+};
+export type RoutingWithholdCode = 'insufficient_eligible_tiers' | 'invalid_records_present';
+export type RoutingRecommendation = {
+  recommended_tier: string | null;
+  best_tier: string | null;
+  withheld: boolean;
+  reason: string | null;
+  reason_code: RoutingWithholdCode | null;
+  eligible_tiers: number;
+  required_tiers: number;
+  min_samples: number;
+  heuristic: true;
+  caveat: string;
+  tiers: TierRouting[];
+};
+
+export function recommendRouting(aggregate: Aggregate, minSamples: number): RoutingRecommendation {
+  // Build every non-'unknown' tier, marking why any is not a routing candidate.
+  // Sorted by name so best/recommended tie-breaks are deterministic.
+  const tiers: TierRouting[] = Object.entries(aggregate.byTier)
+    .filter(([tier]) => tier !== 'unknown')
+    .map(([tier, t]) => {
+      const signatures = [...(t.signatures ?? [])].sort((a, b) => a.provider.localeCompare(b.provider) || a.model.localeCompare(b.model));
+      // Exactly one signature is required. >1 blends models (mixed); 0 means the tier
+      // can't be attributed to a model (missing); neither is trusted. Sample-count
+      // exclusion is checked last.
+      let excluded_reason: string | null = null;
+      let excluded_reason_code: TierExclusionCode | null = null;
+      if (signatures.length > 1) {
+        excluded_reason_code = 'mixed_signatures';
+        excluded_reason = `mixed routing signatures: ${signatures.map((s) => `${s.provider}/${s.model}`).join(', ')}`;
+      } else if (signatures.length === 0) {
+        excluded_reason_code = 'missing_signature';
+        excluded_reason = 'missing routing signature';
+      } else if (t.count < minSamples) {
+        excluded_reason_code = 'insufficient_samples';
+        excluded_reason = `only ${t.count} evals (< ${minSamples})`;
+      }
+      return {
+        tier,
+        count: t.count,
+        pass_rate: (t.pass / t.count) * 100,
+        mean_tokens_per_eval: (t.input_tokens + t.output_tokens) / t.count,
+        routing_signatures: signatures,
+        excluded_reason,
+        excluded_reason_code,
+      };
+    })
+    .sort((a, b) => a.tier.localeCompare(b.tier));
+
+  const eligible = tiers.filter((t) => t.excluded_reason === null);
+  const REQUIRED_TIERS = 2;
+  const base = { min_samples: minSamples, heuristic: true as const, caveat: ROUTING_CAVEAT, tiers, eligible_tiers: eligible.length, required_tiers: REQUIRED_TIERS };
+  if (eligible.length < REQUIRED_TIERS) {
+    return {
+      recommended_tier: null, best_tier: null, withheld: true,
+      reason_code: 'insufficient_eligible_tiers',
+      reason: `fewer than ${REQUIRED_TIERS} eligible tiers with >= ${minSamples} evaluations (${eligible.length} eligible)`,
+      ...base,
+    };
+  }
+  const best = eligible.reduce((m, t) => (t.pass_rate > m.pass_rate ? t : m));
+  const candidates = eligible.filter((t) => t.pass_rate >= best.pass_rate - MAX_PASS_RATE_DROP_PCT);
+  const recommended = candidates.reduce((m, t) => (t.mean_tokens_per_eval < m.mean_tokens_per_eval ? t : m));
+  return { recommended_tier: recommended.tier, best_tier: best.tier, withheld: false, reason: null, reason_code: null, ...base };
+}
 
 export type ExperimentPair = {
   experiment_id: string;
@@ -153,7 +250,7 @@ export function recommend(aggregate: ExperimentAggregate, minSamples: number): R
 }
 
 export function runReport(): void {
-  const records = listEvaluationRecords(root);
+  const { records, invalid } = listEvaluationRecordsDetailed(root);
 
   // Resolve --min-samples (positive integer; defaults to MIN_EXPERIMENT_PAIRS).
   let minSamples = MIN_EXPERIMENT_PAIRS;
@@ -188,6 +285,25 @@ export function runReport(): void {
     mean_latency_saving_pct: round1(recommendation.mean_latency_saving_pct),
   };
 
+  // Routing advisory: --min-samples (either form) overrides both gates; otherwise
+  // routing uses its own higher default. Detect presence with getArgValue (reads both
+  // spaced and equals forms) — NOT args.has, which matches only the bare spaced token.
+  const routingMinSamples = getArgValue('--min-samples') !== null ? minSamples : MIN_TIER_SAMPLES;
+  let routing = recommendRouting(aggregateEvaluations(records), routingMinSamples);
+  // Any invalid record makes routing fail closed: a corrupt record can't be attributed
+  // to a tier, so it may have changed the pick.
+  if (invalid.length > 0) {
+    routing = {
+      ...routing, withheld: true, recommended_tier: null, best_tier: null,
+      reason_code: 'invalid_records_present',
+      reason: `${invalid.length} invalid evaluation record${invalid.length === 1 ? '' : 's'} present; routing withheld until resolved`,
+    };
+  }
+  const outRouting = {
+    ...routing,
+    tiers: routing.tiers.map((t) => ({ ...t, pass_rate: round1(t.pass_rate), mean_tokens_per_eval: round1(t.mean_tokens_per_eval) })),
+  };
+
   if (args.has('--json')) {
     const payload = {
       ...aggregateEvaluations(records),
@@ -204,6 +320,8 @@ export function runReport(): void {
         skipped,
       },
       recommendation: outRecommendation,
+      routing: outRouting,
+      invalid_records: invalid,
     };
     process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
     return;
@@ -211,8 +329,18 @@ export function runReport(): void {
 
   console.log('ForgeAI evaluation report');
   console.log('');
+  const invalidWarning = () => {
+    console.log(formatStatus('warn', `${invalid.length} invalid evaluation record${invalid.length === 1 ? '' : 's'} skipped (${invalid.map((i) => i.file).join(', ')}); routing withheld until resolved`));
+  };
   if (records.length === 0) {
-    console.log(formatStatus('ok', '.ai/state/evaluations has no evaluation records'));
+    // Only truly empty when there are no valid AND no invalid records; a directory of
+    // only corrupt files must still surface them and a withheld routing.
+    if (invalid.length === 0) {
+      console.log(formatStatus('ok', '.ai/state/evaluations has no evaluation records'));
+    } else {
+      console.log(formatStatus('skipped', 'no valid evaluation records'));
+      invalidWarning();
+    }
     return;
   }
   const agg = aggregateEvaluations(records);
@@ -230,27 +358,44 @@ export function runReport(): void {
   console.log('Experiments');
   if (pairs.length === 0 && skipped.length === 0) {
     console.log(formatStatus('skipped', 'no paired experiments recorded'));
-    return;
-  }
-  for (const p of pairs) {
-    console.log(formatStatus('metric', `${p.experiment_id}: baseline ${p.baseline.outcome} vs compact ${p.compact.outcome}, tokens saved ${round1(p.token_saving_pct)}%, latency saved ${round1(p.latency_saving_pct)}%`));
-  }
-  for (const s of skipped) {
-    console.log(formatStatus('skipped', `${s.experiment_id}: ${s.reason}`));
-  }
-  if (pairs.length > 0) {
-    console.log(formatStatus('metric', `pairs ${aggregate.pairs}: baseline pass ${outAggregate.baseline_pass_rate}% vs compact pass ${outAggregate.compact_pass_rate}% (drop ${outAggregate.pass_rate_drop_pct} pts), mean tokens saved ${outAggregate.mean_token_saving_pct}%, mean latency saved ${outAggregate.mean_latency_saving_pct}%`));
-  }
-  if (recommendation.withheld) {
-    console.log(formatStatus('skipped', `insufficient samples (${aggregate.pairs}/${minSamples}) — recommendation withheld`));
   } else {
-    // Every advisory line states the pair count (n comparable pairs) per the design.
-    const n = `${aggregate.pairs} comparable pair${aggregate.pairs === 1 ? '' : 's'}`;
-    const verdictText = recommendation.verdict === 'prefer_compact'
-      ? `prefer compact — ${n}, outcomes held (drop ${outAggregate.pass_rate_drop_pct} pts), savings material (tokens ${outAggregate.mean_token_saving_pct}%, latency ${outAggregate.mean_latency_saving_pct}%)`
-      : recommendation.verdict === 'keep_baseline'
-        ? `keep baseline — ${n}, compact degrades pass rate by ${outAggregate.pass_rate_drop_pct} pts (tolerance ${MAX_PASS_RATE_DROP_PCT})`
-        : `no material difference — ${n}, either mode acceptable (tokens ${outAggregate.mean_token_saving_pct}%, latency ${outAggregate.mean_latency_saving_pct}%)`;
-    console.log(formatStatus('metric', `[advisory] ${verdictText}`));
+    for (const p of pairs) {
+      console.log(formatStatus('metric', `${p.experiment_id}: baseline ${p.baseline.outcome} vs compact ${p.compact.outcome}, tokens saved ${round1(p.token_saving_pct)}%, latency saved ${round1(p.latency_saving_pct)}%`));
+    }
+    for (const s of skipped) {
+      console.log(formatStatus('skipped', `${s.experiment_id}: ${s.reason}`));
+    }
+    if (pairs.length > 0) {
+      console.log(formatStatus('metric', `pairs ${aggregate.pairs}: baseline pass ${outAggregate.baseline_pass_rate}% vs compact pass ${outAggregate.compact_pass_rate}% (drop ${outAggregate.pass_rate_drop_pct} pts), mean tokens saved ${outAggregate.mean_token_saving_pct}%, mean latency saved ${outAggregate.mean_latency_saving_pct}%`));
+    }
+    if (recommendation.withheld) {
+      console.log(formatStatus('skipped', `insufficient samples (${aggregate.pairs}/${minSamples}) — recommendation withheld`));
+    } else {
+      // Every advisory line states the pair count (n comparable pairs) per the design.
+      const n = `${aggregate.pairs} comparable pair${aggregate.pairs === 1 ? '' : 's'}`;
+      const verdictText = recommendation.verdict === 'prefer_compact'
+        ? `prefer compact — ${n}, outcomes held (drop ${outAggregate.pass_rate_drop_pct} pts), savings material (tokens ${outAggregate.mean_token_saving_pct}%, latency ${outAggregate.mean_latency_saving_pct}%)`
+        : recommendation.verdict === 'keep_baseline'
+          ? `keep baseline — ${n}, compact degrades pass rate by ${outAggregate.pass_rate_drop_pct} pts (tolerance ${MAX_PASS_RATE_DROP_PCT})`
+          : `no material difference — ${n}, either mode acceptable (tokens ${outAggregate.mean_token_saving_pct}%, latency ${outAggregate.mean_latency_saving_pct}%)`;
+      console.log(formatStatus('metric', `[advisory] ${verdictText}`));
+    }
+  }
+
+  // Never let corrupt records vanish silently — warn on the terminal (the JSON carries
+  // the full invalid_records list).
+  if (invalid.length > 0) {
+    console.log('');
+    invalidWarning();
+  }
+
+  console.log('');
+  console.log('Routing');
+  if (routing.withheld) {
+    console.log(formatStatus('skipped', `routing recommendation withheld — ${routing.reason}`));
+  } else {
+    const r = routing.tiers.find((t) => t.tier === routing.recommended_tier)!;
+    const best = routing.tiers.find((t) => t.tier === routing.best_tier)!;
+    console.log(formatStatus('metric', `[advisory · heuristic] route to ${routing.recommended_tier} — ${r.count} eval${r.count === 1 ? '' : 's'}, pass ${round1(r.pass_rate)}%, mean ${Math.round(r.mean_tokens_per_eval)} tokens/eval (lowest-token within ${MAX_PASS_RATE_DROP_PCT} pts of best ${routing.best_tier} ${round1(best.pass_rate)}%; heuristic — token count, not cost; does not control for task difficulty)`));
   }
 }

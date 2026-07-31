@@ -13,7 +13,7 @@
 [![npm version](https://img.shields.io/npm/v/forgeai-agentic-init?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/forgeai-agentic-init)
 [![Node.js ≥20](https://img.shields.io/badge/node-%E2%89%A520-brightgreen?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](./LICENSE)
-[![Profiles](https://img.shields.io/badge/profiles-11%20stacks-orange?style=flat-square)](#profiles)
+[![Profiles](https://img.shields.io/badge/profiles-12%20stacks-orange?style=flat-square)](#profiles)
 
 [Install](#install) · [Profiles](#profiles) · [Terminal UI](#terminal-ui) · [Model Routing](#model-routing) · [Checks](#basic-checks)
 
@@ -23,13 +23,13 @@
 
 Install a shared AI workflow harness so every agent starts from the same rules,
 memory, task workflow, model routing, review gates, and terminal monitor for
-multi-agent orchestration — with built-in stack profiles for 11 ecosystems.
+multi-agent orchestration — with built-in stack profiles for 12 ecosystems.
 
 ## Why Use It
 
 - **Consistent agent context**: every agent starts from the same `.ai/` rules,
   project notes, workflow, and memory.
-- **Multi-stack profiles**: ships with stack-specific guidance for Next.js,
+- **Multi-stack profiles**: ships with stack-specific guidance for Next.js, SvelteKit,
   FastAPI, Django, Go, Rust, React Native, Tauri, Node API, Flutter/mobile, and
   more. Use `--profile auto` to detect your stack automatically, or combine
   profiles with `+` for polyglot projects.
@@ -279,6 +279,16 @@ review scorecard `Verdict`:
 | Request changes | `fail` |
 | Needs human decision | `partial` |
 
+A `Needs human decision` task can be resolved by a human with
+`--evaluate --task <id> --outcome pass|fail --reason "<why>" [--by "<name>"]`; the
+record keeps a `manual_override` source with the reason, original verdict, and who
+decided it and when. Override is rejected for any other verdict. Re-running
+`--evaluate` without override flags preserves the decision while the verdict is still
+`Needs human decision`; `--clear-outcome` removes it. If the review changed to a clear
+verdict, or the record is corrupt, `--evaluate` exits 1 (use `--clear-outcome`/
+`--outcome`, or `--force` for a corrupt record); concurrent `--evaluate` on one task
+is unsupported.
+
 A strict consistency gate runs first and **writes nothing on failure** — it
 rejects a verdict that contradicts its evidence (an `Approve` with a `fail`
 validation row, a `fail` scorecard dimension, or unresolved blockers), a
@@ -288,6 +298,15 @@ provenance (verdict source, scorecard and journal paths, run ids) plus context
 and call metrics.
 
 Records are gitignored (local derived state) and preserved on `--upgrade`.
+
+`--report` also prints a **Routing** advisory: the lowest-token model tier (by mean
+tokens per evaluation) whose pass rate stays within 5 points of the best tier,
+withheld until `MIN_TIER_SAMPLES` (default 20, override with `--min-samples`)
+evaluations exist for at least two tiers, and excluding any tier that mixes
+provider/models or lacks a derived routing signature. It is a heuristic (token count
+is not cost; it does not control for task difficulty) and advice only — ForgeAI never
+auto-selects a tier. A corrupt evaluation record is surfaced under `--json`
+`invalid_records` (with a terminal warning) and withholds routing until resolved.
 
 > The older manual system — `--check-evaluation` over `.ai/evaluation/*.md` — is
 > deprecated but still works; it now prints a notice pointing here.
@@ -350,7 +369,7 @@ forgeai-init --evaluate --task TASK-20260727-b
 cp .ai/state/evaluations/TASK-20260727-b.json ../exp-baseline/.ai/state/evaluations/
 cd ../exp-baseline
 forgeai-init --report                  # Experiments section + advisory
-forgeai-init --report --min-samples 1  # lower the pair threshold for a demo
+forgeai-init --report --min-samples 1  # lower both sample gates (experiment pairs + routing tiers) for a demo
 ```
 
 The two `--task` ids must differ (each is a real reviewed task); the
@@ -371,7 +390,7 @@ but still counted in the overall and per-tier summary.
 
 ## Profiles
 
-ForgeAI ships with **11 stack-specific profiles**. Each profile installs
+ForgeAI ships with **12 stack-specific profiles**. Each profile installs
 additional guidance documents, workflow templates, and skills tuned to that
 stack's tooling, test patterns, and common conventions — on top of the shared
 base harness.
@@ -388,6 +407,7 @@ npx forgeai-agentic-init@latest --profile auto
 | Profile | Stack | Auto-detected from |
 |---------|-------|--------------------|
 | `nextjs` | Next.js (React SSR/SSG) | `next` in `package.json` |
+| `sveltekit` | SvelteKit full-stack app | `@sveltejs/kit`, or `svelte.config.*` with `src/routes/` |
 | `node-api` | Node.js REST / GraphQL API | `express`, `fastify`, `@nestjs/core`, `hono`, `koa` |
 | `python-api` | Generic Python web service | Python project files (fallback) |
 | `fastapi` | FastAPI (Python async API) | `fastapi` in Python dependency files |

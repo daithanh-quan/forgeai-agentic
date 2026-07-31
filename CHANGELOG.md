@@ -1,5 +1,49 @@
 # Changelog
 
+## 3.10.0 — 2026-07-31
+
+Phase 13D — model-tier routing advice and a human outcome override. Additive
+only (`schema_version` stays `1`); 3.9.0 records read back unchanged.
+
+### Added
+
+- **SvelteKit profile** (`--profile sveltekit`): auto-detected from the
+  `@sveltejs/kit` dependency, or `svelte.config.js`/`.mjs` with `src/routes/`.
+  Adds guidance for
+  filesystem routing, server/universal load boundaries, form actions, hooks,
+  adapters, and SSR/prerender behavior.
+- **Model-tier routing recommendation** (13D): `--report` prints a `Routing`
+  advisory naming the **lowest-token** tier (by mean tokens/eval) whose pass rate
+  holds within 5 pts of the best tier, withheld until ≥ 2 tiers each have
+  `MIN_TIER_SAMPLES` (default **20**, overridable via `--min-samples`) evaluations.
+  A tier whose records span more than one provider/model, or that has no derived
+  routing signature, is excluded rather than blended/trusted. Presented as an
+  explicit **heuristic** (token count, not cost; does not control for task
+  difficulty); `--report --json` gains a `routing` object (with
+  `heuristic`/`caveat` and, when withheld, `reason`/`reason_code`/`eligible_tiers`)
+  and an `invalid_records` array — a corrupt evaluation record is now surfaced (with
+  a terminal warning) and withholds routing rather than being silently dropped.
+- **`--evaluate --outcome pass|fail --reason "<text>" [--by "<name>"]`** (13D): a
+  human can override the outcome of a `Needs human decision` task. Recorded as a
+  `manual_override` `outcome_source` with the reason, original verdict, and
+  provenance (`decided_by`, `decided_at`). Rejected (no record) for any other
+  verdict. Re-evaluating without override flags **preserves** an existing override
+  while its verdict is still `Needs human decision` (refreshing metrics only);
+  `--clear-outcome` removes it. If the review has since changed to a clear verdict,
+  or the stored record is corrupt, `--evaluate` exits 1 rather than overwrite (use
+  `--clear-outcome`/`--outcome`, or `--force` — which backs the corrupt file up as
+  `<task>.json.corrupt-<ts>` — for a corrupt record). Concurrent `--evaluate` on one
+  task is unsupported.
+
+### Changed
+
+- Evaluation records gain a structured `routing_signatures` (`{provider, model}[]`)
+  derived from their runs; the run-record validator now requires a non-empty `model`.
+- `--outcome`/`--reason`/`--by`/`--clear-outcome` are now a usage error unless
+  `--evaluate` is the selected command (previously the override flags were silently
+  ignored when another command ran — including a higher-precedence one like `--version`
+  given alongside `--evaluate`).
+
 ## 3.9.0 — 2026-07-28
 
 Phase 13 — structured evaluation, context experiments, and context-escape
