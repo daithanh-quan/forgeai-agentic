@@ -40,7 +40,7 @@ export function validateArgFlag(name: string, argv: string[]): string | null {
 // Eagerly validate value-requiring flags at module load: rejects bare flags, empty/whitespace values,
 // values starting with "--", and duplicate occurrences. Value check runs before the duplicate count
 // so a bare trailing flag reports the most actionable error ("requires a value", not "specified more than once").
-for (const name of ['--profile', '--emit', '--adapter', '--model', '--task', '--mode', '--experiment', '--min-samples', '--outcome', '--reason', '--by'] as const) {
+for (const name of ['--profile', '--emit', '--adapter', '--model', '--task', '--mode', '--experiment', '--min-samples', '--outcome', '--reason', '--by', '--include-excluded'] as const) {
   const err = validateArgFlag(name, rawArgs);
   if (err) { process.stderr.write(`${err}\n`); process.exit(1); }
 }

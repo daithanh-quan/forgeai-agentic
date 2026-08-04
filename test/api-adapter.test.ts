@@ -29,6 +29,8 @@ export function minimalArtifact(): CompiledContextArtifact {
     entrypoints: [],
     excerpts: [],
     omitted_candidates: 0,
+    context_exclusions: { profiles: [], include_globs: [], rules: [] },
+    omitted_context: [],
   };
 }
 

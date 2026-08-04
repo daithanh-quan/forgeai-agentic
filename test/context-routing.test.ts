@@ -37,6 +37,31 @@ test('--validate-artifact exits 0 for a fresh valid artifact', () => {
   }
 });
 
+test('validateArtifact accepts a legacy artifact and attaches exclusion defaults', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-legacy-excl-'));
+  try {
+    const artifact = initAndCompile(target);
+    // Simulate a pre-3.11.0 artifact: strip the additive fields, then recompute the
+    // estimate against that legacy shape (matching how such a file was written).
+    const legacy = JSON.parse(JSON.stringify(artifact)) as Record<string, unknown>;
+    delete legacy.context_exclusions;
+    delete legacy.omitted_context;
+    legacy.budget = { ...(legacy.budget as object) };
+    (legacy.budget as Record<string, unknown>).estimated_tokens =
+      computeArtifactEstimate(legacy as unknown as CompiledContextArtifact);
+    const artifactPath = writeArtifact(target, legacy as unknown as CompiledContextArtifact);
+
+    const result = validateArtifact(artifactPath, target);
+    assert.equal(result.status, 'ok', JSON.stringify(result));
+    if (result.status === 'ok') {
+      assert.deepEqual(result.artifact.context_exclusions, { profiles: [], include_globs: [], rules: [] });
+      assert.deepEqual(result.artifact.omitted_context, []);
+    }
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
 test('--validate-artifact exits 1 for wrong kind', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-validate-kind-'));
   try {

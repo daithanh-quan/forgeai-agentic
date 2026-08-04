@@ -22,6 +22,24 @@ function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 
+function isSortedUniqueNonEmptyStrings(value: unknown): value is string[] {
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string' || entry.length === 0)) return false;
+  return value.every((entry, index) => index === 0 || value[index - 1].localeCompare(entry) < 0);
+}
+
+function isCanonicalRepoRelative(value: string): boolean {
+  if (value.startsWith('/') || value.includes('\\') || /^[A-Za-z]:\//.test(value)) return false;
+  const segments = value.split('/');
+  return segments.length > 0 && segments.every((segment) => segment.length > 0 && segment !== '.' && segment !== '..');
+}
+
+function isSafeRepoGlob(value: string): boolean {
+  if (value.length === 0 || value.startsWith('/') || value.includes('\\') || /^[A-Za-z]:\//.test(value)) return false;
+  return value.split('/').every((segment, index, all) =>
+    (segment.length > 0 || index === all.length - 1) && segment !== '.' && segment !== '..'
+  );
+}
+
 // Pure structural validator (no fingerprint/graph freshness). Exported so
 // `--evaluate` can screen candidate artifacts without rejecting ones compiled at
 // an earlier revision.
@@ -100,6 +118,50 @@ export function checkArtifactStructure(raw: unknown): string | null {
   if (!Array.isArray(a.entrypoints) || (a.entrypoints as unknown[]).some((e) => typeof e !== 'string')) return 'entrypoints must be an array of strings';
   if (!isNonNegativeInteger(a.omitted_candidates)) return 'omitted_candidates must be a non-negative integer';
   if (typeof a.diagnostics !== 'object' || a.diagnostics === null) return 'diagnostics must be an object';
+  // context_exclusions and omitted_context are additive (3.11.0+). Accept absence
+  // on legacy artifacts; validate the full shape when present.
+  if ((a.context_exclusions === undefined) !== (a.omitted_context === undefined)) {
+    return 'context_exclusions and omitted_context must either both be present or both be absent';
+  }
+  const exclusionRuleKeys = new Set<string>();
+  if (a.context_exclusions !== undefined) {
+    const ce = a.context_exclusions as Record<string, unknown>;
+    if (typeof ce !== 'object' || ce === null || Array.isArray(ce)) return 'context_exclusions must be an object';
+    if (!isSortedUniqueNonEmptyStrings(ce.profiles)) return 'context_exclusions.profiles must be an array of strings that is sorted, unique, and non-empty';
+    if (!isSortedUniqueNonEmptyStrings(ce.include_globs)) return 'context_exclusions.include_globs must be an array of strings that is sorted, unique, and non-empty';
+    if ((ce.include_globs as string[]).some((glob) => !isSafeRepoGlob(glob))) return 'context_exclusions.include_globs must contain safe repo-relative POSIX globs';
+    if (!Array.isArray(ce.rules)) return 'context_exclusions.rules must be an array';
+    let previousPattern = '';
+    const policyProfiles = new Set(ce.profiles as string[]);
+    for (const rule of ce.rules as unknown[]) {
+      if (typeof rule !== 'object' || rule === null || Array.isArray(rule)) return 'context_exclusions.rules items must be objects';
+      const r = rule as Record<string, unknown>;
+      if (typeof r.pattern !== 'string' || r.pattern.length === 0) return 'context_exclusions.rules[].pattern must be a non-empty string';
+      if (!isSafeRepoGlob(r.pattern)) return 'context_exclusions.rules[].pattern must be a safe repo-relative POSIX pattern';
+      if (typeof r.reason !== 'string' || r.reason.length === 0) return 'context_exclusions.rules[].reason must be a non-empty string';
+      if (!isSortedUniqueNonEmptyStrings(r.profiles)) return 'context_exclusions.rules[].profiles must be an array of strings that is sorted, unique, and non-empty';
+      if ((r.profiles as string[]).some((profile) => !policyProfiles.has(profile))) return 'context_exclusions.rules[].profiles must be included in context_exclusions.profiles';
+      if (previousPattern && previousPattern.localeCompare(r.pattern) >= 0) return 'context_exclusions.rules must be sorted and unique by pattern';
+      previousPattern = r.pattern;
+      exclusionRuleKeys.add(JSON.stringify([r.pattern, r.reason, r.profiles]));
+    }
+  }
+  if (a.omitted_context !== undefined) {
+    if (!Array.isArray(a.omitted_context)) return 'omitted_context must be an array';
+    let prevPath = '';
+    for (const om of a.omitted_context as unknown[]) {
+      if (typeof om !== 'object' || om === null || Array.isArray(om)) return 'omitted_context items must be objects';
+      const o = om as Record<string, unknown>;
+      if (typeof o.path !== 'string' || !isCanonicalRepoRelative(o.path)) return 'omitted_context[].path must be a canonical repo-relative POSIX path';
+      if (typeof o.pattern !== 'string' || o.pattern.length === 0) return 'omitted_context[].pattern must be a non-empty string';
+      if (typeof o.reason !== 'string' || o.reason.length === 0) return 'omitted_context[].reason must be a non-empty string';
+      if (!isSortedUniqueNonEmptyStrings(o.profiles)) return 'omitted_context[].profiles must be an array of strings that is sorted, unique, and non-empty';
+      if (!exclusionRuleKeys.has(JSON.stringify([o.pattern, o.reason, o.profiles]))) return 'omitted_context[] must reference a rule in context_exclusions.rules';
+      if (prevPath && prevPath.localeCompare(o.path as string) >= 0) return 'omitted_context must be sorted and unique by path';
+      prevPath = o.path as string;
+      if (selectionPaths.has(o.path as string)) return `omitted_context[].path '${String(o.path)}' also appears in selection.files`;
+    }
+  }
   return null;
 }
 
@@ -135,6 +197,9 @@ export function validateArtifact(artifactPath: string, repositoryRoot: string): 
   for (const exc of artifact.excerpts) {
     if (!depPaths.has(exc.path)) return { status: 'invalid', detail: `excerpts path '${exc.path}' not in dependency graph` };
   }
+  for (const omitted of artifact.omitted_context ?? []) {
+    if (!depPaths.has(omitted.path)) return { status: 'invalid', detail: `omitted_context path '${omitted.path}' not in dependency graph` };
+  }
 
   // Token estimate check (pure)
   const declared = artifact.budget.estimated_tokens;
@@ -157,6 +222,8 @@ export function validateArtifact(artifactPath: string, repositoryRoot: string): 
       mode: artifact.mode ?? 'compact',
       experiment_id: artifact.experiment_id ?? null,
       parent_artifact: artifact.parent_artifact ?? null,
+      context_exclusions: artifact.context_exclusions ?? { profiles: [], include_globs: [], rules: [] },
+      omitted_context: artifact.omitted_context ?? [],
     }
   };
 }

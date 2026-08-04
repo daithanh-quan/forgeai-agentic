@@ -5,11 +5,15 @@ import type {
   NeedContextRequestItem,
   ResolvedContextRequest,
   DependencyGraph,
-  EscapeReasonCode
+  EscapeReasonCode,
+  ResolvedExclusionRule,
+  OmittedContextEntry,
+  ContextExclusionPolicy
 } from './types.js';
 import { validateArtifact } from './router.js';
 import { compileContextExpansion, renderCompiledContextMarkdown, ContextBudgetError, NoNewContextError } from './context-compiler.js';
-import { tryReadCuratedCodeGraph, globMatches } from './context-pack.js';
+import { tryReadCuratedCodeGraph, globMatches, resolveExclusionContext } from './context-pack.js';
+import { matchExclusion, parseIncludeExcluded } from './profile-exclusions.js';
 import { readDependencyGraph, checkDependencyGraphHealth, IGNORED_DIRECTORIES } from './dependency-graph.js';
 import { artifactDigest, recordEscapes, recordObservation, type NewEscape } from './context-escapes.js';
 import { root, getArgValue } from './context.js';
@@ -49,8 +53,10 @@ function validateNeedContextSchema(raw: unknown): NeedContextArtifact | string {
 export function validateNeedContext(
   request: NeedContextArtifact,
   dependencyGraph: DependencyGraph,
-  curatedGraph: ReturnType<typeof tryReadCuratedCodeGraph>
-): { valid: ResolvedContextRequest[]; rejected: Array<{ item: NeedContextRequestItem; reason_code: EscapeReasonCode; detail: string }> } {
+  curatedGraph: ReturnType<typeof tryReadCuratedCodeGraph>,
+  rules: ResolvedExclusionRule[] = [],
+  includeGlobs: string[] = []
+): { valid: ResolvedContextRequest[]; rejected: Array<{ item: NeedContextRequestItem; reason_code: EscapeReasonCode; detail: string; omitted?: OmittedContextEntry; resolvedPath?: string }> } {
   const depPaths = new Set(dependencyGraph.nodes.map((n) => n.path));
   const ignoredSegments = new Set(IGNORED_DIRECTORIES as readonly string[]);
 
@@ -59,7 +65,7 @@ export function validateNeedContext(
   }
 
   const valid: ResolvedContextRequest[] = [];
-  const rejected: Array<{ item: NeedContextRequestItem; reason_code: EscapeReasonCode; detail: string }> = [];
+  const rejected: Array<{ item: NeedContextRequestItem; reason_code: EscapeReasonCode; detail: string; omitted?: OmittedContextEntry; resolvedPath?: string }> = [];
   const seenKeys = new Set<string>();
 
   for (const item of request.requests) {
@@ -79,6 +85,15 @@ export function validateNeedContext(
       }
       if (!depPaths.has(p)) {
         rejected.push({ item, reason_code: 'path_not_in_graph', detail: `path '${p}' not found in dependency graph` });
+        continue;
+      }
+      const ex = matchExclusion(p, rules, includeGlobs);
+      if (ex.matched) {
+        rejected.push({
+          item, reason_code: 'profile_excluded',
+          detail: `path '${p}' excluded by ${ex.rule.profiles.join('+')} rule '${ex.rule.pattern}'`,
+          omitted: { path: p, pattern: ex.rule.pattern, profiles: ex.rule.profiles, reason: ex.rule.reason }
+        });
         continue;
       }
       const key = `${item.kind}:${p}:`;
@@ -120,6 +135,16 @@ export function validateNeedContext(
       }
       for (const p of resolvedPaths) {
         if (isIgnoredPath(p)) continue;
+        const exsym = matchExclusion(p, rules, includeGlobs);
+        if (exsym.matched) {
+          rejected.push({
+            item, reason_code: 'profile_excluded',
+            detail: `symbol '${name}' path '${p}' excluded by rule '${exsym.rule.pattern}'`,
+            omitted: { path: p, pattern: exsym.rule.pattern, profiles: exsym.rule.profiles, reason: exsym.rule.reason },
+            resolvedPath: p
+          });
+          continue;
+        }
         const key = `symbol:${p}:${name}`;
         if (seenKeys.has(key)) continue;
         seenKeys.add(key);
@@ -136,7 +161,7 @@ export function runExpandContext(): void {
   const artifactArg = getArgValue('--artifact');
   const needContextArg = getArgValue('--need-context');
   if (!artifactArg || !needContextArg) {
-    process.stderr.write('Usage: forgeai-init --expand-context --artifact <path> --need-context <path> [--budget <tokens>] [--output <json>]\n');
+    process.stderr.write('Usage: forgeai-init --expand-context --artifact <path> --need-context <path> [--budget <tokens>] [--include-excluded "<glob>[,<glob>...]"] [--output <json>]\n');
     process.exitCode = 2;
     return;
   }
@@ -213,18 +238,51 @@ export function runExpandContext(): void {
     explicitBudget = parsed;
   }
 
+  // Effective exclusion policy: prefer the primary's persisted policy so an
+  // installed CLI/profile-table change cannot silently alter expansion policy;
+  // fall back to the current manifest for legacy primaries. Expansion-level
+  // --include-excluded overrides are unioned onto the base include globs.
+  let expansionIncludeGlobs: string[];
+  try {
+    expansionIncludeGlobs = parseIncludeExcluded(getArgValue('--include-excluded'));
+  } catch (error) {
+    process.stderr.write(`Error: ${getErrorMessage(error)}\n`);
+    process.exitCode = 2;
+    return;
+  }
+  const primaryRaw = fs.readFileSync(artifactPath, 'utf8');
+  const primaryWire = JSON.parse(primaryRaw) as Record<string, unknown>;
+  const hasPersistedPolicy = Object.prototype.hasOwnProperty.call(primaryWire, 'context_exclusions');
+  const primaryPolicy = primary.context_exclusions;
+  const legacyPolicy = hasPersistedPolicy ? null : resolveExclusionContext(null);
+  const baseProfiles = hasPersistedPolicy ? primaryPolicy.profiles : legacyPolicy!.profiles;
+  const baseRules = hasPersistedPolicy ? primaryPolicy.rules : legacyPolicy!.rules;
+  const baseIncludeGlobs = hasPersistedPolicy ? primaryPolicy.include_globs : [];
+  const effectiveIncludeGlobs = Array.from(new Set([...baseIncludeGlobs, ...expansionIncludeGlobs])).sort((a, b) => a.localeCompare(b));
+  const effectivePolicy: ContextExclusionPolicy = {
+    profiles: [...baseProfiles].sort((a, b) => a.localeCompare(b)),
+    include_globs: effectiveIncludeGlobs,
+    rules: baseRules
+  };
+
   // Preconditions passed: record the observation for this primary (once, idempotent).
-  const primaryDigest = artifactDigest(fs.readFileSync(artifactPath, 'utf8'));
+  const primaryDigest = artifactDigest(primaryRaw);
   if (primary.task_id !== null) {
     recordObservation(primary.task_id, { primary_artifact: parentRel, primary_digest: primaryDigest }, root);
   }
 
   // Resolve requests and record per-request escapes.
-  const { valid, rejected } = validateNeedContext(needContext, depGraph!, curatedGraph);
+  const { valid, rejected } = validateNeedContext(needContext, depGraph!, curatedGraph, effectivePolicy.rules, effectiveIncludeGlobs);
+  const omittedByPath = new Map<string, OmittedContextEntry>();
+  for (const r of rejected) {
+    if (r.omitted && !omittedByPath.has(r.omitted.path)) omittedByPath.set(r.omitted.path, r.omitted);
+  }
+  const omittedContext = Array.from(omittedByPath.values()).sort((a, b) => a.path.localeCompare(b.path));
   const escapes: NewEscape[] = [];
   for (const r of rejected) {
     process.stderr.write(`${formatStatus('warn', `rejected: ${r.detail}`)}\n`);
-    escapes.push({ primary_artifact: parentRel, primary_digest: primaryDigest, request: r.item, reason_code: r.reason_code, detail: r.detail });
+    const request = r.resolvedPath ? { ...r.item, resolved_path: r.resolvedPath } : r.item;
+    escapes.push({ primary_artifact: parentRel, primary_digest: primaryDigest, request, reason_code: r.reason_code, detail: r.detail });
   }
   if (primary.task_id !== null && escapes.length > 0) {
     recordEscapes(primary.task_id, escapes, root);
@@ -258,7 +316,7 @@ export function runExpandContext(): void {
   // Step 4: Compile expansion
   let expansion;
   try {
-    expansion = compileContextExpansion(primary, valid, curatedGraph, depGraph!, root, { budget, parentArtifact: parentRel });
+    expansion = compileContextExpansion(primary, valid, curatedGraph, depGraph!, root, { budget, parentArtifact: parentRel, effectivePolicy, omittedContext });
   } catch (error) {
     let code: EscapeReasonCode | null = null;
     if (error instanceof ContextBudgetError) code = 'budget_exceeded';

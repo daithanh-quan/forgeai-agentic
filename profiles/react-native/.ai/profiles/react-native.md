@@ -28,5 +28,10 @@ npx expo start --no-dev  # for Expo projects
 
 ## Context exclusion hints
 
-Do not include `android/`, `ios/`, `node_modules/`, or `.expo/` in context
-unless the task explicitly requires native platform files.
+These paths are excluded from selected and compiled context unless explicitly
+overridden with `--include-excluded`:
+
+- `android/` — native Android platform files
+- `ios/` — native iOS platform files
+- `node_modules/` — installed dependencies
+- `.expo/` — Expo build cache

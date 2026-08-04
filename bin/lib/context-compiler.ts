@@ -6,6 +6,7 @@ import {
   readCuratedCodeGraph,
   selectContextForObjective,
   tokenizeObjective,
+  resolveExclusionContext,
   type SelectedContextNode
 } from './context-pack.js';
 import { analyzeSource, type SourceDeclaration } from './source-analysis.js';
@@ -18,7 +19,10 @@ import type {
   CompiledContextArtifact,
   CompiledContextExcerpt,
   DependencyGraph,
-  ResolvedContextRequest
+  ResolvedContextRequest,
+  ResolvedExclusionRule,
+  OmittedContextEntry,
+  ContextExclusionPolicy
 } from './types.js';
 import { formatStatus, getErrorMessage, isValidTaskId, isValidExperimentId } from './utils.js';
 
@@ -213,13 +217,21 @@ export function compileContext(
   curatedGraph: NonNullable<ReturnType<typeof readCuratedCodeGraph>>,
   dependencyGraph: DependencyGraph,
   repositoryRoot: string,
-  options: { budget?: number; maxNodes?: number; maxDepth?: number; taskId?: string | null; mode?: 'baseline' | 'compact'; experimentId?: string | null } = {}
+  options: { budget?: number; maxNodes?: number; maxDepth?: number; taskId?: string | null; mode?: 'baseline' | 'compact'; experimentId?: string | null; rules?: ResolvedExclusionRule[]; includeGlobs?: string[]; profiles?: string[] } = {}
 ): CompiledContextArtifact {
   const budget = options.budget ?? DEFAULT_BUDGET;
   const maxNodes = options.maxNodes ?? DEFAULT_MAX_NODES;
   const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
   const mode = options.mode ?? 'compact';
-  const selection = selectContextForObjective(objective, curatedGraph, dependencyGraph, { maxNodes, maxDepth });
+  const exclusionRules = (options.rules ?? [])
+    .map((rule) => ({ ...rule, profiles: [...new Set(rule.profiles)].sort((a, b) => a.localeCompare(b)) }))
+    .sort((a, b) => a.pattern.localeCompare(b.pattern));
+  const includeGlobs = [...new Set(options.includeGlobs ?? [])].sort((a, b) => a.localeCompare(b));
+  const exclusionProfiles = [...new Set([
+    ...(options.profiles ?? []),
+    ...exclusionRules.flatMap((rule) => rule.profiles)
+  ])].sort((a, b) => a.localeCompare(b));
+  const selection = selectContextForObjective(objective, curatedGraph, dependencyGraph, { maxNodes, maxDepth, rules: exclusionRules, includeGlobs });
   const contracts = Array.from(new Set(selection.curated.flatMap((node) => node.public_contracts ?? []))).sort();
   const entrypoints = Array.from(new Set(selection.curated.flatMap((node) => node.entrypoints ?? []))).sort();
   const rules = selectApplicableRules(repositoryRoot, selection.terms);
@@ -269,7 +281,13 @@ export function compileContext(
     contracts,
     entrypoints,
     excerpts: [],
-    omitted_candidates: candidates.length
+    omitted_candidates: candidates.length,
+    context_exclusions: {
+      profiles: exclusionProfiles,
+      include_globs: [...includeGlobs].sort(),
+      rules: exclusionRules
+    },
+    omitted_context: selection.omitted
   };
 
   artifact.budget.estimated_tokens = computeArtifactEstimate(artifact);
@@ -310,7 +328,7 @@ export function compileContextExpansion(
   curatedGraph: ReturnType<typeof readCuratedCodeGraph>,
   dependencyGraph: DependencyGraph,
   repositoryRoot: string,
-  options: { budget?: number; parentArtifact?: string | null } = {}
+  options: { budget?: number; parentArtifact?: string | null; effectivePolicy?: ContextExclusionPolicy; omittedContext?: OmittedContextEntry[] } = {}
 ): CompiledContextArtifact {
   const remainingCapacity = primary.budget.limit_tokens - primary.budget.estimated_tokens;
   const budget = options.budget ?? remainingCapacity;
@@ -448,7 +466,11 @@ export function compileContextExpansion(
     contracts,
     entrypoints,
     excerpts: [],
-    omitted_candidates: deduped.length
+    omitted_candidates: deduped.length,
+    context_exclusions: options.effectivePolicy
+      ?? primary.context_exclusions
+      ?? { profiles: [], include_globs: [], rules: [] },
+    omitted_context: [...(options.omittedContext ?? [])].sort((a, b) => a.path.localeCompare(b.path))
   };
 
   const baseEstimate = computeArtifactEstimate(artifact);
@@ -495,7 +517,10 @@ export function renderCompiledContextMarkdown(artifact: CompiledContextArtifact)
   ).join('\n\n');
   const diagnosticFence = markdownFence(JSON.stringify(artifact.diagnostics, null, 2));
   const parentLine = artifact.parent_artifact ? `\n- Parent artifact: ${artifact.parent_artifact}` : '';
-  return `# ForgeAI Compiled Context\n\n- Objective: ${artifact.objective}${parentLine}\n- Repository fingerprint: ${artifact.repository.fingerprint}\n- Estimated tokens: ${artifact.budget.estimated_tokens}/${artifact.budget.limit_tokens}\n- Estimator: ${artifact.budget.estimator}\n- Omitted candidates: ${artifact.omitted_candidates}\n\n## Selected Files\n\n| Path | Depth | Reason | Graph path |\n| --- | ---: | --- | --- |\n${files || '| none | n/a | no objective match | n/a |'}\n\n## Applicable Rules\n\n${rules || 'No applicable rule section was found.'}\n\n## Diagnostics\n\n${diagnosticFence}json\n${JSON.stringify(artifact.diagnostics, null, 2)}\n${diagnosticFence}\n\n## Contracts\n\n${artifact.contracts.map((value) => `- ${value}`).join('\n') || '- none'}\n\n## Entrypoints\n\n${artifact.entrypoints.map((value) => `- ${value}`).join('\n') || '- none'}\n\n## Source Excerpts\n\n${excerpts || 'No syntax node fit the configured budget.'}\n`;
+  const omittedRows = (artifact.omitted_context ?? [])
+    .map((o) => `| ${o.path} | ${o.pattern} | ${o.reason} | ${o.profiles.join(', ')} |`)
+    .join('\n');
+  return `# ForgeAI Compiled Context\n\n- Objective: ${artifact.objective}${parentLine}\n- Repository fingerprint: ${artifact.repository.fingerprint}\n- Estimated tokens: ${artifact.budget.estimated_tokens}/${artifact.budget.limit_tokens}\n- Estimator: ${artifact.budget.estimator}\n- Omitted candidates: ${artifact.omitted_candidates}\n\n## Selected Files\n\n| Path | Depth | Reason | Graph path |\n| --- | ---: | --- | --- |\n${files || '| none | n/a | no objective match | n/a |'}\n\n## Omitted by Profile Exclusion\n\n| Path | Pattern | Reason | Profiles |\n| --- | --- | --- | --- |\n${omittedRows || '| none | n/a | n/a | n/a |'}\n\n## Applicable Rules\n\n${rules || 'No applicable rule section was found.'}\n\n## Diagnostics\n\n${diagnosticFence}json\n${JSON.stringify(artifact.diagnostics, null, 2)}\n${diagnosticFence}\n\n## Contracts\n\n${artifact.contracts.map((value) => `- ${value}`).join('\n') || '- none'}\n\n## Entrypoints\n\n${artifact.entrypoints.map((value) => `- ${value}`).join('\n') || '- none'}\n\n## Source Excerpts\n\n${excerpts || 'No syntax node fit the configured budget.'}\n`;
 }
 
 function parseIntegerArg(name: string, fallback: number, minimum: number, maximum: number): number | null {
@@ -518,7 +543,7 @@ function markdownOutputPath(jsonOutput: string, explicit: string | null): string
 export function runCompileContext(): void {
   const objective = getArgValue('--objective');
   if (!objective) {
-    process.stderr.write('Usage: forgeai-init --compile-context --objective "<description>" [--task <id>] [--budget <256-200000>] [--max-depth <0-5>] [--max-nodes <1-50>] [--output <json>] [--markdown-output <md>]\n');
+    process.stderr.write('Usage: forgeai-init --compile-context --objective "<description>" [--task <id>] [--budget <256-200000>] [--max-depth <0-5>] [--max-nodes <1-50>] [--include-excluded "<glob>[,<glob>...]"] [--output <json>] [--markdown-output <md>]\n');
     process.exitCode = 2;
     return;
   }
@@ -545,6 +570,15 @@ export function runCompileContext(): void {
   const maxNodes = parseIntegerArg('--max-nodes', DEFAULT_MAX_NODES, 1, MAX_NODES);
   if (budget === null || maxDepth === null || maxNodes === null) return;
 
+  let exclusions;
+  try {
+    exclusions = resolveExclusionContext();
+  } catch (error) {
+    process.stderr.write(`Error: ${getErrorMessage(error)}\n`);
+    process.exitCode = 2;
+    return;
+  }
+
   const curatedGraph = readCuratedCodeGraph();
   if (!curatedGraph) return;
   const dependencyGraph = readDependencyGraph(root);
@@ -556,7 +590,7 @@ export function runCompileContext(): void {
   }
 
   try {
-    const artifact = compileContext(objective, curatedGraph, dependencyGraph!, root, { budget, maxDepth, maxNodes, taskId: taskIdArg, mode: modeArg, experimentId: experimentArg });
+    const artifact = compileContext(objective, curatedGraph, dependencyGraph!, root, { budget, maxDepth, maxNodes, taskId: taskIdArg, mode: modeArg, experimentId: experimentArg, rules: exclusions.rules, includeGlobs: exclusions.includeGlobs, profiles: exclusions.profiles });
     const json = `${JSON.stringify(artifact, null, 2)}\n`;
     const outputArg = getArgValue('--output');
     if (!outputArg) {

@@ -27,5 +27,8 @@ cargo test
 
 ## Context exclusion hints
 
-Do not include `target/` (build artifacts) or `**/tests/fixtures/**` in
-context unless the task explicitly requires them.
+These paths are excluded from selected and compiled context unless explicitly
+overridden with `--include-excluded`:
+
+- `target/` — Rust build output
+- `**/tests/fixtures/**` — test fixtures

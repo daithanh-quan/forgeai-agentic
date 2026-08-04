@@ -11,7 +11,7 @@ const DIGEST_RE = /^[0-9a-f]{64}$/;
 const ESCAPE_ID_RE = /^[0-9a-f]{16}$/;
 const REASON_CODES: ReadonlySet<EscapeReasonCode> = new Set<EscapeReasonCode>([
   'missing_reason', 'missing_path', 'missing_name', 'ignored_path', 'path_not_in_graph',
-  'symbol_not_found', 'unknown_kind', 'budget_exceeded', 'no_new_context',
+  'symbol_not_found', 'unknown_kind', 'budget_exceeded', 'no_new_context', 'profile_excluded',
 ]);
 
 export function taskEscapeDir(root: string, taskId: string): string {

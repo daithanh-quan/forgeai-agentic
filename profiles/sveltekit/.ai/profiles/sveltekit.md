@@ -32,4 +32,9 @@ npm run build
 
 ## Context exclusion hints
 
-Do not include `.svelte-kit/`, `build/`, or `node_modules/` in context.
+These paths are excluded from selected and compiled context unless explicitly
+overridden with `--include-excluded`:
+
+- `.svelte-kit/` — generated SvelteKit output
+- `build/` — build artifacts
+- `node_modules/` — installed dependencies

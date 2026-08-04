@@ -5,7 +5,9 @@ import type {
   CodeGraphNode,
   DependencyGraph,
   DependencyGraphEdge,
-  DependencyGraphNode
+  DependencyGraphNode,
+  ResolvedExclusionRule,
+  OmittedContextEntry
 } from './types.js';
 import { root, getArgValue } from './context.js';
 import { isTemplateCodeGraph } from './codegraph.js';
@@ -14,7 +16,13 @@ import {
   DEPENDENCY_GRAPH_PATH,
   readDependencyGraph
 } from './dependency-graph.js';
+import { readManifestResult } from './manifest.js';
+import { getAvailableProfiles, normalizeProfile, parseCompositeProfile } from './profiles.js';
+import { resolveExclusions, parseIncludeExcluded, matchExclusion } from './profile-exclusions.js';
+import { globMatches } from './path-glob.js';
 import { formatStatus, getErrorMessage } from './utils.js';
+
+export { globMatches } from './path-glob.js';
 
 const DEFAULT_MAX_NODES = 12;
 const DEFAULT_MAX_DEPTH = 2;
@@ -45,12 +53,62 @@ export type DependencyContextSelection = {
   terms: string[];
   selected: SelectedContextNode[];
   curated: CodeGraphNode[];
+  omitted: OmittedContextEntry[];
 };
 
 export type ContextPackOptions = {
   maxNodes?: number;
   maxDepth?: number;
+  rules?: ResolvedExclusionRule[];
+  includeGlobs?: string[];
 };
+
+export type ResolvedExclusionContext = {
+  profiles: string[];
+  rules: ResolvedExclusionRule[];
+  includeGlobs: string[];
+};
+
+/** Resolve the active profile's exclusion policy from the installed manifest and
+ *  the optional --include-excluded flag. Returns empty rules when no manifest or
+ *  no profile table applies. Throws (via parseIncludeExcluded) on a malformed flag. */
+export function resolveExclusionContext(
+  includeValue: string | null = getArgValue('--include-excluded')
+): ResolvedExclusionContext {
+  const manifest = readManifestResult();
+  let components: string[] = [];
+  if (manifest.state === 'invalid') {
+    process.stderr.write(`Warning: invalid .ai/manifest.json: ${manifest.reason}; profile exclusions disabled.\n`);
+  } else if (manifest.state === 'valid') {
+    if (typeof manifest.data.profile !== 'string') {
+      process.stderr.write('Warning: invalid .ai/manifest.json profile; profile exclusions disabled.\n');
+    } else {
+      const normalized = normalizeProfile(manifest.data.profile);
+      if (normalized !== 'base') {
+        const parsed = parseCompositeProfile(normalized);
+        const available = new Set(getAvailableProfiles());
+        const seen = new Set<string>();
+        const invalid: string[] = [];
+        for (const part of parsed) {
+          if (part.length === 0 || part === 'base' || part === 'none' || seen.has(part) || !available.has(part)) {
+            invalid.push(part);
+          } else {
+            seen.add(part);
+          }
+        }
+        components = Array.from(seen).sort((a, b) => a.localeCompare(b));
+        if (invalid.length > 0) {
+          process.stderr.write(`Warning: manifest profile contains invalid or unknown components (${invalid.map((p) => p || '<empty>').join(', ')}); ignoring them for profile exclusions.\n`);
+        }
+      }
+    }
+  }
+  return {
+    profiles: components,
+    rules: resolveExclusions(components),
+    includeGlobs: parseIncludeExcluded(includeValue)
+  };
+}
 
 export function tokenizeObjective(value: string): string[] {
   return Array.from(
@@ -118,18 +176,6 @@ function scoreGeneratedNode(node: DependencyGraphNode, terms: string[]): Seed | 
   return score > 0 ? { id: node.id, score, reasons: Array.from(reasons) } : null;
 }
 
-export function globMatches(pattern: string, candidate: string): boolean {
-  const normalized = pattern.replace(/\\/g, '/').replace(/^\.\//, '');
-  const expression = normalized
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\/\*\*\//g, '\0')       // /**/ → NUL: zero-or-more segments between separators
-    .replace(/\*\*/g, '\x01')          // remaining ** → SOH: any chars (held until after * pass)
-    .replace(/\*/g, '[^/]*')           // single * → any non-separator chars
-    .replace(/\0/g, '/(?:.+/)?')       // NUL → optional intermediate dirs
-    .replace(/\x01/g, '.*');           // SOH → any chars including separators
-  return new RegExp(`^${expression}$`).test(candidate);
-}
-
 function findSeeds(objective: string, curatedGraph: CodeGraph, dependencyGraph: DependencyGraph): Seed[] {
   const terms = tokenizeObjective(objective);
   const seeds = new Map<string, Seed>();
@@ -176,7 +222,10 @@ function selectDependencyContext(
   seeds: Seed[],
   dependencyGraph: DependencyGraph,
   maxNodes: number,
-  maxDepth: number
+  maxDepth: number,
+  rules: ResolvedExclusionRule[],
+  includeGlobs: string[],
+  omitted: Map<string, OmittedContextEntry>
 ): SelectedContextNode[] {
   const nodes = new Map(dependencyGraph.nodes.map((node) => [node.id, node]));
   const outgoing = new Map<string, DependencyGraphEdge[]>();
@@ -189,15 +238,30 @@ function selectDependencyContext(
     edges.sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to) || a.kind.localeCompare(b.kind));
   }
 
+  // A node matching a profile exclusion is never selected or enqueued, so it
+  // cannot consume the maxNodes bound and traversal never crosses it. Objective
+  // keyword matching is not an escape hatch: an excluded seed is still omitted.
+  const isExcluded = (p: string): boolean => {
+    const m = matchExclusion(p, rules, includeGlobs);
+    if (m.matched && !omitted.has(p)) {
+      omitted.set(p, { path: p, pattern: m.rule.pattern, profiles: m.rule.profiles, reason: m.rule.reason });
+    }
+    return m.matched;
+  };
+
   const selected = new Map<string, SelectedContextNode>();
   const queue: Array<{ id: string; depth: number; graphPath: string }> = [];
-  for (const seed of seeds.slice(0, Math.min(maxNodes, MAX_SEEDS))) {
+  let acceptedSeeds = 0;
+  for (const seed of seeds) {
+    if (acceptedSeeds >= Math.min(maxNodes, MAX_SEEDS)) break;
     if (selected.size >= maxNodes) break;
     const node = nodes.get(seed.id);
     if (!node || selected.has(seed.id)) continue;
+    if (isExcluded(node.path)) continue;
     const reason = `seed: ${seed.reasons.join('; ')} (score ${seed.score})`;
     selected.set(seed.id, { node, depth: 0, reason, graphPath: seed.id });
     queue.push({ id: seed.id, depth: 0, graphPath: seed.id });
+    acceptedSeeds += 1;
   }
 
   while (queue.length > 0 && selected.size < maxNodes) {
@@ -225,6 +289,7 @@ function selectDependencyContext(
       if (selected.has(neighbor.id)) continue;
       const node = nodes.get(neighbor.id);
       if (!node) continue;
+      if (isExcluded(node.path)) continue;
       const depth = current.depth + 1;
       selected.set(neighbor.id, {
         node,
@@ -254,10 +319,14 @@ export function selectContextForObjective(
 ): DependencyContextSelection {
   const maxNodes = options.maxNodes ?? DEFAULT_MAX_NODES;
   const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
+  const rules = options.rules ?? [];
+  const includeGlobs = options.includeGlobs ?? [];
   const terms = tokenizeObjective(objective);
   const seeds = findSeeds(objective, curatedGraph, dependencyGraph);
-  const selected = selectDependencyContext(seeds, dependencyGraph, maxNodes, maxDepth);
-  return { terms, selected, curated: relatedCuratedNodes(selected, curatedGraph) };
+  const omittedMap = new Map<string, OmittedContextEntry>();
+  const selected = selectDependencyContext(seeds, dependencyGraph, maxNodes, maxDepth, rules, includeGlobs, omittedMap);
+  const omitted = Array.from(omittedMap.values()).sort((a, b) => a.path.localeCompare(b.path));
+  return { terms, selected, curated: relatedCuratedNodes(selected, curatedGraph), omitted };
 }
 
 export function buildContextPack(
@@ -268,11 +337,14 @@ export function buildContextPack(
 ): string {
   const maxNodes = options.maxNodes ?? DEFAULT_MAX_NODES;
   const maxDepth = options.maxDepth ?? DEFAULT_MAX_DEPTH;
-  const { terms, selected, curated } = selectContextForObjective(objective, curatedGraph, dependencyGraph, options);
+  const { terms, selected, curated, omitted } = selectContextForObjective(objective, curatedGraph, dependencyGraph, options);
   const rows = selected
     .map(({ node, depth, reason, graphPath }) => `| ${node.path} | ${depth} | ${reason} | ${graphPath} |`)
     .join('\n');
   const readFiles = selected.map(({ node }) => `- ${node.path}`).join('\n');
+  const omittedRows = omitted
+    .map((o) => `| ${o.path} | ${o.pattern} | ${o.reason} | ${o.profiles.join(', ')} |`)
+    .join('\n');
   const contracts = Array.from(new Set(curated.flatMap((node) => node.public_contracts ?? [])));
   const entrypoints = Array.from(new Set(curated.flatMap((node) => node.entrypoints ?? [])));
   const revision = dependencyGraph.repository.revision?.slice(0, 12) ?? 'not available';
@@ -298,6 +370,12 @@ ${rows || '| none | n/a | no objective-matched source seed | n/a |'}
 ## Required Files to Read Before Editing
 
 ${readFiles || '- none selected; refine the objective or refresh source naming/exports before choosing files'}
+
+## Omitted by Profile Exclusion
+
+| Path | Pattern | Reason | Profiles |
+| --- | --- | --- | --- |
+${omittedRows || '| none | n/a | n/a | n/a |'}
 
 ## Likely Write Scope
 
@@ -360,13 +438,22 @@ export function runContextPack(): void {
   const objective = getArgValue('--objective');
   const outputArg = getArgValue('--output');
   if (!objective) {
-    process.stderr.write('Usage: forgeai-init --context-pack --objective "<description>" [--max-depth <0-5>] [--max-nodes <1-50>] [--output <file>]\n');
+    process.stderr.write('Usage: forgeai-init --context-pack --objective "<description>" [--max-depth <0-5>] [--max-nodes <1-50>] [--include-excluded "<glob>[,<glob>...]"] [--output <file>]\n');
     process.exitCode = 2;
     return;
   }
   const maxDepth = parseBound('--max-depth', DEFAULT_MAX_DEPTH, MAX_ALLOWED_DEPTH);
   const maxNodes = parseBound('--max-nodes', DEFAULT_MAX_NODES, MAX_ALLOWED_NODES);
   if (maxDepth === null || maxNodes === null) return;
+
+  let exclusions: ResolvedExclusionContext;
+  try {
+    exclusions = resolveExclusionContext();
+  } catch (error) {
+    console.error(`Error: ${getErrorMessage(error)}`);
+    process.exitCode = 2;
+    return;
+  }
 
   const curatedGraph = readCuratedCodeGraph();
   if (!curatedGraph) return;
@@ -378,7 +465,12 @@ export function runContextPack(): void {
     return;
   }
 
-  const content = buildContextPack(objective, curatedGraph, dependencyGraph!, { maxDepth, maxNodes });
+  const content = buildContextPack(objective, curatedGraph, dependencyGraph!, {
+    maxDepth,
+    maxNodes,
+    rules: exclusions.rules,
+    includeGlobs: exclusions.includeGlobs
+  });
   if (outputArg) {
     const outputPath = path.resolve(root, outputArg);
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
