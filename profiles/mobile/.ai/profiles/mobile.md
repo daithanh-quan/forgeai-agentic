@@ -25,3 +25,12 @@ npm test
 npm run lint
 flutter test
 ```
+
+## Context exclusion hints
+
+These paths are excluded from selected and compiled context unless explicitly
+overridden with `--include-excluded`:
+
+- `android/` — native Android platform files
+- `ios/` — native iOS platform files
+- `.expo/` — Expo build cache

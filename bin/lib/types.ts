@@ -163,6 +163,28 @@ export type CompiledDiagnostics = {
   };
 };
 
+export type ProfileExclusionRule = {
+  pattern: string;   // authored token, e.g. "migrations/"
+  reason: string;
+};
+
+export type ResolvedExclusionRule = ProfileExclusionRule & {
+  profiles: string[];   // sorted contributors after composite dedupe
+};
+
+export type ContextExclusionPolicy = {
+  profiles: string[];               // normalized, sorted, deduped components
+  include_globs: string[];          // normalized repo-relative overrides
+  rules: ResolvedExclusionRule[];   // exact snapshot used by this artifact
+};
+
+export type OmittedContextEntry = {
+  path: string;
+  pattern: string;
+  profiles: string[];
+  reason: string;
+};
+
 export type CompiledContextArtifact = {
   schema_version: 1;
   kind: 'forgeai_compiled_context';
@@ -198,6 +220,8 @@ export type CompiledContextArtifact = {
   entrypoints: string[];
   excerpts: CompiledContextExcerpt[];
   omitted_candidates: number;
+  context_exclusions: ContextExclusionPolicy;
+  omitted_context: OmittedContextEntry[];
 };
 
 export type PackageJson = {
@@ -221,7 +245,8 @@ export type NeedContextArtifact = {
 export type EscapeReasonCode =
   | 'missing_reason' | 'missing_path' | 'missing_name'
   | 'ignored_path' | 'path_not_in_graph' | 'symbol_not_found'
-  | 'unknown_kind' | 'budget_exceeded' | 'no_new_context';
+  | 'unknown_kind' | 'budget_exceeded' | 'no_new_context'
+  | 'profile_excluded';
 
 // A persisted snapshot of the request that was declined. It is deliberately NOT
 // a NeedContextRequestItem: escapes such as missing_reason / missing_name /

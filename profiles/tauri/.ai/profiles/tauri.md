@@ -24,3 +24,11 @@ Prefer existing scripts. Common commands:
 npm run build
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
+
+## Context exclusion hints
+
+These paths are excluded from selected and compiled context unless explicitly
+overridden with `--include-excluded`:
+
+- `src-tauri/target/` — Rust build output
+- `target/` — Rust build output

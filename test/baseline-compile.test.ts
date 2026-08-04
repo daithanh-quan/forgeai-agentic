@@ -95,13 +95,25 @@ test('--compile-context rejects an invalid --mode', () => {
   }
 });
 
-test('a bare --mode or --experiment (no value) exits 1', () => {
+test('a bare --mode, --experiment, or --include-excluded (no value) exits 1', () => {
   const dir = makeCompilerRepo();
   try {
-    for (const flag of ['--mode', '--experiment']) {
+    for (const flag of ['--mode', '--experiment', '--include-excluded']) {
       const out = compileErr(dir, ['--objective', 'demo', flag]);
       assert.match(out, new RegExp(`\\${flag} requires a value`));
     }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('duplicate --include-excluded exits 1', () => {
+  const dir = makeCompilerRepo();
+  try {
+    const out = compileErr(dir, [
+      '--objective', 'demo', '--include-excluded', 'a/**', '--include-excluded', 'b/**'
+    ]);
+    assert.match(out, /--include-excluded cannot be specified more than once/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

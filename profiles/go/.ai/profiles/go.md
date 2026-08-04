@@ -26,5 +26,9 @@ go test ./...
 
 ## Context exclusion hints
 
-Do not include `vendor/`, `*.pb.go` (generated protobuf), or `*_mock.go`
-(generated mocks) in context unless the task explicitly requires them.
+These paths are excluded from selected and compiled context unless explicitly
+overridden with `--include-excluded`:
+
+- `vendor/` — vendored dependencies
+- `*.pb.go` — generated protobuf source
+- `*_mock.go` — generated mocks

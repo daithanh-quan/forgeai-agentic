@@ -29,5 +29,10 @@ ruff check .
 
 ## Context exclusion hints
 
-Do not include `alembic/versions/` (generated migration scripts), `__pycache__/`,
-`.env`, or `*.pyc` in context unless the task explicitly requires them.
+These paths are excluded from selected and compiled context unless explicitly
+overridden with `--include-excluded`:
+
+- `alembic/versions/` — generated migration scripts
+- `__pycache__/` — Python bytecode cache
+- `.env` — environment secrets
+- `*.pyc` — Python bytecode

@@ -580,6 +580,56 @@ The budget estimate is deterministic (`characters / 4`) and applies
 to the serialized JSON artifact, not to the optional Markdown rendering or a
 provider's exact tokenizer.
 
+### Profile context exclusions
+
+Profiles with context-specific junk document a `## Context exclusion hints` section listing
+generated artifacts, migrations, caches, and secrets that should stay out of
+model context. As of 3.11.0 these hints are **enforced**, not advisory:
+`--context-pack`, `--compile-context`, and `--expand-context` drop matching paths
+during selection (so an excluded node never consumes the selection bound and
+traversal never crosses it). Excluded paths are reported under an "Omitted by
+Profile Exclusion" section (context-pack) and in the artifact's
+`context_exclusions` / `omitted_context` fields (compile/expand). In an
+expansion, a rejected request is recorded as a `profile_excluded` context escape.
+
+Enforced profiles and their patterns:
+
+| Profile | Excluded patterns |
+| --- | --- |
+| `go` | `vendor/`, `*.pb.go`, `*_mock.go` |
+| `rust` | `target/`, `**/tests/fixtures/**` |
+| `fastapi` | `alembic/versions/`, `__pycache__/`, `.env`, `*.pyc` |
+| `django` | `migrations/`, `__pycache__/`, `.env`, `staticfiles/`, `media/` |
+| `react-native` | `android/`, `ios/`, `node_modules/`, `.expo/` |
+| `sveltekit` | `.svelte-kit/`, `build/`, `node_modules/` |
+| `python-api` | `__pycache__/`, `.env`, `*.pyc`, `.venv/`, `venv/` |
+| `mobile` | `android/`, `ios/`, `.expo/` |
+| `tauri` | `src-tauri/target/`, `target/` |
+
+Composite profiles (e.g. `django+monorepo`) union their components' rules.
+`nextjs`, `node-api`, and `monorepo` add no profile rules — their artifacts are
+already covered by the graph-level ignored directories.
+
+Directory patterns like `vendor/` match at any depth (`vendor/**` and
+`**/vendor/**`); filename patterns like `*.pb.go` match at the root and nested.
+To keep a would-be-excluded path for one run, pass repo-relative globs to
+`--include-excluded` (comma-separated), for example:
+
+```bash
+forgeai-init --compile-context \
+  --objective "regenerate the alembic migration" \
+  --include-excluded "**/alembic/versions/**" \
+  --output .ai/state/context/migration.json
+```
+
+Objective keywords are not an escape hatch: an excluded path is dropped even if
+the objective mentions it. `--include-excluded` is the only override.
+
+The dependency graph currently indexes JavaScript and TypeScript source only.
+Rules for Go, Rust, and Python file extensions are policy-ready but become directly
+effective when those language parsers are added; directory rules already apply to
+any indexed JS/TS files beneath matching paths.
+
 Use the resulting read scope, write scope, and validation plan as the
 delegated assignment boundary. This controls scope and keeps delegation
 consistent; it does not by itself guarantee lower token usage. Record token

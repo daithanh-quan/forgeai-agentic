@@ -26,8 +26,9 @@ export function usage(): string {
   forgeai-init --check-approval
   forgeai-init --check-evaluation
   forgeai-init --decompose --objective "<description>" [--compact] [--output <file>]
-  forgeai-init --context-pack --objective "<description>" [--max-depth <0-5>] [--max-nodes <1-50>] [--output <file>]
-  forgeai-init --compile-context --objective "<description>" [--task <id>] [--mode baseline|compact] [--experiment <EXP-id>] [--budget <tokens>] [--output <json>]
+  forgeai-init --context-pack --objective "<description>" [--max-depth <0-5>] [--max-nodes <1-50>] [--include-excluded "<glob>[,<glob>...]"] [--output <file>]
+  forgeai-init --compile-context --objective "<description>" [--task <id>] [--mode baseline|compact] [--experiment <EXP-id>] [--budget <tokens>] [--include-excluded "<glob>[,<glob>...]"] [--output <json>]
+  forgeai-init --expand-context --artifact <path> --need-context <path> [--budget <tokens>] [--include-excluded "<glob>[,<glob>...]"] [--output <json>]
   forgeai-init --status-summary
   forgeai-init --diff-summary
   forgeai-init --test-summary
@@ -143,6 +144,10 @@ Options:
                 or tests. Requires --artifact <path> and --need-context <path>.
                 Use --budget <tokens> to override the default (remaining primary
                 capacity). With --output <json>, also writes a Markdown rendering.
+  --include-excluded "<glob>[,<glob>...]"
+                Keep paths the active profile would otherwise exclude, for
+                --context-pack, --compile-context, and --expand-context. Globs are
+                repo-relative; absolute paths and "."/".." segments are rejected.
   --status-summary
                 Emit a compact markdown summary of git status (branch, last
                 commit, staged/unstaged/untracked counts, file list). Fallback

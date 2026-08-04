@@ -25,3 +25,14 @@ pytest
 ruff check .
 mypy .
 ```
+
+## Context exclusion hints
+
+These paths are excluded from selected and compiled context unless explicitly
+overridden with `--include-excluded`:
+
+- `__pycache__/` — Python bytecode cache
+- `.env` — environment secrets
+- `*.pyc` — Python bytecode
+- `.venv/` — virtual environment
+- `venv/` — virtual environment

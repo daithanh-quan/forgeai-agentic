@@ -25,6 +25,11 @@ pytest
 
 ## Context exclusion hints
 
-Do not include `migrations/` directories (auto-generated), `__pycache__/`,
-`.env`, `staticfiles/`, or `media/` in context unless the task explicitly
-requires them.
+These paths are excluded from selected and compiled context unless explicitly
+overridden with `--include-excluded`:
+
+- `migrations/` — auto-generated migrations
+- `__pycache__/` — Python bytecode cache
+- `.env` — environment secrets
+- `staticfiles/` — collected static assets
+- `media/` — user-uploaded media

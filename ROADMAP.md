@@ -309,9 +309,10 @@ Deferred to Phase 16.1:
 - Profile-registered language-specific dependency parsers. Hard-coded
   detection covers the 3.5.0 profiles; a registry interface requires a
   stable parser contract which does not yet exist.
-- Code-level context exclusion enforcement. Each 3.5.0 profile documents
-  exclusion hints in Markdown; wiring these hints to `--context-pack` /
-  `--compile-context` follows in 16.1 once the parser interface is defined.
+- Code-level context exclusion enforcement. Several profiles document exclusion
+  hints in Markdown; wiring these hints to `--context-pack` /
+  `--compile-context` / `--expand-context` is an independent 16.1 track and
+  does not wait for the parser-registry interface.
 
 ### Phase 17 - Concurrent session locking
 

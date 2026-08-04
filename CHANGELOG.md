@@ -1,5 +1,52 @@
 # Changelog
 
+## 3.11.0 — 2026-08-02
+
+Phase 16.1 — profile context-exclusion enforcement. Additive only
+(`schema_version` stays `1`); artifacts written by earlier 3.x versions read back
+with safe defaults.
+
+### Added
+
+- **Enforced profile exclusions**: each profile's documented `## Context
+  exclusion hints` are now enforced during selection by `--context-pack`,
+  `--compile-context`, and `--expand-context` — previously advisory prose. An
+  excluded path is dropped before it enters the selection, so it never consumes
+  the `--max-nodes` bound and traversal never crosses it. Objective keywords are
+  not an escape hatch. Enforced profiles: `go`, `rust`, `fastapi`, `django`,
+  `react-native`, `sveltekit`, and (new hint sections) `python-api`, `mobile`,
+  `tauri`. `nextjs`/`node-api`/`monorepo` add no rules (already covered by the
+  graph-level ignored directories). Composite profiles union their components'
+  rules. Directory patterns (`vendor/`) match at any depth; filename patterns
+  (`*.pb.go`) match at root and nested. Patterns live in code
+  (`bin/lib/profile-exclusions.ts`) mirrored by the profile Markdown, guarded by
+  a drift test.
+  The current graph indexes JS/TS only; non-JS extension rules are forward policy
+  for the planned language-parser registry, while matching directories are enforced
+  for indexed JS/TS files today.
+- **`--include-excluded "<glob>[,<glob>...]"`** on `--context-pack`,
+  `--compile-context`, and `--expand-context`: keep repo-relative paths the
+  active profile would otherwise exclude. Absolute paths and `.`/`..` segments
+  are rejected. It is the only exclusion override.
+- **Compiled-artifact fields** `context_exclusions` (`{ profiles, include_globs,
+  rules }`) and `omitted_context` (`{ path, pattern, profiles, reason }[]`,
+  sorted by path) record the effective policy and dropped paths. `--context-pack`
+  gains an "Omitted by Profile Exclusion" Markdown section; the compiled-context
+  Markdown mirrors it.
+- **`profile_excluded` context-escape reason**: in `--expand-context`, a request
+  resolving to an excluded file/test/symbol path is rejected and recorded as a
+  `profile_excluded` escape (a symbol resolving to both kept and excluded paths
+  partially succeeds). Expansion inherits the primary artifact's persisted policy
+  (falling back to the current manifest for legacy primaries) and unions any
+  expansion-level `--include-excluded`.
+
+### Changed
+
+- The router (`--validate-artifact`) validates `context_exclusions` and
+  `omitted_context` when present (shape, sorted-unique omission paths, and no
+  overlap with `selection.files`), accepts their absence on legacy artifacts, and
+  normalizes them to safe defaults only after the historical token estimate check.
+
 ## 3.10.0 — 2026-07-31
 
 Phase 13D — model-tier routing advice and a human outcome override. Additive
