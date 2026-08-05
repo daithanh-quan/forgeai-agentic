@@ -638,6 +638,30 @@ future routing decisions can be based on measured evidence rather than
 assumptions. Exact provider token savings remain an evaluation claim, not a
 guarantee of the compiler's deterministic estimate.
 
+## Language support
+
+The dependency graph and context compiler select a parser by file extension
+through a language registry:
+
+- **JavaScript / TypeScript** (`.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`,
+  `.mjs`, `.cjs`): full analysis via the Babel-backed parser — imports, exports,
+  declarations, and relative module resolution (including `.js` specifiers that
+  resolve to `.ts`). `.d.ts` files are not indexed.
+- **Python** (`.py`, `.pyi`): node indexing with full-body excerpts. Declarations
+  are top-level `def`/`class` (with decorators); exports follow `__all__` when
+  present, otherwise public (non-`_`) names. Imports resolve **relative** (`.x`,
+  `..a.b`) and **repo-root absolute** (`from app.models import User`) paths;
+  absolute imports not found at the repo root are treated as external. `src`-layout
+  and `sys.path` resolution are not modeled yet.
+
+`.venv` and `__pycache__` are never indexed. Profile context exclusions (see
+above) apply to any indexed source, so a repository with Python enters
+enforcement automatically — e.g. `django` omits `migrations/` `.py` files.
+
+Adding Python to a previously JS/TS-only repository changes the graph's file set,
+so `--check-codegraph` reports `stale` once; run `forgeai-init --refresh-codegraph`.
+Go and Rust register against the same parser contract and are planned follow-ups.
+
 ## Context Enforcement
 
 After compiling context with `--compile-context`, Phase 11 commands enforce

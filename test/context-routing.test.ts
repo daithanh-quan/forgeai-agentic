@@ -7,6 +7,7 @@ import type { CompiledContextArtifact } from '../bin/lib/types.js';
 import { cli, type ExecError, runTs } from './helpers.js';
 import { validateArtifact } from '../bin/lib/router.js';
 import { computeArtifactEstimate } from '../bin/lib/context-compiler.js';
+import { generateDependencyGraph, readDependencyGraph, DEPENDENCY_GRAPH_PATH } from '../bin/lib/dependency-graph.js';
 
 function initAndCompile(target: string, objective = 'change runCli implementation'): CompiledContextArtifact {
   fs.mkdirSync(path.join(target, 'src'), { recursive: true });
@@ -590,6 +591,87 @@ test('validateArtifact rejects an unknown artifact_role', () => {
     const artifactPath = writeArtifact(target, artifact);
     assert.equal(validateArtifact(artifactPath, target).status, 'invalid');
   } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+// --- Phase 16.2: language registry in the dependency graph ---
+
+test('indexes Python nodes with language and resolves relative + absolute edges', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-py-graph-'));
+  fs.mkdirSync(path.join(target, 'app'), { recursive: true });
+  fs.writeFileSync(path.join(target, 'app', '__init__.py'), '');
+  fs.writeFileSync(path.join(target, 'app', 'models.py'), 'class User:\n    pass\n');
+  fs.writeFileSync(path.join(target, 'app', 'views.py'), 'from .models import User\nfrom app.models import User\nimport os\n');
+  const graph = generateDependencyGraph(target);
+  assert.equal(graph.nodes.find((n) => n.path === 'app/views.py')!.language, 'python');
+  assert.ok(graph.edges.some((e) => e.from === 'app/views.py' && e.to === 'app/models.py'));
+  assert.ok(graph.unresolved.some((u) => u.from === 'app/views.py' && u.specifier === 'os' && u.reason === 'external_package'));
+  fs.rmSync(target, { recursive: true, force: true });
+});
+
+test('ignores .venv and __pycache__, including via the fallback walker (no git)', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-py-ignore-'));
+  fs.mkdirSync(path.join(target, '.venv', 'lib'), { recursive: true });
+  fs.mkdirSync(path.join(target, '__pycache__'), { recursive: true });
+  fs.writeFileSync(path.join(target, '.venv', 'lib', 'dep.py'), 'def x():\n    pass\n');
+  fs.writeFileSync(path.join(target, '__pycache__', 'c.py'), 'def y():\n    pass\n');
+  fs.writeFileSync(path.join(target, 'main.py'), 'def main():\n    pass\n');
+  // no `git init` here, so listSourceFiles falls back to the filesystem walker
+  const graph = generateDependencyGraph(target);
+  assert.deepEqual(graph.nodes.map((n) => n.path), ['main.py']);
+  fs.rmSync(target, { recursive: true, force: true });
+});
+
+test('golden regression: JS/TS graph unchanged apart from additive language', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-ts-golden-'));
+  fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(target, 'src', 'shared.ts'), 'export const v = 1;\n');
+  fs.writeFileSync(path.join(target, 'src', 'util.ts'), "export { v } from './shared.js';\n");
+  fs.writeFileSync(path.join(target, 'src', 'entry.ts'),
+    "import { v } from './util.js';\nconst r = require('./shared');\nexport async function load() { return import('./util.js'); }\nexport const total = v + r;\n");
+  const graph = generateDependencyGraph(target);
+  const nodes = graph.nodes.map(({ path: p, exports, language }) => ({ path: p, exports, language }));
+  assert.deepEqual(nodes, [
+    { path: 'src/entry.ts', exports: ['load', 'total'], language: 'typescript' },
+    { path: 'src/shared.ts', exports: ['v'], language: 'typescript' },
+    { path: 'src/util.ts', exports: ['v'], language: 'typescript' }
+  ]);
+  assert.deepEqual(graph.edges, [
+    { from: 'src/entry.ts', to: 'src/shared.ts', kind: 'require', specifier: './shared' },
+    { from: 'src/entry.ts', to: 'src/util.ts', kind: 'dynamic_import', specifier: './util.js' },
+    { from: 'src/entry.ts', to: 'src/util.ts', kind: 'static_import', specifier: './util.js' },
+    { from: 'src/util.ts', to: 'src/shared.ts', kind: 'static_import', specifier: './shared.js' }
+  ]);
+  assert.deepEqual(graph.unresolved, []);
+  fs.rmSync(target, { recursive: true, force: true });
+});
+
+test('does not create cross-language edges', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-crosslang-'));
+  fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(target, 'src', 'a.py'), 'def a():\n    pass\n');
+  fs.writeFileSync(path.join(target, 'src', 'entry.ts'), "import { a } from './a';\n");
+  const graph = generateDependencyGraph(target);
+  assert.equal(graph.edges.filter((e) => e.from === 'src/entry.ts').length, 0);
+  fs.rmSync(target, { recursive: true, force: true });
+});
+
+function writeValidGraphWithLanguage(target: string, language: unknown): void {
+  fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(target, 'src', 'a.ts'), 'export const a = 1;\n');
+  const base = generateDependencyGraph(target);
+  const node = base.nodes[0] as Record<string, unknown>;
+  if (language === undefined) delete node.language; else node.language = language;
+  fs.mkdirSync(path.join(target, '.ai', 'codegraph'), { recursive: true });
+  fs.writeFileSync(path.join(target, DEPENDENCY_GRAPH_PATH), JSON.stringify(base, null, 2) + '\n');
+}
+
+test('validator accepts missing/valid language, rejects empty/whitespace/non-string', () => {
+  for (const [value, ok] of [[undefined, true], ['typescript', true], ['rustlang', true], ['', false], ['   ', false], [42, false]] as const) {
+    const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-lang-valid-'));
+    writeValidGraphWithLanguage(target, value);
+    assert.equal(readDependencyGraph(target) !== null, ok, `language=${JSON.stringify(value)}`);
     fs.rmSync(target, { recursive: true, force: true });
   }
 });

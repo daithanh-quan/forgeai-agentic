@@ -9,7 +9,8 @@ import {
   resolveExclusionContext,
   type SelectedContextNode
 } from './context-pack.js';
-import { analyzeSource, type SourceDeclaration } from './source-analysis.js';
+import { type SourceDeclaration, type SourceAnalysis } from './source-analysis.js';
+import { parserForFile } from './language-registry.js';
 import { collectDiagnostics, selectApplicableRules } from './context-inputs.js';
 import {
   checkDependencyGraphHealth,
@@ -42,6 +43,14 @@ type ExcerptCandidate = {
 
 export class ContextBudgetError extends Error {}
 export class NoNewContextError extends Error {}
+
+/** Analyze a source file with the parser registered for its extension. Throws on
+ *  an unknown extension rather than silently feeding it to the JS/TS analyzer. */
+function analyzeRegisteredSource(content: string, file: string): SourceAnalysis {
+  const parser = parserForFile(file);
+  if (!parser) throw new Error(`no language parser registered for ${file}`);
+  return parser.analyze(content, file);
+}
 
 export function estimateTokens(value: string): number {
   return Math.ceil(value.length / 4);
@@ -117,7 +126,7 @@ function candidatesForFile(
   if (hashSource(content) !== selected.node.hash) {
     throw new Error(`${selected.node.path} changed after dependency graph validation; run forgeai-init --refresh-codegraph`);
   }
-  const analysis = analyzeSource(content, selected.node.path);
+  const analysis = analyzeRegisteredSource(content, selected.node.path);
   const candidates: ExcerptCandidate[] = [];
   const declarationSpans = analysis.declarations.map((declaration) => [declaration.start, declaration.end] as const);
 
@@ -364,7 +373,7 @@ export function compileContextExpansion(
     if (request.requestKind === 'file') {
       // Force-include ALL declarations (including non-exported ones) plus imports
       const content = readVerifiedSource(repositoryRoot, depNode);
-      const analysis = analyzeSource(content, request.path);
+      const analysis = analyzeRegisteredSource(content, request.path);
       for (const declaration of analysis.declarations) {
         const reason = `${request.reason} (file request)`;
         const selected: SelectedContextNode = { node: depNode, depth: 0, reason, graphPath: request.path };
@@ -380,7 +389,7 @@ export function compileContextExpansion(
     } else if (request.requestKind === 'test') {
       // Force-include test-kind declarations only
       const content = readVerifiedSource(repositoryRoot, depNode);
-      const analysis = analyzeSource(content, request.path);
+      const analysis = analyzeRegisteredSource(content, request.path);
       for (const declaration of analysis.declarations.filter((d) => d.kind === 'test')) {
         const reason = `${request.reason} (test request)`;
         const selected: SelectedContextNode = { node: depNode, depth: 0, reason, graphPath: request.path };
@@ -396,7 +405,7 @@ export function compileContextExpansion(
       // Force-include declarations whose name matches the symbol
       if (request.symbol) {
         const content = readVerifiedSource(repositoryRoot, depNode);
-        const analysis = analyzeSource(content, request.path);
+        const analysis = analyzeRegisteredSource(content, request.path);
         for (const declaration of analysis.declarations.filter((d) => d.name === request.symbol)) {
           const reason = `${request.reason} (symbol request: ${request.symbol})`;
           const selected: SelectedContextNode = { node: depNode, depth: 0, reason, graphPath: request.path };
@@ -501,7 +510,7 @@ function markdownFence(content: string): string {
 
 function languageForPath(file: string): string {
   const extension = path.extname(file).slice(1);
-  return ({ ts: 'typescript', tsx: 'tsx', mts: 'typescript', cts: 'typescript', js: 'javascript', jsx: 'jsx', mjs: 'javascript', cjs: 'javascript' } as Record<string, string>)[extension] ?? '';
+  return ({ ts: 'typescript', tsx: 'tsx', mts: 'typescript', cts: 'typescript', js: 'javascript', jsx: 'jsx', mjs: 'javascript', cjs: 'javascript', py: 'python', pyi: 'python' } as Record<string, string>)[extension] ?? '';
 }
 
 export function renderCompiledContextMarkdown(artifact: CompiledContextArtifact): string {

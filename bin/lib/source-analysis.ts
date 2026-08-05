@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { parse, type ParserPlugin } from '@babel/parser';
 import type { DependencyEdgeKind } from './types.js';
+import type { LanguageParser, ImportResolution, ImportResolutionContext } from './language-registry.js';
 
 type AstNode = {
   type: string;
@@ -275,3 +276,32 @@ export function analyzeSource(content: string, file: string): SourceAnalysis {
     declarations: declarations.sort((a, b) => a.start - b.start || a.name.localeCompare(b.name))
   };
 }
+
+const TS_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'] as const;
+
+function tsResolutionCandidates(importer: string, specifier: string): string[] {
+  const base = path.posix.normalize(path.posix.join(path.posix.dirname(importer), specifier)).replace(/\\/g, '/');
+  const extension = path.posix.extname(base);
+  const candidates = new Set<string>();
+  if (extension && (TS_EXTENSIONS as readonly string[]).includes(extension)) {
+    candidates.add(base);
+    const withoutExtension = base.slice(0, -extension.length);
+    for (const sourceExtension of TS_EXTENSIONS) candidates.add(`${withoutExtension}${sourceExtension}`);
+  } else {
+    candidates.add(base);
+    for (const sourceExtension of TS_EXTENSIONS) candidates.add(`${base}${sourceExtension}`);
+    for (const sourceExtension of TS_EXTENSIONS) candidates.add(`${base}/index${sourceExtension}`);
+  }
+  return Array.from(candidates);
+}
+
+export const typescriptParser: LanguageParser = {
+  id: 'typescript',
+  extensions: TS_EXTENSIONS,
+  analyze: analyzeSource,
+  resolveImport(importer: string, specifier: string, { sourceFiles }: ImportResolutionContext): ImportResolution {
+    if (!specifier.startsWith('.')) return { status: 'external' };
+    const target = tsResolutionCandidates(importer, specifier).find((candidate) => sourceFiles.has(candidate));
+    return target ? { status: 'resolved', path: target } : { status: 'unresolved_local' };
+  }
+};

@@ -30,9 +30,10 @@ before audience expansion and distribution:
    notes, `--check-upgrade` for CI, and dynamic version test fixtures.
 2. **Phase 16 - Profiles and composition.** Expand backend and mobile coverage
    after the dependency graph contract is stable enough for language-specific
-   parsers.
-3. **Phase 15 - CI/CD integration.** Add the adoption loop after the local
-   value proposition and upgrade path are dependable.
+   parsers. Profiles/composition shipped in 3.5.0; context-exclusion enforcement
+   in 3.11.0; the language parser registry began with Python in 3.12.0 (Go/Rust
+   follow as 16.2b/c).
+3. ~~**Phase 15 - CI/CD integration.**~~ Shipped in 3.6.0.
 
 ---
 
@@ -279,7 +280,7 @@ Deliverables:
   run state unless `--force` is explicit. ✓
 - Opt-in CI upgrade checks; never silently rewrite a working harness. ✓
 
-### Phase 15 - CI/CD integration
+### Phase 15 - CI/CD integration ✓ Shipped in 3.6.0
 
 Provide official GitHub Actions and GitLab CI templates for deterministic
 checks.
@@ -304,15 +305,17 @@ Deliverables (3.5.0):
 - Add confidence and ambiguity reporting to auto-detection.
 - Defer a community profile registry until package verification exists.
 
-Deferred to Phase 16.1:
+Deferred follow-ups:
 
-- Profile-registered language-specific dependency parsers. Hard-coded
-  detection covers the 3.5.0 profiles; a registry interface requires a
-  stable parser contract which does not yet exist.
-- Code-level context exclusion enforcement. Several profiles document exclusion
-  hints in Markdown; wiring these hints to `--context-pack` /
-  `--compile-context` / `--expand-context` is an independent 16.1 track and
-  does not wait for the parser-registry interface.
+- **Phase 16.1 (shipped in 3.11.0)** — code-level context exclusion enforcement.
+  Profile exclusion hints are now enforced boundaries for `--context-pack` /
+  `--compile-context` / `--expand-context`.
+- **Phase 16.2 (shipped in 3.12.0)** — the profile-registered language parser
+  registry, delivered as an extension-keyed `LanguageParser` contract with the
+  JS/TS analyzer wrapped behind it and a Python parser as the proof language.
+  This activates 16.1 enforcement for `.py`/`.pyi` source.
+- **Phase 16.2b / 16.2c (planned)** — Go and Rust parsers registering against the
+  same contract; Python `src`-layout / `sys.path` resolution.
 
 ### Phase 17 - Concurrent session locking
 
