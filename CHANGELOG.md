@@ -1,5 +1,34 @@
 # Changelog
 
+## 3.12.0 — 2026-08-05
+
+Phase 16.2 — language parser registry. Additive only (`schema_version` stays
+`1`); dependency graphs written by earlier 3.x versions read back unchanged, and
+nodes without the new `language` field are treated as `typescript`.
+
+- **Extension-keyed parser registry** (`bin/lib/language-registry.ts`): a stable
+  `LanguageParser` contract with a discriminated `ImportResolution` result and a
+  fail-fast, atomic registry. The existing Babel JS/TS analyzer is wrapped
+  unchanged as `typescriptParser`; JS/TS graphs are byte-stable (guarded by a
+  golden-fixture regression test).
+- **Python indexing** (`bin/lib/python-analysis.ts`): a line-based parser that
+  extracts full declaration spans (decorators through body), export/test
+  heuristics (`__all__` or public names), and resolves relative + repo-root
+  absolute imports. No new runtime dependency.
+- Both the dependency graph and the context compiler/expander now select a parser
+  by file extension, so `--context-pack`, `--compile-context`, and
+  `--expand-context` handle `.py`/`.pyi` source (never feeding it to Babel).
+- **Additive `language` node field** on the dependency graph; Python excerpts
+  render with a ```python Markdown fence.
+- `.venv` and `__pycache__` are added to the graph-level ignored directories.
+- **Phase 16.1 exclusion enforcement now applies to Python**: `migrations/` and
+  `alembic/versions/` directly omit `.py`/`.pyi` graph nodes; `.env`/`*.pyc`
+  remain documentation-only policy.
+- Note: a repository containing Python files reports its dependency graph as
+  `stale` once after upgrading; run `forgeai-init --refresh-codegraph`.
+- Go and Rust parsers register against the same contract and are deferred to
+  Phase 16.2b / 16.2c.
+
 ## 3.11.0 — 2026-08-02
 
 Phase 16.1 — profile context-exclusion enforcement. Additive only

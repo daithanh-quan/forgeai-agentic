@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { analyzeSource } from './source-analysis.js';
+import { parserForFile, allExtensions } from './language-registry.js';
 import { root } from './context.js';
 import type {
   DependencyEdgeKind,
@@ -14,13 +14,14 @@ import type {
 import { formatStatus, getErrorMessage } from './utils.js';
 
 export const DEPENDENCY_GRAPH_PATH = '.ai/codegraph/dependency-graph.json';
-export const SOURCE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'] as const;
 export const IGNORED_DIRECTORIES = [
   '.ai',
   '.git',
   '.next',
   '.nuxt',
   '.output',
+  '.venv',
+  '__pycache__',
   'build',
   'coverage',
   'dist',
@@ -51,7 +52,7 @@ function normalizePath(value: string): string {
 
 function isSourceFile(relativePath: string): boolean {
   if (relativePath.endsWith('.d.ts')) return false;
-  return SOURCE_EXTENSIONS.includes(path.extname(relativePath) as (typeof SOURCE_EXTENSIONS)[number]);
+  return allExtensions().includes(path.extname(relativePath).toLowerCase());
 }
 
 function isIgnored(relativePath: string): boolean {
@@ -111,34 +112,15 @@ export function buildSourceInventory(repositoryRoot: string): SourceInventory {
   return { files, hashes, fingerprint: fingerprint.digest('hex') };
 }
 
-function parseModule(content: string, file: string): { imports: ImportReference[]; exports: string[]; declarations: string[] } {
-  const analysis = analyzeSource(content, file);
+function parseModule(content: string, file: string): { imports: ImportReference[]; exports: string[]; declarations: string[]; language: string } {
+  const parser = parserForFile(file)!; // inventory is built from allExtensions(), so a parser always exists
+  const analysis = parser.analyze(content, file);
   return {
     imports: analysis.imports,
     exports: analysis.exports,
-    declarations: [...new Set(analysis.declarations.filter((d) => d.kind !== 'test').flatMap((d) => d.search_names))]
+    declarations: [...new Set(analysis.declarations.filter((d) => d.kind !== 'test').flatMap((d) => d.search_names))],
+    language: parser.id
   };
-}
-
-function resolutionCandidates(importer: string, specifier: string): string[] {
-  const base = normalizePath(path.posix.normalize(path.posix.join(path.posix.dirname(importer), specifier)));
-  const extension = path.posix.extname(base);
-  const candidates = new Set<string>();
-  if (extension && SOURCE_EXTENSIONS.includes(extension as (typeof SOURCE_EXTENSIONS)[number])) {
-    candidates.add(base);
-    const withoutExtension = base.slice(0, -extension.length);
-    for (const sourceExtension of SOURCE_EXTENSIONS) candidates.add(`${withoutExtension}${sourceExtension}`);
-  } else {
-    candidates.add(base);
-    for (const sourceExtension of SOURCE_EXTENSIONS) candidates.add(`${base}${sourceExtension}`);
-    for (const sourceExtension of SOURCE_EXTENSIONS) candidates.add(`${base}/index${sourceExtension}`);
-  }
-  return Array.from(candidates);
-}
-
-function resolveLocalImport(importer: string, specifier: string, sourceFiles: Set<string>): string | null {
-  if (!specifier.startsWith('.')) return null;
-  return resolutionCandidates(importer, specifier).find((candidate) => sourceFiles.has(candidate)) ?? null;
 }
 
 function getGitRevision(repositoryRoot: string): string | null {
@@ -169,27 +151,29 @@ export function generateDependencyGraph(repositoryRoot: string): DependencyGraph
       path: file,
       hash: inventory.hashes.get(file)!,
       exports: parsed.exports,
-      declarations: parsed.declarations
+      declarations: parsed.declarations,
+      language: parsed.language
     });
 
+    const parser = parserForFile(file)!;
     for (const reference of parsed.imports) {
       if (!reference.specifier) {
         unresolved.push({ from: file, kind: reference.kind, specifier: '<expression>', reason: 'dynamic_expression' });
         continue;
       }
-      if (!reference.specifier.startsWith('.')) {
+      const resolution = parser.resolveImport(file, reference.specifier, { sourceFiles });
+      if (resolution.status === 'external') {
         unresolved.push({ from: file, kind: reference.kind, specifier: reference.specifier, reason: 'external_package' });
         continue;
       }
-      const target = resolveLocalImport(file, reference.specifier, sourceFiles);
-      if (!target) {
+      if (resolution.status === 'unresolved_local') {
         unresolved.push({ from: file, kind: reference.kind, specifier: reference.specifier, reason: 'unresolved_local' });
         continue;
       }
-      const edgeKey = `${file}\0${target}\0${reference.kind}\0${reference.specifier}`;
+      const edgeKey = `${file}\0${resolution.path}\0${reference.kind}\0${reference.specifier}`;
       if (!edgeKeys.has(edgeKey)) {
         edgeKeys.add(edgeKey);
-        edges.push({ from: file, to: target, kind: reference.kind, specifier: reference.specifier });
+        edges.push({ from: file, to: resolution.path, kind: reference.kind, specifier: reference.specifier });
       }
     }
   }
@@ -201,7 +185,7 @@ export function generateDependencyGraph(repositoryRoot: string): DependencyGraph
     generated_at: new Date().toISOString(),
     source: 'forgeai-static-analysis',
     repository: { root: '.', revision: getGitRevision(repositoryRoot), fingerprint: inventory.fingerprint },
-    settings: { extensions: [...SOURCE_EXTENSIONS], ignored_directories: [...IGNORED_DIRECTORIES] },
+    settings: { extensions: allExtensions(), ignored_directories: [...IGNORED_DIRECTORIES] },
     nodes,
     edges,
     unresolved
@@ -230,6 +214,7 @@ function isDependencyGraph(value: unknown): value is DependencyGraph {
     if (!node || typeof node.id !== 'string' || typeof node.path !== 'string' || node.id !== node.path) return false;
     if (!/^[a-f0-9]{64}$/.test(node.hash) || !Array.isArray(node.exports) || !node.exports.every((entry) => typeof entry === 'string')) return false;
     if (node.declarations !== undefined && (!Array.isArray(node.declarations) || !node.declarations.every((e) => typeof e === 'string'))) return false;
+    if (node.language !== undefined && (typeof node.language !== 'string' || node.language.trim().length === 0)) return false;
     if (nodeIds.has(node.id)) return false;
     nodeIds.add(node.id);
   }
@@ -291,6 +276,15 @@ export function runRefreshCodeGraph(): void {
     console.log('ForgeAI dependency graph refresh');
     console.log('');
     console.log(formatStatus('ok', `${graph.nodes.length} source file${graph.nodes.length === 1 ? '' : 's'}`));
+    const byLanguage = new Map<string, number>();
+    for (const node of graph.nodes) {
+      const key = node.language ?? 'typescript';
+      byLanguage.set(key, (byLanguage.get(key) ?? 0) + 1);
+    }
+    if (byLanguage.size > 1) {
+      const breakdown = [...byLanguage.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([lang, count]) => `${count} ${lang}`).join(', ');
+      console.log(formatStatus('ok', `languages: ${breakdown}`));
+    }
     console.log(formatStatus('ok', `${graph.edges.length} local dependency edge${graph.edges.length === 1 ? '' : 's'}`));
     const unresolvedLocal = graph.unresolved.filter((entry) => entry.reason === 'unresolved_local').length;
     console.log(formatStatus(unresolvedLocal === 0 ? 'ok' : 'warning', `${unresolvedLocal} unresolved local import${unresolvedLocal === 1 ? '' : 's'}`));

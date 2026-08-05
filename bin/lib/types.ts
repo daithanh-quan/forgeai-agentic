@@ -87,6 +87,7 @@ export type DependencyGraphNode = {
   hash: string;
   exports: string[];
   declarations?: string[];
+  language?: string;   // 'typescript' | 'python'; absent = legacy (treated as typescript)
 };
 
 export type DependencyEdgeKind = 'static_import' | 'dynamic_import' | 'require';
