@@ -654,13 +654,16 @@ through a language registry:
   absolute imports not found at the repo root are treated as external. `src`-layout
   and `sys.path` resolution are not modeled yet.
 
+- **Go** (`.go`): node indexing with full-body declaration spans including doc comments, method receivers, grouped `const`/`var`/`type`, generic types and receivers, capitalization-based exports. `go.mod` module-path import resolution maps a package import to every non-test `.go` file in the package. Imports outside the module path (stdlib, third-party) are treated as external. Rust parser follows in Phase 16.2c.
+
 `.venv` and `__pycache__` are never indexed. Profile context exclusions (see
 above) apply to any indexed source, so a repository with Python enters
 enforcement automatically — e.g. `django` omits `migrations/` `.py` files.
 
 Adding Python to a previously JS/TS-only repository changes the graph's file set,
 so `--check-codegraph` reports `stale` once; run `forgeai-init --refresh-codegraph`.
-Go and Rust register against the same parser contract and are planned follow-ups.
+Similarly, adding Go files or a `go.mod` to an existing repo reports `stale` once.
+Rust registers against the same parser contract and is planned for Phase 16.2c.
 
 ## Context Enforcement
 

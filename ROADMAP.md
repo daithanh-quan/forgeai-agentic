@@ -31,8 +31,8 @@ before audience expansion and distribution:
 2. **Phase 16 - Profiles and composition.** Expand backend and mobile coverage
    after the dependency graph contract is stable enough for language-specific
    parsers. Profiles/composition shipped in 3.5.0; context-exclusion enforcement
-   in 3.11.0; the language parser registry began with Python in 3.12.0 (Go/Rust
-   follow as 16.2b/c).
+   in 3.11.0; the language parser registry and Python/Go parsers also ship in
+   3.11.0 (Rust follows as 16.2c).
 3. ~~**Phase 15 - CI/CD integration.**~~ Shipped in 3.6.0.
 
 ---
@@ -310,12 +310,12 @@ Deferred follow-ups:
 - **Phase 16.1 (shipped in 3.11.0)** — code-level context exclusion enforcement.
   Profile exclusion hints are now enforced boundaries for `--context-pack` /
   `--compile-context` / `--expand-context`.
-- **Phase 16.2 (shipped in 3.12.0)** — the profile-registered language parser
+- **Phase 16.2 (shipped in 3.11.0)** — the profile-registered language parser
   registry, delivered as an extension-keyed `LanguageParser` contract with the
   JS/TS analyzer wrapped behind it and a Python parser as the proof language.
   This activates 16.1 enforcement for `.py`/`.pyi` source.
-- **Phase 16.2b / 16.2c (planned)** — Go and Rust parsers registering against the
-  same contract; Python `src`-layout / `sys.path` resolution.
+- **Phase 16.2b (shipped in 3.11.0)** — Go parser (`bin/lib/go-analysis.ts`) with brace-based declaration spans, doc-comment inclusion, generic type/receiver support, and `go.mod` module-path import resolution (fan-out to all non-test `.go` files in target package). `go.mod` hashed into source fingerprint.
+- **Phase 16.2c (planned)** — Rust parser registering against the same contract; Python `src`-layout / `sys.path` resolution.
 
 ### Phase 17 - Concurrent session locking
 

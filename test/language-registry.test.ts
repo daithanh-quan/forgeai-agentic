@@ -107,3 +107,62 @@ test('production registry routes ts and py and unions both extension sets', () =
   assert.ok(extensions.includes('.ts') && extensions.includes('.py') && extensions.includes('.pyi'));
   assert.deepEqual(extensions, [...extensions].sort());
 });
+
+// --- goParser registry + shape guards ---
+import { goParser } from '../bin/lib/go-analysis.js';
+
+test('production registry routes .go → go; allExtensions includes .go', () => {
+  assert.equal(prodParserForFile('a/b.go')?.id, 'go');
+  const extensions = prodAllExtensions();
+  assert.ok(extensions.includes('.go'));
+  assert.deepEqual(extensions, [...extensions].sort());
+});
+
+test('goParser resolveImport: module-prefixed → resolved with all non-test .go files', () => {
+  const files = new Set(['store/db.go', 'store/repo.go', 'store/repo_test.go']);
+  assert.deepEqual(
+    goParser.resolveImport('main.go', 'github.com/acme/svc/store', { sourceFiles: files, goModulePath: 'github.com/acme/svc' }),
+    { status: 'resolved', paths: ['store/db.go', 'store/repo.go'] }
+  );
+});
+
+test('goParser resolveImport: import equals module root → root-dir .go files', () => {
+  const files = new Set(['main.go', 'util.go']);
+  assert.deepEqual(
+    goParser.resolveImport('sub/cmd.go', 'github.com/acme/svc', { sourceFiles: files, goModulePath: 'github.com/acme/svc' }),
+    { status: 'resolved', paths: ['main.go', 'util.go'] }
+  );
+});
+
+test('goParser resolveImport: stdlib → external', () => {
+  assert.deepEqual(
+    goParser.resolveImport('main.go', 'fmt', { sourceFiles: new Set(), goModulePath: 'github.com/acme/svc' }),
+    { status: 'external' }
+  );
+});
+
+test('goParser resolveImport: absent goModulePath → external', () => {
+  assert.deepEqual(
+    goParser.resolveImport('main.go', 'github.com/acme/svc/store', { sourceFiles: new Set(['store/db.go']) }),
+    { status: 'external' }
+  );
+});
+
+test('goParser resolveImport: module-prefixed dir with only test files → unresolved_local', () => {
+  assert.deepEqual(
+    goParser.resolveImport('main.go', 'github.com/acme/svc/empty', { sourceFiles: new Set(['empty/x_test.go']), goModulePath: 'github.com/acme/svc' }),
+    { status: 'unresolved_local' }
+  );
+});
+
+test('typescriptParser.resolveImport returns paths array of length 1 (shape guard)', () => {
+  const result = typescriptParser.resolveImport('src/a.ts', './b', { sourceFiles: new Set(['src/b.ts']) });
+  assert.equal(result.status, 'resolved');
+  if (result.status === 'resolved') assert.equal(result.paths.length, 1);
+});
+
+test('pythonParser.resolveImport returns paths array of length 1 (shape guard)', () => {
+  const result = pythonParser.resolveImport('app/a.py', '.b', { sourceFiles: new Set(['app/b.py']) });
+  assert.equal(result.status, 'resolved');
+  if (result.status === 'resolved') assert.equal(result.paths.length, 1);
+});

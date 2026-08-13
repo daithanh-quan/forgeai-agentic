@@ -67,9 +67,9 @@ Options:
                 Validate CodeGraph artifacts for graph-guided context selection.
                 Add --strict to exit non-zero when the graph is still a template.
   --refresh-codegraph
-                Parse TypeScript and JavaScript source files and write a
-                deterministic dependency graph. This is the only command that
-                updates .ai/codegraph/dependency-graph.json.
+                Parse TypeScript, JavaScript, Python, and Go source files and
+                write a deterministic dependency graph. This is the only command
+                that updates .ai/codegraph/dependency-graph.json.
   --check-profile
                 Validate the installed profile against detected project signals.
   --check-all   Run the harness, CodeGraph (strict), lifecycle, profile,
@@ -122,8 +122,8 @@ Options:
                 Defaults: --max-depth 2 and --max-nodes 12. Use --output <file>
                 to write to a file instead of stdout.
   --compile-context
-                Compile selected TypeScript/JavaScript syntax nodes into a
-                bounded JSON artifact. Requires a fresh dependency graph and
+                Compile selected source nodes (TypeScript, JavaScript, Python,
+                Go) into a bounded JSON artifact. Requires a fresh dependency graph and
                 --objective. Defaults: --budget 6000, --max-depth 2,
                 --max-nodes 12. With --output, also writes a Markdown rendering;
                 override its path with --markdown-output <file>.

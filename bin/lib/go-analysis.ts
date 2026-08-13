@@ -56,6 +56,7 @@ type LineInfo = {
   parenDepthBefore: number;
   bracketDepthBefore: number;
   inBlockCommentBefore: boolean;
+  inRawStringBefore: boolean;
 };
 
 function toLines(content: string): LineInfo[] {
@@ -63,9 +64,9 @@ function toLines(content: string): LineInfo[] {
   const state = makeState();
   let offset = 0;
   for (const text of content.split('\n')) {
-    const { braceDepth, parenDepth, bracketDepth, inBlockComment } = state;
+    const { braceDepth, parenDepth, bracketDepth, inBlockComment, inRawString } = state;
     const effective = scanLine(text, state);
-    lines.push({ text, start: offset, effective, braceDepthBefore: braceDepth, parenDepthBefore: parenDepth, bracketDepthBefore: bracketDepth, inBlockCommentBefore: inBlockComment });
+    lines.push({ text, start: offset, effective, braceDepthBefore: braceDepth, parenDepthBefore: parenDepth, bracketDepthBefore: bracketDepth, inBlockCommentBefore: inBlockComment, inRawStringBefore: inRawString });
     offset += text.length + 1;
   }
   return lines;
@@ -100,20 +101,118 @@ function docCommentStart(lines: LineInfo[], declLine: number): number {
   return declLine;
 }
 
-// Span ends just before the next top-level construct. A top-level comment line (// or /*) is
-// treated as a boundary because it may be the doc comment of the following declaration.
+// Go keywords that do NOT appear in the automatic semicolon insertion list.
+// Lines whose last token is one of these do NOT get an implicit semicolon, so the
+// next line is a continuation (e.g. `var Ch chan\n    int`, `type T struct\n{`).
+// The ASI keywords (break, continue, fallthrough, return) are intentionally absent.
+const NON_ASI_KEYWORDS = new Set([
+  'case', 'chan', 'const', 'default', 'defer', 'else', 'for', 'func', 'go',
+  'goto', 'if', 'import', 'interface', 'map', 'package', 'range', 'select',
+  'struct', 'switch', 'type', 'var',
+]);
+
+// Returns true if a masked line does not trigger Go's automatic semicolon insertion,
+// meaning the next line at the same depth continues this logical statement.
+// Implements the Go spec token classification rather than a simple character check:
+//   ASI-triggering: identifier, numeric/string/rune literal, break/continue/fallthrough/return, ++/--, ), ], }
+//   Not ASI-triggering (continuation): all other keywords, binary/assignment operators, comma, dot (non-float)
+// Opening brackets (, [, { are treated as non-continuation: their closing pairs always
+// appear at non-zero depth, so the next top-level line after the block closes is a new construct.
+function endsWithContinuation(maskedLine: string, nextLineInRaw: boolean): boolean {
+  if (nextLineInRaw) return true;
+  const t = maskedLine.trimEnd();
+  if (t === '') return false;
+  const last = t[t.length - 1];
+
+  if (last === '(' || last === '[' || last === '{') return false;
+  if (last === ')' || last === ']' || last === '}') return false;
+  if (last === '"' || last === '`' || last === "'") return false;
+  if (t.endsWith('++') || t.endsWith('--')) return false;
+
+  // Digit: integer literal or float with digits after decimal point → ASI
+  if (/[0-9]$/.test(t)) return false;
+
+  // Dot: float literal `1.` → ASI; identifier member access `pkg2.` / `pkg_.` → continuation.
+  // Scan the full word token before the dot so a digit-or-underscore SUFFIX on an identifier
+  // (pkg2, pkg_) is not confused with a purely numeric token (1, 1_000).
+  if (last === '.') {
+    let k = t.length - 2;
+    while (k >= 0 && /[A-Za-z0-9_]/.test(t[k])) k--;
+    const tokenStart = k + 1;
+    if (tokenStart > t.length - 2) return true; // no word chars before dot → member access
+    return /[A-Za-z_]/.test(t[tokenStart]); // alpha/_ first char → identifier → continuation; digit first → float → ASI
+  }
+
+  // Word ending (letter or underscore): classify by last word token
+  if (/[A-Za-z_]$/.test(t)) {
+    // \b anchors at a word boundary; hex literals like 0xFACE have no internal boundary
+    // so the regex fails to match and word defaults to '', which is not a non-ASI keyword → ASI.
+    const m = t.match(/\b([A-Za-z_][A-Za-z0-9_]*)$/);
+    const word = m ? m[1] : '';
+    return NON_ASI_KEYWORDS.has(word); // non-ASI keyword → continuation; identifier/ASI keyword → ASI (false)
+  }
+
+  // All remaining characters: binary operators, assignment, comma → continuation
+  return true;
+}
+
+// Span ends just before the next top-level construct. Uses Go's ASI rules to detect
+// multi-line continuation (operators, comma, dot etc. at end of line) so spans like
+// `var First,\n    Second int` or `const X =\n    42` are not prematurely truncated.
 function spanEnd(lines: LineInfo[], declLine: number): number {
   let endLine = lines.length - 1;
+  let lastMasked = maskComments(
+    lines[declLine].text,
+    lines[declLine].inBlockCommentBefore,
+    lines[declLine].inRawStringBefore
+  ).trimEnd();
+  let lastNextInRaw = declLine + 1 < lines.length ? lines[declLine + 1].inRawStringBefore : false;
+
   for (let i = declLine + 1; i < lines.length; i++) {
     if (!isAtTopLevel(lines[i])) continue;
+
+    // Lines inside a multi-line raw string — the statement is not complete yet.
+    if (lines[i].inRawStringBefore) {
+      const rawStillOpen = i + 1 < lines.length && lines[i + 1].inRawStringBefore;
+      if (!rawStillOpen) {
+        // Raw string closed on this line. Compute the full masked text (startInRaw=true so
+        // maskComments handles the closing backtick and any trailing tokens like ` + suffix`).
+        lastMasked = maskComments(lines[i].text, lines[i].inBlockCommentBefore, true).trimEnd();
+        lastNextInRaw = i + 1 < lines.length ? lines[i + 1].inRawStringBefore : false;
+      }
+      continue;
+    }
+
     const eff = lines[i].effective.trim();
     const raw = lines[i].text.trim();
-    if (eff.length > 0 || raw.startsWith('//') || raw.startsWith('/*')) {
-      endLine = i - 1;
-      while (endLine > declLine && lines[endLine].text.trim().length === 0) endLine--;
-      break;
+    const isCommentBoundary = raw.startsWith('//') || raw.startsWith('/*');
+    const nextInRaw = i + 1 < lines.length ? lines[i + 1].inRawStringBefore : false;
+
+    if (eff.length === 0) {
+      if (isCommentBoundary) {
+        if (endsWithContinuation(lastMasked, lastNextInRaw)) continue;
+        endLine = i - 1;
+        while (endLine > declLine && lines[endLine].text.trim().length === 0) endLine--;
+        break;
+      }
+      // Blank or string/rune-literal-only line — update lastMasked if masked has content.
+      const masked = maskComments(lines[i].text, lines[i].inBlockCommentBefore, false).trimEnd();
+      if (masked.length > 0) { lastMasked = masked; lastNextInRaw = nextInRaw; }
+      continue;
     }
+
+    // Non-empty effective line.
+    if (endsWithContinuation(lastMasked, lastNextInRaw)) {
+      lastMasked = maskComments(lines[i].text, lines[i].inBlockCommentBefore, false).trimEnd();
+      lastNextInRaw = nextInRaw;
+      continue;
+    }
+
+    endLine = i - 1;
+    while (endLine > declLine && lines[endLine].text.trim().length === 0) endLine--;
+    break;
   }
+
   return lines[endLine].start + lines[endLine].text.length;
 }
 
@@ -124,7 +223,16 @@ type SignatureMode = 'function' | 'type_body' | 'logical_line';
 // 'type_body'    — scan for body '{'; any { at depth 0 (brace+paren+bracket) is the body opener.
 // 'logical_line' — return effective header line directly (const / var / type alias / grouped).
 function extractSignature(lines: LineInfo[], declLine: number, end: number, mode: SignatureMode): string {
-  if (mode === 'logical_line') return lines[declLine].effective.trim();
+  if (mode === 'logical_line') {
+    // Collect all lines within the span using raw text (so string literals are preserved).
+    const sigLines: string[] = [];
+    for (let i = declLine; i < lines.length; i++) {
+      if (lines[i].start > end) break;
+      sigLines.push(maskComments(lines[i].text, lines[i].inBlockCommentBefore, lines[i].inRawStringBefore).trimEnd());
+    }
+    while (sigLines.length > 1 && sigLines[sigLines.length - 1].trim() === '') sigLines.pop();
+    return sigLines.join('\n').trim();
+  }
   const sigState = makeState();
   const sigLines: string[] = [];
   let foundBrace = false;
@@ -193,13 +301,36 @@ function extractSignature(lines: LineInfo[], declLine: number, end: number, mode
 // ─── name extraction ──────────────────────────────────────────────────────────
 
 // Extract all declared names from a const/var/type declaration line or group member line.
-// Handles: `A = 1`, `A, B = 1, 2`, `X int`, `X, Y int`, `A int = 1`.
+// Handles: `A = 1`, `A, B = 1, 2`, `X int`, `X, Y int`, `Fn func(a, b int)`.
+// Splits on commas at depth 0 only — commas inside func()/generics/composite types
+// are never treated as name separators.
 function extractNamesFromDecl(text: string): string[] {
-  const lhs = text.split(/\s*[=:]/)[0];
-  return lhs
-    .split(',')
+  const parts: string[] = [];
+  let depth = 0;
+  let cur = '';
+  for (const ch of text) {
+    if (ch === '(' || ch === '[' || ch === '{') depth++;
+    else if (ch === ')' || ch === ']' || ch === '}') { if (depth > 0) depth--; }
+    else if (ch === ',' && depth === 0) { parts.push(cur); cur = ''; continue; }
+    else if ((ch === '=' || ch === ':') && depth === 0) break;
+    cur += ch;
+  }
+  if (cur) parts.push(cur);
+  return parts
     .map(s => s.trim().match(/^([A-Za-z_][A-Za-z0-9_]*)/)?.[1])
     .filter((n): n is string => !!n && n !== '_');
+}
+
+// Collect the effective (comment/string-stripped) text of all lines within a declaration span,
+// joined with a single space. Used to extract names from multi-line const/var declarations.
+function collectLogicalEffective(lines: LineInfo[], declLine: number, end: number): string {
+  const parts: string[] = [];
+  for (let i = declLine; i < lines.length; i++) {
+    if (lines[i].start > end) break;
+    const eff = lines[i].effective.trim();
+    if (eff.length > 0) parts.push(eff);
+  }
+  return parts.join(' ');
 }
 
 // Classify a non-grouped type declaration as 'class' (struct or interface) or 'type' (alias/other).
@@ -259,12 +390,12 @@ function parseGroupedNames(lines: LineInfo[], startLine: number): string[] {
 
 // Returns text with comment regions replaced by spaces, preserving string literals intact.
 // Tracks interpreted and raw string state so comment-like sequences inside strings are not masked.
-function maskComments(text: string, startInBlock: boolean): string {
+function maskComments(text: string, startInBlock: boolean, startInRaw = false): string {
   let out = '';
   let i = 0;
   let inBlock = startInBlock;
   let inStr = false;
-  let inRaw = false;
+  let inRaw = startInRaw;
   while (i < text.length) {
     if (inBlock) {
       if (text[i] === '*' && text[i + 1] === '/') { out += '  '; i += 2; inBlock = false; }
@@ -313,10 +444,20 @@ export function analyzeGo(content: string, file: string): SourceAnalysis {
 
     // ── Import block: checked BEFORE isAtTopLevel because member lines have parenDepthBefore=1 ──
     if (inImportBlock) {
-      const eff = line.effective.trim();
-      if (eff === ')' || eff.startsWith(')')) { inImportBlock = false; continue; }
-      const m = maskComments(line.text, line.inBlockCommentBefore).match(/"([^"]+)"/);
-      if (m) imports.push({ kind: 'static_import', specifier: m[1], start: line.start, end: line.start + line.text.length });
+      const masked = maskComments(line.text, line.inBlockCommentBefore);
+      let depth = 0, scanEnd = masked.length;
+      for (let k = 0; k < masked.length; k++) {
+        if (masked[k] === '(') depth++;
+        else if (masked[k] === ')') {
+          if (depth === 0) { scanEnd = k; inImportBlock = false; break; }
+          depth--;
+        }
+      }
+      const re = /"([^"]+)"/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(masked.slice(0, scanEnd))) !== null) {
+        imports.push({ kind: 'static_import', specifier: m[1], start: line.start, end: line.start + line.text.length });
+      }
       continue;
     }
 
@@ -325,10 +466,33 @@ export function analyzeGo(content: string, file: string): SourceAnalysis {
     if (eff === '') continue;
 
     // ── Single-line import ────────────────────────────────────────────────────
-    if (eff.startsWith('import ') || eff === 'import(') {
+    // eff is trimmed effective text; when `import "path"` is scanned the string
+    // is stripped, leaving eff = 'import' (no trailing space). Accept that form too.
+    if (eff === 'import' || eff.startsWith('import ') || eff.startsWith('import(')) {
       const rest = eff.slice('import'.length).trim();
       if (rest === '(' || rest.startsWith('(')) {
         inImportBlock = true;
+        // Also parse any import spec on the same line as the opening (
+        const maskedLine = maskComments(line.text, line.inBlockCommentBefore);
+        const parenIdx = maskedLine.indexOf('(');
+        if (parenIdx !== -1) {
+          // Scan the masked text from ( onwards to detect a closing ) on the same
+          // line (which immediately closes the block) and extract all specs.
+          const maskedAfterParen = maskedLine.slice(parenIdx + 1);
+          let depth = 0, closeIdx = maskedAfterParen.length;
+          for (let k = 0; k < maskedAfterParen.length; k++) {
+            if (maskedAfterParen[k] === '(') depth++;
+            else if (maskedAfterParen[k] === ')') {
+              if (depth === 0) { closeIdx = k; inImportBlock = false; break; }
+              depth--;
+            }
+          }
+          const re = /"([^"]+)"/g;
+          let m: RegExpExecArray | null;
+          while ((m = re.exec(maskedAfterParen.slice(0, closeIdx))) !== null) {
+            imports.push({ kind: 'static_import', specifier: m[1], start: line.start, end: line.start + line.text.length });
+          }
+        }
       } else {
         const m = maskComments(line.text, false).match(/"([^"]+)"/);
         if (m) imports.push({ kind: 'static_import', specifier: m[1], start: line.start, end: line.start + line.text.length });
@@ -343,6 +507,9 @@ export function analyzeGo(content: string, file: string): SourceAnalysis {
     const isVarDecl = !isFuncDecl && !isTypeDecl && !isConstDecl && (eff.startsWith('var ') || eff === 'var(');
 
     if (!isFuncDecl && !isTypeDecl && !isConstDecl && !isVarDecl) continue;
+
+    const docStart = docCommentStart(lines, i);
+    const end = spanEnd(lines, i);
 
     let kind: SourceDeclarationKind;
     let name: string;
@@ -386,16 +553,16 @@ export function analyzeGo(content: string, file: string): SourceAnalysis {
         name = names[0];
         search_names = names;
       } else {
-        const names = extractNamesFromDecl(afterKeyword);
+        // Collect effective text across all continuation lines so `var First,\n    Second int`
+        // yields both names rather than only the first-line content.
+        const logicalEff = collectLogicalEffective(lines, i, end);
+        const names = extractNamesFromDecl(logicalEff.slice(keyword.length).trim());
         if (names.length === 0) continue;
         name = names[0];
         search_names = names;
       }
       kind = 'variable';
     }
-
-    const docStart = docCommentStart(lines, i);
-    const end = spanEnd(lines, i);
     const sigMode: SignatureMode =
       isFuncDecl ? 'function' :
       (isTypeDecl && kind === 'class') ? 'type_body' :
