@@ -49,13 +49,13 @@ import { typescriptParser } from '../bin/lib/source-analysis.js';
 
 test('typescriptParser resolves relative specifiers with extension + index probing', () => {
   const files = new Set(['src/a.ts', 'src/util/index.ts']);
-  assert.deepEqual(typescriptParser.resolveImport('src/entry.ts', './a', { sourceFiles: files }), { status: 'resolved', path: 'src/a.ts' });
-  assert.deepEqual(typescriptParser.resolveImport('src/entry.ts', './util', { sourceFiles: files }), { status: 'resolved', path: 'src/util/index.ts' });
+  assert.deepEqual(typescriptParser.resolveImport('src/entry.ts', './a', { sourceFiles: files }), { status: 'resolved', paths: ['src/a.ts'] });
+  assert.deepEqual(typescriptParser.resolveImport('src/entry.ts', './util', { sourceFiles: files }), { status: 'resolved', paths: ['src/util/index.ts'] });
 });
 
 test('typescriptParser resolves a .js specifier to a .ts file', () => {
   const files = new Set(['src/a.ts']);
-  assert.deepEqual(typescriptParser.resolveImport('src/entry.ts', './a.js', { sourceFiles: files }), { status: 'resolved', path: 'src/a.ts' });
+  assert.deepEqual(typescriptParser.resolveImport('src/entry.ts', './a.js', { sourceFiles: files }), { status: 'resolved', paths: ['src/a.ts'] });
 });
 
 test('typescriptParser classifies bare and missing specifiers', () => {
@@ -73,20 +73,20 @@ import { pythonParser } from '../bin/lib/python-analysis.js';
 
 test('pythonParser resolves a named relative import to the sibling module only', () => {
   const withSibling = new Set(['pkg/sub/x.py', 'pkg/sub/__init__.py']);
-  assert.deepEqual(pythonParser.resolveImport('pkg/sub/mod.py', '.x', { sourceFiles: withSibling }), { status: 'resolved', path: 'pkg/sub/x.py' });
+  assert.deepEqual(pythonParser.resolveImport('pkg/sub/mod.py', '.x', { sourceFiles: withSibling }), { status: 'resolved', paths: ['pkg/sub/x.py'] });
   const initOnly = new Set(['pkg/sub/__init__.py']); // sibling missing → NOT the package init
   assert.deepEqual(pythonParser.resolveImport('pkg/sub/mod.py', '.missing', { sourceFiles: initOnly }), { status: 'unresolved_local' });
 });
 
 test('pythonParser resolves parent-relative and absolute-from-root', () => {
-  assert.deepEqual(pythonParser.resolveImport('pkg/sub/mod.py', '..a', { sourceFiles: new Set(['pkg/a/__init__.py']) }), { status: 'resolved', path: 'pkg/a/__init__.py' });
-  assert.deepEqual(pythonParser.resolveImport('app/views.py', 'app.models', { sourceFiles: new Set(['app/models.py']) }), { status: 'resolved', path: 'app/models.py' });
+  assert.deepEqual(pythonParser.resolveImport('pkg/sub/mod.py', '..a', { sourceFiles: new Set(['pkg/a/__init__.py']) }), { status: 'resolved', paths: ['pkg/a/__init__.py'] });
+  assert.deepEqual(pythonParser.resolveImport('app/views.py', 'app.models', { sourceFiles: new Set(['app/models.py']) }), { status: 'resolved', paths: ['app/models.py'] });
 });
 
 test('pythonParser resolves a pure-dot package import to its __init__ without a leading slash', () => {
-  assert.deepEqual(pythonParser.resolveImport('mod.py', '.x', { sourceFiles: new Set(['x.py']) }), { status: 'resolved', path: 'x.py' });
-  assert.deepEqual(pythonParser.resolveImport('mod.py', '.', { sourceFiles: new Set(['__init__.py']) }), { status: 'resolved', path: '__init__.py' });
-  assert.deepEqual(pythonParser.resolveImport('pkg/mod.py', '.', { sourceFiles: new Set(['pkg/__init__.py']) }), { status: 'resolved', path: 'pkg/__init__.py' });
+  assert.deepEqual(pythonParser.resolveImport('mod.py', '.x', { sourceFiles: new Set(['x.py']) }), { status: 'resolved', paths: ['x.py'] });
+  assert.deepEqual(pythonParser.resolveImport('mod.py', '.', { sourceFiles: new Set(['__init__.py']) }), { status: 'resolved', paths: ['__init__.py'] });
+  assert.deepEqual(pythonParser.resolveImport('pkg/mod.py', '.', { sourceFiles: new Set(['pkg/__init__.py']) }), { status: 'resolved', paths: ['pkg/__init__.py'] });
 });
 
 test('pythonParser classifies unresolved relative, external absolute, over-dot', () => {
@@ -106,4 +106,63 @@ test('production registry routes ts and py and unions both extension sets', () =
   const extensions = prodAllExtensions();
   assert.ok(extensions.includes('.ts') && extensions.includes('.py') && extensions.includes('.pyi'));
   assert.deepEqual(extensions, [...extensions].sort());
+});
+
+// --- goParser registry + shape guards ---
+import { goParser } from '../bin/lib/go-analysis.js';
+
+test('production registry routes .go → go; allExtensions includes .go', () => {
+  assert.equal(prodParserForFile('a/b.go')?.id, 'go');
+  const extensions = prodAllExtensions();
+  assert.ok(extensions.includes('.go'));
+  assert.deepEqual(extensions, [...extensions].sort());
+});
+
+test('goParser resolveImport: module-prefixed → resolved with all non-test .go files', () => {
+  const files = new Set(['store/db.go', 'store/repo.go', 'store/repo_test.go']);
+  assert.deepEqual(
+    goParser.resolveImport('main.go', 'github.com/acme/svc/store', { sourceFiles: files, goModulePath: 'github.com/acme/svc' }),
+    { status: 'resolved', paths: ['store/db.go', 'store/repo.go'] }
+  );
+});
+
+test('goParser resolveImport: import equals module root → root-dir .go files', () => {
+  const files = new Set(['main.go', 'util.go']);
+  assert.deepEqual(
+    goParser.resolveImport('sub/cmd.go', 'github.com/acme/svc', { sourceFiles: files, goModulePath: 'github.com/acme/svc' }),
+    { status: 'resolved', paths: ['main.go', 'util.go'] }
+  );
+});
+
+test('goParser resolveImport: stdlib → external', () => {
+  assert.deepEqual(
+    goParser.resolveImport('main.go', 'fmt', { sourceFiles: new Set(), goModulePath: 'github.com/acme/svc' }),
+    { status: 'external' }
+  );
+});
+
+test('goParser resolveImport: absent goModulePath → external', () => {
+  assert.deepEqual(
+    goParser.resolveImport('main.go', 'github.com/acme/svc/store', { sourceFiles: new Set(['store/db.go']) }),
+    { status: 'external' }
+  );
+});
+
+test('goParser resolveImport: module-prefixed dir with only test files → unresolved_local', () => {
+  assert.deepEqual(
+    goParser.resolveImport('main.go', 'github.com/acme/svc/empty', { sourceFiles: new Set(['empty/x_test.go']), goModulePath: 'github.com/acme/svc' }),
+    { status: 'unresolved_local' }
+  );
+});
+
+test('typescriptParser.resolveImport returns paths array of length 1 (shape guard)', () => {
+  const result = typescriptParser.resolveImport('src/a.ts', './b', { sourceFiles: new Set(['src/b.ts']) });
+  assert.equal(result.status, 'resolved');
+  if (result.status === 'resolved') assert.equal(result.paths.length, 1);
+});
+
+test('pythonParser.resolveImport returns paths array of length 1 (shape guard)', () => {
+  const result = pythonParser.resolveImport('app/a.py', '.b', { sourceFiles: new Set(['app/b.py']) });
+  assert.equal(result.status, 'resolved');
+  if (result.status === 'resolved') assert.equal(result.paths.length, 1);
 });

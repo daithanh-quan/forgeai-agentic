@@ -228,9 +228,9 @@ export const pythonParser: LanguageParser = {
         ? moduleCandidates(dir.length ? `${dir}/${rest}` : rest)
         : packageInit(dir);
       const target = candidates.find((candidate) => sourceFiles.has(candidate));
-      return target ? { status: 'resolved', path: target } : { status: 'unresolved_local' };
+      return target ? { status: 'resolved', paths: [target] } : { status: 'unresolved_local' };
     }
     const target = moduleCandidates(specifier.replace(/\./g, '/')).find((candidate) => sourceFiles.has(candidate));
-    return target ? { status: 'resolved', path: target } : { status: 'external' };
+    return target ? { status: 'resolved', paths: [target] } : { status: 'external' };
   }
 };

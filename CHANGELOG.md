@@ -1,8 +1,25 @@
 # Changelog
 
-## 3.12.0 — 2026-08-05
+## 3.11.0 — 2026-08-13
 
-Phase 16.2 — language parser registry. Additive only (`schema_version` stays
+This release consolidates Phases 16.1, 16.2, and 16.2b, which were developed
+after npm `3.10.0` but not published as separate package versions.
+
+### Phase 16.2b — Go language parser
+
+- **Go language support** (`bin/lib/go-analysis.ts`): `goParser` indexes `.go` files with real declaration spans — `func`, method receivers, `type` (struct/interface/alias), grouped `const`/`var`/`type` — including contiguous leading doc-comment blocks. Capitalization-based exports. Test files (`*_test.go`) get `kind: 'test'` and are excluded from exports. Generic types and receivers are handled correctly (type-parameter list bracket-depth counter; `[T ~[16]byte]` and multi-line `[K comparable, V any]` lists both classified correctly).
+- **go.mod module-path import resolution**: an import under the module path (e.g. `github.com/acme/svc/store`) resolves to every non-test `.go` file in the target package directory, producing one edge per file. Imports outside the module path are treated as external.
+- `ImportResolution.resolved` now carries `paths: readonly string[]` (internal contract; single-path parsers return a one-element array — JS/TS and Python graph output is unchanged).
+- Additive `ImportResolutionContext.goModulePath?: string` populated from the root `go.mod`.
+- `go.mod` is included in the source fingerprint: changing the module path now correctly reports the graph as stale.
+- Go Markdown fences: Go excerpts render inside ` ```go ` blocks in compiled context output.
+- `node.language: 'go'` on all Go nodes (`schema_version` stays `1`).
+
+**Note:** repositories containing `.go` files will report `stale` once after upgrade and require `--refresh-codegraph`. Repos with a root `go.mod` but no `.go` files will also report `stale` once (go.mod content now participates in the fingerprint). Repos with neither `.go` files nor a `go.mod` are completely unaffected.
+
+### Phase 16.2 — language parser registry
+
+Additive only (`schema_version` stays
 `1`); dependency graphs written by earlier 3.x versions read back unchanged, and
 nodes without the new `language` field are treated as `typescript`.
 
@@ -26,12 +43,12 @@ nodes without the new `language` field are treated as `typescript`.
   remain documentation-only policy.
 - Note: a repository containing Python files reports its dependency graph as
   `stale` once after upgrading; run `forgeai-init --refresh-codegraph`.
-- Go and Rust parsers register against the same contract and are deferred to
-  Phase 16.2b / 16.2c.
+- Go registers against the same contract in Phase 16.2b; Rust remains deferred
+  to Phase 16.2c.
 
-## 3.11.0 — 2026-08-02
+### Phase 16.1 — profile context-exclusion enforcement
 
-Phase 16.1 — profile context-exclusion enforcement. Additive only
+Additive only
 (`schema_version` stays `1`); artifacts written by earlier 3.x versions read back
 with safe defaults.
 

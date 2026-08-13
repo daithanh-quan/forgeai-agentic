@@ -7,7 +7,7 @@ import type { CompiledContextArtifact } from '../bin/lib/types.js';
 import { cli, type ExecError, runTs } from './helpers.js';
 import { validateArtifact } from '../bin/lib/router.js';
 import { computeArtifactEstimate } from '../bin/lib/context-compiler.js';
-import { generateDependencyGraph, readDependencyGraph, DEPENDENCY_GRAPH_PATH } from '../bin/lib/dependency-graph.js';
+import { generateDependencyGraph, readDependencyGraph, DEPENDENCY_GRAPH_PATH, checkDependencyGraphHealth } from '../bin/lib/dependency-graph.js';
 
 function initAndCompile(target: string, objective = 'change runCli implementation'): CompiledContextArtifact {
   fs.mkdirSync(path.join(target, 'src'), { recursive: true });
@@ -674,4 +674,116 @@ test('validator accepts missing/valid language, rejects empty/whitespace/non-str
     assert.equal(readDependencyGraph(target) !== null, ok, `language=${JSON.stringify(value)}`);
     fs.rmSync(target, { recursive: true, force: true });
   }
+});
+
+// --- Phase 16.2b: Go parser integration ---
+
+test('Go node carries language: go', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-go-lang-'));
+  fs.writeFileSync(path.join(target, 'main.go'), 'package main\nfunc main() {}\n');
+  const graph = generateDependencyGraph(target);
+  assert.equal(graph.nodes.find((n) => n.path === 'main.go')!.language, 'go');
+  fs.rmSync(target, { recursive: true, force: true });
+});
+
+test('no go.mod → Go imports all external, no crash', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-go-nomod-'));
+  fs.writeFileSync(path.join(target, 'main.go'), 'package main\nimport "fmt"\nfunc main() {}\n');
+  const graph = generateDependencyGraph(target);
+  assert.ok(graph.unresolved.some((u) => u.from === 'main.go' && u.specifier === 'fmt' && u.reason === 'external_package'));
+  fs.rmSync(target, { recursive: true, force: true });
+});
+
+test('go.mod present: intra-module import fans out to every non-test .go file', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-go-mod-'));
+  fs.mkdirSync(path.join(target, 'store'), { recursive: true });
+  fs.writeFileSync(path.join(target, 'go.mod'), 'module github.com/acme/svc\n\ngo 1.21\n');
+  fs.writeFileSync(path.join(target, 'main.go'), 'package main\nimport "github.com/acme/svc/store"\nfunc main() {}\n');
+  fs.writeFileSync(path.join(target, 'store', 'db.go'), 'package store\nfunc Open() {}\n');
+  fs.writeFileSync(path.join(target, 'store', 'repo.go'), 'package store\nfunc Find() {}\n');
+  fs.writeFileSync(path.join(target, 'store', 'repo_test.go'), 'package store\nfunc TestFind(t interface{}) {}\n');
+  const graph = generateDependencyGraph(target);
+  const edges = graph.edges.filter((e) => e.from === 'main.go');
+  assert.equal(edges.length, 2, 'fan-out: one import → two non-test files');
+  assert.ok(edges.some((e) => e.to === 'store/db.go'));
+  assert.ok(edges.some((e) => e.to === 'store/repo.go'));
+  assert.ok(!edges.some((e) => e.to === 'store/repo_test.go'), 'test file excluded');
+  fs.rmSync(target, { recursive: true, force: true });
+});
+
+test('stdlib Go import → external_package', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-go-stdlib-'));
+  fs.writeFileSync(path.join(target, 'go.mod'), 'module github.com/acme/svc\n\ngo 1.21\n');
+  fs.writeFileSync(path.join(target, 'main.go'), 'package main\nimport "fmt"\nfunc main() {}\n');
+  const graph = generateDependencyGraph(target);
+  assert.ok(graph.unresolved.some((u) => u.specifier === 'fmt' && u.reason === 'external_package'));
+  fs.rmSync(target, { recursive: true, force: true });
+});
+
+test('vendor/ excluded under fallback walker (no git)', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-go-vendor-'));
+  fs.mkdirSync(path.join(target, 'vendor', 'github.com', 'lib'), { recursive: true });
+  fs.writeFileSync(path.join(target, 'vendor', 'github.com', 'lib', 'util.go'), 'package lib\nfunc Util() {}\n');
+  fs.writeFileSync(path.join(target, 'main.go'), 'package main\nfunc main() {}\n');
+  const graph = generateDependencyGraph(target);
+  assert.ok(!graph.nodes.some((n) => n.path.startsWith('vendor/')), 'vendor/ files not indexed');
+  fs.rmSync(target, { recursive: true, force: true });
+});
+
+test('no cross-language edges: Go import path never resolves to .ts file', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-go-crosslang-'));
+  fs.writeFileSync(path.join(target, 'go.mod'), 'module github.com/acme/svc\n\ngo 1.21\n');
+  fs.writeFileSync(path.join(target, 'main.go'), 'package main\nimport "github.com/acme/svc/util"\nfunc main() {}\n');
+  fs.writeFileSync(path.join(target, 'util.ts'), 'export const x = 1;\n');
+  const graph = generateDependencyGraph(target);
+  assert.ok(!graph.edges.some((e) => e.from === 'main.go' && e.to === 'util.ts'));
+  fs.rmSync(target, { recursive: true, force: true });
+});
+
+test('changing go.mod module path makes dependency graph stale', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-go-stale-mod-'));
+  try {
+    fs.writeFileSync(path.join(target, 'go.mod'), 'module github.com/acme/svc\n\ngo 1.21\n');
+    fs.writeFileSync(path.join(target, 'main.go'), 'package main\nfunc main() {}\n');
+    const graph = generateDependencyGraph(target);
+    fs.mkdirSync(path.dirname(path.join(target, DEPENDENCY_GRAPH_PATH)), { recursive: true });
+    fs.writeFileSync(path.join(target, DEPENDENCY_GRAPH_PATH), JSON.stringify(graph, null, 2) + '\n');
+    assert.equal(checkDependencyGraphHealth(target).status, 'ok', 'sanity: should be healthy before change');
+    fs.writeFileSync(path.join(target, 'go.mod'), 'module github.com/acme/renamed\n\ngo 1.21\n');
+    assert.equal(checkDependencyGraphHealth(target).status, 'stale', 'module rename must make graph stale');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('adding go.mod after graph built without it makes graph stale', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-go-stale-add-'));
+  try {
+    fs.writeFileSync(path.join(target, 'main.go'), 'package main\nfunc main() {}\n');
+    const graph = generateDependencyGraph(target);
+    fs.mkdirSync(path.dirname(path.join(target, DEPENDENCY_GRAPH_PATH)), { recursive: true });
+    fs.writeFileSync(path.join(target, DEPENDENCY_GRAPH_PATH), JSON.stringify(graph, null, 2) + '\n');
+    fs.writeFileSync(path.join(target, 'go.mod'), 'module github.com/acme/svc\n\ngo 1.21\n');
+    assert.equal(checkDependencyGraphHealth(target).status, 'stale', 'adding go.mod must make graph stale');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('golden regression: pure JS/TS graph edges unchanged after paths[] contract change', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-go-golden-'));
+  fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(target, 'src', 'shared.ts'), 'export const v = 1;\n');
+  fs.writeFileSync(path.join(target, 'src', 'util.ts'), "export { v } from './shared.js';\n");
+  fs.writeFileSync(path.join(target, 'src', 'entry.ts'),
+    "import { v } from './util.js';\nconst r = require('./shared');\nexport async function load() { return import('./util.js'); }\nexport const total = v + r;\n");
+  const graph = generateDependencyGraph(target);
+  assert.deepEqual(graph.edges, [
+    { from: 'src/entry.ts', to: 'src/shared.ts', kind: 'require', specifier: './shared' },
+    { from: 'src/entry.ts', to: 'src/util.ts', kind: 'dynamic_import', specifier: './util.js' },
+    { from: 'src/entry.ts', to: 'src/util.ts', kind: 'static_import', specifier: './util.js' },
+    { from: 'src/util.ts', to: 'src/shared.ts', kind: 'static_import', specifier: './shared.js' }
+  ]);
+  assert.deepEqual(graph.unresolved, []);
+  fs.rmSync(target, { recursive: true, force: true });
 });

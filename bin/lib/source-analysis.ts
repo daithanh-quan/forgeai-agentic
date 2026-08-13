@@ -302,6 +302,6 @@ export const typescriptParser: LanguageParser = {
   resolveImport(importer: string, specifier: string, { sourceFiles }: ImportResolutionContext): ImportResolution {
     if (!specifier.startsWith('.')) return { status: 'external' };
     const target = tsResolutionCandidates(importer, specifier).find((candidate) => sourceFiles.has(candidate));
-    return target ? { status: 'resolved', path: target } : { status: 'unresolved_local' };
+    return target ? { status: 'resolved', paths: [target] } : { status: 'unresolved_local' };
   }
 };

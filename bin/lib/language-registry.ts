@@ -2,12 +2,13 @@ import path from 'node:path';
 import type { SourceAnalysis } from './source-analysis.js';
 
 export type ImportResolution =
-  | { status: 'resolved'; path: string }
+  | { status: 'resolved'; paths: readonly string[] }
   | { status: 'external' }
   | { status: 'unresolved_local' };
 
 export type ImportResolutionContext = {
   sourceFiles: ReadonlySet<string>; // all indexed files, repo-relative POSIX
+  goModulePath?: string;            // root go.mod module path, e.g. 'github.com/acme/svc'
 };
 
 export type LanguageParser = {
@@ -63,8 +64,9 @@ export function createLanguageRegistry(parsers: readonly LanguageParser[] = []):
 
 import { typescriptParser } from './source-analysis.js';
 import { pythonParser } from './python-analysis.js';
+import { goParser } from './go-analysis.js';
 
-const productionRegistry = createLanguageRegistry([typescriptParser, pythonParser]);
+const productionRegistry = createLanguageRegistry([typescriptParser, pythonParser, goParser]);
 
 export function parserForFile(file: string): LanguageParser | null {
   return productionRegistry.parserForFile(file);
