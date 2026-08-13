@@ -2,12 +2,13 @@ import path from 'node:path';
 import type { SourceAnalysis } from './source-analysis.js';
 
 export type ImportResolution =
-  | { status: 'resolved'; path: string }
+  | { status: 'resolved'; paths: readonly string[] }
   | { status: 'external' }
   | { status: 'unresolved_local' };
 
 export type ImportResolutionContext = {
   sourceFiles: ReadonlySet<string>; // all indexed files, repo-relative POSIX
+  goModulePath?: string;            // root go.mod module path, e.g. 'github.com/acme/svc'
 };
 
 export type LanguageParser = {

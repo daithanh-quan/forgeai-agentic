@@ -109,7 +109,22 @@ export function buildSourceInventory(repositoryRoot: string): SourceInventory {
     hashes.set(file, hash);
     fingerprint.update(file).update('\0').update(hash).update('\0');
   }
+  try {
+    const goModContent = fs.readFileSync(path.join(repositoryRoot, 'go.mod'), 'utf8');
+    fingerprint.update('go.mod\0').update(goModContent).update('\0');
+  } catch { /* absent or unreadable — no go.mod is fine */ }
   return { files, hashes, fingerprint: fingerprint.digest('hex') };
+}
+
+function readGoModulePath(repositoryRoot: string): string | undefined {
+  try {
+    const content = fs.readFileSync(path.join(repositoryRoot, 'go.mod'), 'utf8');
+    for (const line of content.split('\n')) {
+      const m = line.match(/^\s*module\s+(\S+)/);
+      if (m) return m[1];
+    }
+  } catch { /* absent or unreadable */ }
+  return undefined;
 }
 
 function parseModule(content: string, file: string): { imports: ImportReference[]; exports: string[]; declarations: string[]; language: string } {
@@ -138,6 +153,7 @@ function getGitRevision(repositoryRoot: string): string | null {
 export function generateDependencyGraph(repositoryRoot: string): DependencyGraph {
   const inventory = buildSourceInventory(repositoryRoot);
   const sourceFiles = new Set(inventory.files);
+  const goModulePath = readGoModulePath(repositoryRoot);
   const nodes: DependencyGraphNode[] = [];
   const edges: DependencyGraphEdge[] = [];
   const edgeKeys = new Set<string>();
@@ -161,7 +177,7 @@ export function generateDependencyGraph(repositoryRoot: string): DependencyGraph
         unresolved.push({ from: file, kind: reference.kind, specifier: '<expression>', reason: 'dynamic_expression' });
         continue;
       }
-      const resolution = parser.resolveImport(file, reference.specifier, { sourceFiles });
+      const resolution = parser.resolveImport(file, reference.specifier, { sourceFiles, goModulePath });
       if (resolution.status === 'external') {
         unresolved.push({ from: file, kind: reference.kind, specifier: reference.specifier, reason: 'external_package' });
         continue;
@@ -170,10 +186,12 @@ export function generateDependencyGraph(repositoryRoot: string): DependencyGraph
         unresolved.push({ from: file, kind: reference.kind, specifier: reference.specifier, reason: 'unresolved_local' });
         continue;
       }
-      const edgeKey = `${file}\0${resolution.path}\0${reference.kind}\0${reference.specifier}`;
-      if (!edgeKeys.has(edgeKey)) {
-        edgeKeys.add(edgeKey);
-        edges.push({ from: file, to: resolution.path, kind: reference.kind, specifier: reference.specifier });
+      for (const to of resolution.paths) {
+        const edgeKey = `${file}\0${to}\0${reference.kind}\0${reference.specifier}`;
+        if (!edgeKeys.has(edgeKey)) {
+          edgeKeys.add(edgeKey);
+          edges.push({ from: file, to, kind: reference.kind, specifier: reference.specifier });
+        }
       }
     }
   }
