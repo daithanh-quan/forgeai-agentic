@@ -64,8 +64,9 @@ export function createLanguageRegistry(parsers: readonly LanguageParser[] = []):
 
 import { typescriptParser } from './source-analysis.js';
 import { pythonParser } from './python-analysis.js';
+import { goParser } from './go-analysis.js';
 
-const productionRegistry = createLanguageRegistry([typescriptParser, pythonParser]);
+const productionRegistry = createLanguageRegistry([typescriptParser, pythonParser, goParser]);
 
 export function parserForFile(file: string): LanguageParser | null {
   return productionRegistry.parserForFile(file);
