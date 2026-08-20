@@ -316,6 +316,7 @@ Deferred follow-ups:
   This activates 16.1 enforcement for `.py`/`.pyi` source.
 - **Phase 16.2b (shipped in 3.11.0)** — Go parser (`bin/lib/go-analysis.ts`) with brace-based declaration spans, doc-comment inclusion, generic type/receiver support, and `go.mod` module-path import resolution (fan-out to all non-test `.go` files in target package). `go.mod` hashed into source fingerprint.
 - **Phase 16.2c (planned)** — Rust parser registering against the same contract; Python `src`-layout / `sys.path` resolution.
+- **Phase 16.5 (shipped in 3.14.0)** — Zero-to-value `try` subcommand: read-only context selection preview with no initialization required. Detects languages, runs objective-matched selection, and prints an included-file table with a three-step install CTA. No file writes, no network calls after local package availability, no `.ai/` dependency.
 
 ### Phase 17 - Concurrent session locking
 

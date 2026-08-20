@@ -168,3 +168,9 @@ const EXPERIMENT_ID_PATTERN = /^EXP-\d{8}-[a-z0-9][a-z0-9-]*$/;
 export function isValidExperimentId(id: string): boolean {
   return typeof id === 'string' && EXPERIMENT_ID_PATTERN.test(id);
 }
+
+export function formatBytes(n: number): string {
+  if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  if (n >= 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${n} bytes`;
+}

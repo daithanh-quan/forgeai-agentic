@@ -52,6 +52,30 @@ ForgeAI does not install or authenticate model providers. If you want routed
 delegation, install and authenticate the CLIs you configure, such as `codex`,
 `agy`, `claude`, or another custom adapter.
 
+## Zero-Setup Preview
+
+Before installing, you can preview what ForgeAI would select for a specific
+coding objective in any repository — no `.ai/` directory, no file writes, no
+provider credentials:
+
+```bash
+npx forgeai-agentic-init@latest try "add authentication middleware"
+```
+
+This detects your project's languages, walks the source tree, runs the same
+keyword-and-dependency context selection used by `--compile-context`, and
+prints a table of selected files (direct matches and their related dependencies/tests) with selection reasons and a raw source-size
+estimate. The `npx @latest` invocation may resolve the package from npm; after
+that, everything runs locally with no network calls.
+
+When you are ready to install:
+
+```bash
+npx forgeai-agentic-init@latest --profile auto
+npx forgeai-agentic-init@latest --refresh-codegraph
+npx forgeai-agentic-init@latest --compile-context --objective "<your objective>"
+```
+
 ## Install
 
 For a new project, install the harness once:

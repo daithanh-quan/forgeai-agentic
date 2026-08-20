@@ -9,6 +9,7 @@ import { collectMigrationNotes, printMigrationNotes } from './upgrade-notes.js';
 export function usage(): string {
   return `Usage:
   forgeai-init [--dry-run] [--force] [--profile <name|auto>]
+  forgeai-init try "<objective>"
   forgeai-init --upgrade
   forgeai-init --check
   forgeai-init --check-updates
@@ -42,6 +43,10 @@ export function usage(): string {
   forgeai-init --help
 
 Options:
+  try           Preview ForgeAI context selection for an objective without
+                initializing. Reads source files, detects languages, and
+                prints the files that would be selected — no .ai/ required,
+                no file writes, no network calls after the package is local.
   --dry-run     Print files that would be created without writing them.
   --force       Overwrite existing harness files during initialization.
   --upgrade     Overwrite installed ForgeAI harness files with this package version.

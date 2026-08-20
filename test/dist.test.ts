@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -181,6 +182,124 @@ test('compiled dist CLI creates a bounded context artifact without tsx', () => {
     assert.equal(artifact.kind, 'forgeai_compiled_context');
     assert.ok(artifact.excerpts.some((excerpt) => excerpt.name === 'readValue'));
     assert.ok(artifact.budget.estimated_tokens <= 2000);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+// ── helpers for try E2E tests ──────────────────────────────────────────────────
+
+type RunDistResult = { stdout: string; stderr: string; exitCode: number };
+
+function runDistResult(
+  args: string[],
+  cwd: string,
+  extraEnv: Record<string, string> = {}
+): RunDistResult {
+  const baseEnv = { ...process.env, FORGEAI_SKIP_UPDATE_CHECK: '1', ...extraEnv };
+  try {
+    const stdout = execFileSync(process.execPath, [distCli, ...args], {
+      cwd,
+      encoding: 'utf8',
+      env: baseEnv,
+    }) as string;
+    return { stdout, stderr: '', exitCode: 0 };
+  } catch (err: unknown) {
+    const e = err as { stdout?: string; stderr?: string; status?: number };
+    return { stdout: e.stdout ?? '', stderr: e.stderr ?? '', exitCode: e.status ?? 1 };
+  }
+}
+
+function snapshotFiles(dir: string): Map<string, string> {
+  const result = new Map<string, string>();
+  function walk(current: string): void {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const abs = path.join(current, entry.name);
+      if (entry.isDirectory()) walk(abs);
+      else if (entry.isFile()) {
+        const rel = path.relative(dir, abs).split(path.sep).join('/');
+        const content = fs.readFileSync(abs);
+        result.set(rel, crypto.createHash('sha256').update(content).digest('hex'));
+      }
+    }
+  }
+  walk(dir);
+  return result;
+}
+
+// ── try subcommand E2E tests ───────────────────────────────────────────────────
+
+test('try: writes no files — content snapshot is identical before and after', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-try-nowrite-'));
+  try {
+    fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(target, 'src', 'auth.ts'), 'export function login() {}\n');
+    const before = snapshotFiles(target);
+    const result = runDistResult(['try', 'auth'], target);
+    assert.equal(result.exitCode, 0, `try exited with ${result.exitCode}: ${result.stderr}`);
+    assert.match(result.stdout, /src\/auth\.ts/);
+    const after = snapshotFiles(target);
+    assert.deepEqual([...before.entries()], [...after.entries()], 'no files must be written or modified');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('try: --help mentions forgeai-init try', () => {
+  const result = runDistResult(['--help'], projectRoot);
+  assert.ok(result.stdout.includes('forgeai-init try'), result.stdout);
+});
+
+test('try: no objective exits 2', () => {
+  const result = runDistResult(['try'], projectRoot);
+  assert.equal(result.exitCode, 2);
+});
+
+test('try: --objective with flag-like value exits 2', () => {
+  const result = runDistResult(['try', '--objective', '--bad'], projectRoot);
+  assert.equal(result.exitCode, 2);
+});
+
+test('try: --objective=--bad exits 2', () => {
+  const result = runDistResult(['try', '--objective=--bad'], projectRoot);
+  assert.equal(result.exitCode, 2);
+});
+
+test('try: --objective= (empty) exits 2', () => {
+  const result = runDistResult(['try', '--objective='], projectRoot);
+  assert.equal(result.exitCode, 2);
+});
+
+test('try: duplicate --objective exits 2', () => {
+  const result = runDistResult(['try', '--objective', 'auth', '--objective', 'billing'], projectRoot);
+  assert.equal(result.exitCode, 2);
+});
+
+test('try: empty source dir exits 0 with no-match message', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-try-empty-'));
+  try {
+    const result = runDistResult(['try', 'add auth'], target);
+    assert.equal(result.exitCode, 0);
+    assert.ok(result.stdout.includes('ForgeAI context proof'), result.stdout);
+    assert.ok(result.stdout.includes('no objective-matched files'), result.stdout);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('try: bypasses update preflight even when a newer version is available', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-try-preflight-'));
+  try {
+    fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(target, 'src', 'auth.ts'), 'export function login() {}\n');
+    const result = runDistResult(
+      ['try', 'add auth'],
+      target,
+      { CI: '', FORGEAI_SKIP_UPDATE_CHECK: '', FORGEAI_TEST_LATEST_VERSION: '99.0.0' }
+    );
+    assert.ok(result.stdout.includes('ForgeAI context proof'), result.stdout);
+    assert.ok(!result.stdout.includes('ForgeAI update'), `Update check must not run: ${result.stdout}`);
+    assert.ok(!result.stdout.includes('99.0.0'), `Version banner must not appear: ${result.stdout}`);
   } finally {
     fs.rmSync(target, { recursive: true, force: true });
   }

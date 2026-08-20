@@ -37,6 +37,7 @@ import {
   report,
   checkUpgrade,
   overrideFlag,
+  trySubcommand,
 } from './lib/context.js';
 import { runValidateArtifact, runRoute } from './lib/router.js';
 import { runExpandContext } from './lib/context-expansion.js';
@@ -62,6 +63,7 @@ import { runStatusSummary, runDiffSummary, runTestSummary } from './lib/diagnost
 import { runCheckApproval } from './lib/approval.js';
 import { runCheckEvaluation } from './lib/evaluation.js';
 import { usage, runInit } from './lib/init.js';
+import { runTry } from './lib/try.js';
 import { runListRuns } from './lib/run-record.js';
 import { runEvaluate } from './lib/evaluation-record.js';
 import { runReport } from './lib/evaluation-report.js';
@@ -80,7 +82,7 @@ if (overrideFlag) {
     refreshCodeGraph, checkProfile, checkReview, checkSecurity, checkMemory, checkAll,
     check, checkUpdates, addModel, listModels, removeModel, decompose, contextPack,
     compileContext, checkApproval, checkEvaluation, statusSummary, diffSummary,
-    testSummary, watch, emit, validateArtifactFlag, route, listRuns,
+    testSummary, watch, emit, validateArtifactFlag, route, listRuns, trySubcommand,
   ];
   if (!evaluate || commandsBeforeEvaluate.some(Boolean)) {
     process.stderr.write(`Error: ${overrideFlag} is only valid with --evaluate.\n`);
@@ -123,4 +125,5 @@ else if (evaluate) runEvaluate();
 else if (report) runReport();
 else if (expandContext) runExpandContext();
 else if (checkUpgrade) runCheckUpgrade();
+else if (trySubcommand) runTry();
 else runInit();
