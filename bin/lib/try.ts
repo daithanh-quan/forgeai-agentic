@@ -3,12 +3,13 @@ import path from 'node:path';
 import type { CodeGraph, DependencyGraph } from './types.js';
 import { root, rawArgs, validateArgFlag } from './context.js';
 import {
+  normalizeCuratedGraph,
   selectContextForObjective,
   tryReadCuratedCodeGraph,
   type ContextPackOptions,
   type SelectedContextNode,
 } from './context-pack.js';
-import { generateDependencyGraph } from './dependency-graph.js';
+import { generateDependencyGraph, DEPENDENCY_GRAPH_PATH, readDependencyGraph, checkDependencyGraphHealth } from './dependency-graph.js';
 import { detectProjectProfile, getAvailableProfiles } from './profiles.js';
 import { resolveExclusions } from './profile-exclusions.js';
 import { getErrorMessage, formatBytes } from './utils.js';
@@ -21,7 +22,10 @@ export type TryReport = {
   selected: SelectedContextNode[];
   omittedCount: number;
   selectedSourceBytes: number;
+  totalSourceBytes: number;
 };
+
+export type CtaState = 'uninitialized' | 'graph-unreadable' | 'needs-reinit' | 'needs-graph' | 'needs-refresh' | 'ready';
 
 function sanitizeTerminalText(value: string): string {
   return value
@@ -31,41 +35,31 @@ function sanitizeTerminalText(value: string): string {
     .trim();
 }
 
-function normalizeString(v: unknown): string | undefined {
-  return typeof v === 'string' ? v : undefined;
-}
+function detectCtaState(projectRoot: string): CtaState {
+  const curatedGraphFile = path.join(projectRoot, '.ai', 'codegraph', 'graph.json');
+  const depGraphFile = path.join(projectRoot, DEPENDENCY_GRAPH_PATH);
 
-function normalizeStringArray(v: unknown): string[] {
-  if (!Array.isArray(v)) return [];
-  return v.filter((item): item is string => typeof item === 'string');
-}
+  if (!fs.existsSync(curatedGraphFile)) return 'uninitialized';
 
-export function normalizeCuratedGraph(raw: unknown): CodeGraph {
-  if (raw === null || raw === undefined || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { nodes: [], edges: [] } as unknown as CodeGraph;
+  let content: string;
+  try {
+    content = fs.readFileSync(curatedGraphFile, 'utf-8');
+  } catch {
+    return 'graph-unreadable';
   }
-  const obj = raw as Record<string, unknown>;
-  const nodes = Array.isArray(obj.nodes)
-    ? obj.nodes
-        .filter((n): n is Record<string, unknown> => n !== null && typeof n === 'object' && !Array.isArray(n))
-        .map((n) => ({
-          id: normalizeString(n.id),
-          path: normalizeString(n.path),
-          type: normalizeString(n.type),
-          summary: normalizeString(n.summary),
-          confidence: normalizeString(n.confidence),
-          owners: normalizeStringArray(n.owners),
-          entrypoints: normalizeStringArray(n.entrypoints),
-          public_contracts: normalizeStringArray(n.public_contracts),
-          dependencies: normalizeStringArray(n.dependencies),
-          dependents: normalizeStringArray(n.dependents),
-          tags: normalizeStringArray(n.tags),
-        }))
-    : [];
-  const edges = Array.isArray(obj.edges)
-    ? obj.edges.filter((e): e is Record<string, unknown> => e !== null && typeof e === 'object' && !Array.isArray(e))
-    : [];
-  return { ...obj, nodes, edges } as unknown as CodeGraph;
+  try {
+    JSON.parse(content);
+  } catch {
+    return 'needs-reinit';
+  }
+
+  if (!fs.existsSync(depGraphFile)) return 'needs-graph';
+
+  const depGraph = readDependencyGraph(projectRoot);
+  const health = checkDependencyGraphHealth(projectRoot, depGraph);
+  if (health.status !== 'ok') return 'needs-refresh';
+
+  return 'ready';
 }
 
 export function parseTryObjective(args: string[]): string | null {
@@ -96,7 +90,8 @@ export function buildTryReport(
     languages.set(lang, (languages.get(lang) ?? 0) + 1);
   }
   const selectedSourceBytes = selected.reduce((sum, s) => sum + fileSizer(s.node.path), 0);
-  return { objective: safeObjective, terms, languages, totalFiles: depGraph.nodes.length, selected, omittedCount: omitted.length, selectedSourceBytes };
+  const totalSourceBytes = depGraph.nodes.reduce((sum, node) => sum + fileSizer(node.path), 0);
+  return { objective: safeObjective, terms, languages, totalFiles: depGraph.nodes.length, selected, omittedCount: omitted.length, selectedSourceBytes, totalSourceBytes };
 }
 
 const LANGUAGE_DISPLAY: Record<string, string> = {
@@ -107,8 +102,7 @@ function displayLanguage(id: string): string {
   return LANGUAGE_DISPLAY[id] ?? sanitizeTerminalText(id.charAt(0).toUpperCase() + id.slice(1));
 }
 
-
-export function formatTryOutput(report: TryReport): string {
+export function formatTryOutput(report: TryReport, ctaState: CtaState = 'uninitialized'): string {
   const lines: string[] = [];
   const safeObjective = sanitizeTerminalText(report.objective);
   lines.push(`ForgeAI context proof — "${safeObjective}"`);
@@ -120,7 +114,13 @@ export function formatTryOutput(report: TryReport): string {
   const selectedCount = report.selected.length;
   lines.push(`  Relevant    ${selectedCount === 0 ? 'none — no objective-matched files' : `${selectedCount} file${selectedCount === 1 ? '' : 's'} selected`}`);
   if (report.omittedCount > 0) lines.push(`  Excluded    ${report.omittedCount} by profile exclusion`);
-  if (report.selectedSourceBytes > 0) lines.push(`  Source size ~${formatBytes(report.selectedSourceBytes)} selected  (raw source — not compiled excerpts)`);
+  if (report.totalSourceBytes > 0) {
+    const rawPct = Math.round((1 - report.selectedSourceBytes / report.totalSourceBytes) * 100);
+    const pct = Math.max(0, Math.min(100, rawPct));
+    lines.push(
+      `  Selected    ~${formatBytes(report.selectedSourceBytes)} of ~${formatBytes(report.totalSourceBytes)} indexed source  (${pct}% excluded)`
+    );
+  }
   lines.push('');
   lines.push('  Included files:');
   lines.push('  ' + '─'.repeat(72));
@@ -142,10 +142,27 @@ export function formatTryOutput(report: TryReport): string {
     }
   }
   lines.push('');
-  lines.push('  Ready to use ForgeAI on this repository?');
-  lines.push('    npx forgeai-agentic-init@latest --profile auto');
-  lines.push('    npx forgeai-agentic-init@latest --refresh-codegraph');
-  lines.push('    npx forgeai-agentic-init@latest --compile-context --objective "<your objective>"');
+  if (ctaState === 'uninitialized') {
+    lines.push('  Ready to use ForgeAI on this repository?');
+    lines.push('    npx forgeai-agentic-init@latest --profile auto');
+    lines.push('    npx forgeai-agentic-init@latest --refresh-codegraph');
+    lines.push('    npx forgeai-agentic-init@latest --compile-context --objective "<your objective>"');
+  } else if (ctaState === 'graph-unreadable') {
+    lines.push('  graph.json cannot be read (permission or I/O error).');
+    lines.push('  Check that the file exists and your user has read permission.');
+  } else if (ctaState === 'needs-reinit') {
+    lines.push('  graph.json is corrupted. To recover (backs up your current file):');
+    lines.push('    npx forgeai-agentic-init@latest --repair-codegraph');
+  } else if (ctaState === 'needs-graph') {
+    lines.push('  ForgeAI is initialized. Build the codegraph to continue:');
+    lines.push('    npx forgeai-agentic-init@latest --refresh-codegraph');
+  } else if (ctaState === 'needs-refresh') {
+    lines.push('  Codegraph is stale or invalid. Refresh it:');
+    lines.push('    npx forgeai-agentic-init@latest --refresh-codegraph');
+  } else {
+    lines.push('  ForgeAI is ready. Compile context for your objective:');
+    lines.push('    npx forgeai-agentic-init@latest --compile-context --objective "<your objective>"');
+  }
   lines.push('');
   return lines.join('\n');
 }
@@ -165,11 +182,12 @@ export function runTry(): void {
     process.exitCode = 1;
     return;
   }
-  const curatedGraph = normalizeCuratedGraph(tryReadCuratedCodeGraph(root));
+  const curatedGraph = tryReadCuratedCodeGraph(root) ?? normalizeCuratedGraph(null);
+  const ctaState = detectCtaState(root);
   const primaryProfile = detectProjectProfile();
   const availableSet = new Set(getAvailableProfiles());
   const components = primaryProfile !== null && availableSet.has(primaryProfile) ? [primaryProfile] : [];
   const rules = resolveExclusions(components);
   const report = buildTryReport(objective, depGraph, curatedGraph, { maxNodes: 12, maxDepth: 2, rules, includeGlobs: [] });
-  process.stdout.write(formatTryOutput(report));
+  process.stdout.write(formatTryOutput(report, ctaState));
 }

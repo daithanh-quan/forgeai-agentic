@@ -97,6 +97,7 @@ export const diffSummary = args.has('--diff-summary');
 export const testSummary = args.has('--test-summary');
 export const skipUpdateCheck = args.has('--skip-update-check') || process.env.FORGEAI_SKIP_UPDATE_CHECK === '1' || rawArgs[0] === 'try';
 export const trySubcommand = rawArgs[0] === 'try';
+export const repairCodeGraph = args.has('--repair-codegraph');
 export const watch = args.has('--watch');
 export const emit = args.has('--emit');
 export const emitPayload = getArgValue('--emit');

@@ -583,3 +583,70 @@ test('codegraph check rejects a generated_at date in the future', () => {
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+// ── null-node / invalid top-level guards ──────────────────────────────────────
+
+test('--check-codegraph: graph.json = null exits non-zero with "must be a JSON object"', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-cg-null-'));
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.mkdirSync(path.join(target, '.ai', 'codegraph'), { recursive: true });
+    fs.writeFileSync(path.join(target, '.ai', 'codegraph', 'graph.json'), 'null');
+    let stdout = '';
+    let threw = false;
+    try {
+      stdout = runTs(cli, ['--check-codegraph'], { cwd: target });
+    } catch (e: unknown) {
+      threw = true;
+      stdout = (e as ExecError).stdout?.toString() ?? '';
+    }
+    assert.ok(threw, 'expected non-zero exit');
+    assert.ok(stdout.includes('invalid'), `stdout: ${stdout}`);
+    assert.ok(stdout.includes('must be a JSON object'), `stdout: ${stdout}`);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--check-codegraph: graph.json = [] exits non-zero with "must be a JSON object"', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-cg-arr-'));
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.mkdirSync(path.join(target, '.ai', 'codegraph'), { recursive: true });
+    fs.writeFileSync(path.join(target, '.ai', 'codegraph', 'graph.json'), '[]');
+    let stdout = '';
+    let threw = false;
+    try {
+      stdout = runTs(cli, ['--check-codegraph'], { cwd: target });
+    } catch (e: unknown) {
+      threw = true;
+      stdout = (e as ExecError).stdout?.toString() ?? '';
+    }
+    assert.ok(threw, 'expected non-zero exit');
+    assert.ok(stdout.includes('must be a JSON object'), `stdout: ${stdout}`);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('--check-codegraph: graph.json = {"nodes":[null],...} exits non-zero with "is not an object"', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-cg-nullnode-'));
+  try {
+    runTs(cli, [], { cwd: target });
+    fs.mkdirSync(path.join(target, '.ai', 'codegraph'), { recursive: true });
+    const g = { schema_version: 1, generated_at: '2026-01-01', source: 'test', nodes: [null], edges: [] };
+    fs.writeFileSync(path.join(target, '.ai', 'codegraph', 'graph.json'), JSON.stringify(g));
+    let stdout = '';
+    let threw = false;
+    try {
+      stdout = runTs(cli, ['--check-codegraph'], { cwd: target });
+    } catch (e: unknown) {
+      threw = true;
+      stdout = (e as ExecError).stdout?.toString() ?? '';
+    }
+    assert.ok(threw, 'expected non-zero exit');
+    assert.ok(stdout.includes('is not an object'), `stdout: ${stdout}`);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});

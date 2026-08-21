@@ -25,7 +25,7 @@ import type {
   OmittedContextEntry,
   ContextExclusionPolicy
 } from './types.js';
-import { formatStatus, getErrorMessage, isValidTaskId, isValidExperimentId } from './utils.js';
+import { formatStatus, formatBytes, getErrorMessage, isValidTaskId, isValidExperimentId } from './utils.js';
 
 const DEFAULT_BUDGET = 6000;
 const DEFAULT_MAX_NODES = 12;
@@ -615,6 +615,22 @@ export function runCompileContext(): void {
     fs.writeFileSync(markdownPath, renderCompiledContextMarkdown(artifact));
     console.log(formatStatus('ok', `compiled context JSON written to ${outputArg}`));
     console.log(formatStatus('ok', `compiled context Markdown written to ${markdownArg}`));
+    const selectedPaths = new Set(artifact.selection.files.map((f) => f.path));
+    const selectedSourceBytes = dependencyGraph!.nodes
+      .filter((n) => selectedPaths.has(n.path))
+      .reduce((sum, n) => {
+        try { return sum + fs.statSync(path.join(root, n.path)).size; } catch { return sum; }
+      }, 0);
+    const totalSourceBytes = dependencyGraph!.nodes
+      .reduce((sum, n) => {
+        try { return sum + fs.statSync(path.join(root, n.path)).size; } catch { return sum; }
+      }, 0);
+    if (totalSourceBytes > 0) {
+      const pct = Math.max(0, Math.min(100, Math.round((1 - selectedSourceBytes / totalSourceBytes) * 100)));
+      console.log(formatStatus('ok',
+        `source scope  ~${formatBytes(selectedSourceBytes)} of ~${formatBytes(totalSourceBytes)} indexed source  (${pct}% excluded)`
+      ));
+    }
     console.log(formatStatus('ok', `estimated tokens ${artifact.budget.estimated_tokens}/${artifact.budget.limit_tokens}`));
   } catch (error) {
     console.error(`Error: context compilation failed (${getErrorMessage(error)}).`);

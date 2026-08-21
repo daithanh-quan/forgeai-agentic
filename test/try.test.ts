@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeCuratedGraph, parseTryObjective, buildTryReport, formatTryOutput } from '../bin/lib/try.js';
+import { parseTryObjective, buildTryReport, formatTryOutput } from '../bin/lib/try.js';
+import { normalizeCuratedGraph } from '../bin/lib/context-pack.js';
 import type { CodeGraph, DependencyGraph, DependencyGraphNode } from '../bin/lib/types.js';
 import type { TryReport } from '../bin/lib/try.js';
 import type { SelectedContextNode } from '../bin/lib/context-pack.js';
@@ -265,12 +266,13 @@ test('formatTryOutput: excluded count shown when omits > 0', () => {
   assert.ok(formatTryOutput(report).includes('profile exclusion'));
 });
 
-test('formatTryOutput: shows source size and clarifies it is raw source', () => {
+test('formatTryOutput: shows indexed source exclusion metric when totalSourceBytes > 0', () => {
   const depGraph = makeDepGraph([{ id: 'src/auth/middleware.ts', path: 'src/auth/middleware.ts' }]);
   const report = buildTryReport('auth middleware', depGraph, emptyCurated, {}, () => 8192);
   const output = formatTryOutput(report);
   assert.ok(output.includes('KB') || output.includes('bytes'), output);
-  assert.ok(output.includes('raw source'), output);
+  assert.ok(output.includes('indexed source'), output);
+  assert.ok(output.includes('excluded'), output);
   assert.ok(!output.includes('token budget'), output);
 });
 
@@ -300,6 +302,7 @@ test('formatTryOutput: sanitizes objective even when called with manually constr
     selected: [],
     omittedCount: 0,
     selectedSourceBytes: 0,
+    totalSourceBytes: 0,
   };
   const output = formatTryOutput(report);
   const headerLine = output.split('\n')[0];
@@ -330,6 +333,7 @@ test('formatTryOutput: control chars in path and reason are sanitized', () => {
     selected: [unsafeSelected],
     omittedCount: 0,
     selectedSourceBytes: 0,
+    totalSourceBytes: 0,
   };
   const output = formatTryOutput(report);
   const includedLine = output.split('\n').find((line) => line.includes('src/a b.ts'));
@@ -337,4 +341,128 @@ test('formatTryOutput: control chars in path and reason are sanitized', () => {
   assert.equal(includedLine?.includes('\x01'), false, 'control char in path must be stripped');
   assert.equal(includedLine?.includes('\x00'), false, 'null byte in reason must be stripped');
   assert.match(includedLine ?? '', /seed: match bad newline/);
+});
+
+// ── TryReport.totalSourceBytes ─────────────────────────────────────────────────
+
+test('buildTryReport: totalSourceBytes is 0 when dep graph is empty', () => {
+  const report = buildTryReport('add auth', makeDepGraph([]), emptyCurated, {});
+  assert.equal(report.totalSourceBytes, 0);
+});
+
+test('buildTryReport: totalSourceBytes sums ALL dep graph node sizes, not just selected', () => {
+  const depGraph = makeDepGraph([
+    { id: 'src/auth.ts', path: 'src/auth.ts' },
+    { id: 'src/unrelated.ts', path: 'src/unrelated.ts' },
+  ]);
+  const fileSizer = (p: string) => (p === 'src/auth.ts' ? 1000 : 2000);
+  const report = buildTryReport('auth', depGraph, emptyCurated, {}, fileSizer);
+  assert.equal(report.totalSourceBytes, 3000);
+});
+
+test('buildTryReport: totalSourceBytes >= selectedSourceBytes (selected is a subset)', () => {
+  const depGraph = makeDepGraph([
+    { id: 'src/auth.ts', path: 'src/auth.ts' },
+    { id: 'src/other.ts', path: 'src/other.ts' },
+  ]);
+  const fileSizer = () => 500;
+  const report = buildTryReport('auth', depGraph, emptyCurated, {}, fileSizer);
+  assert.ok(report.totalSourceBytes >= report.selectedSourceBytes);
+});
+
+// ── formatTryOutput exclusion metric ──────────────────────────────────────────
+
+test('formatTryOutput: shows "of ... indexed source (N% excluded)" when totalSourceBytes > 0', () => {
+  const depGraph = makeDepGraph([
+    { id: 'src/auth.ts', path: 'src/auth.ts' },
+    { id: 'src/other.ts', path: 'src/other.ts' },
+  ]);
+  const fileSizer = (p: string) => (p === 'src/auth.ts' ? 100 : 900);
+  const report = buildTryReport('auth', depGraph, emptyCurated, {}, fileSizer);
+  const output = formatTryOutput(report);
+  assert.ok(output.includes('indexed source'), output);
+  assert.ok(output.includes('excluded'), output);
+});
+
+test('formatTryOutput: shows "(0% excluded)" when selected equals total', () => {
+  const depGraph = makeDepGraph([{ id: 'src/auth.ts', path: 'src/auth.ts' }]);
+  const fileSizer = () => 1024;
+  const report = buildTryReport('auth middleware', depGraph, emptyCurated, {}, fileSizer);
+  const output = formatTryOutput(report);
+  assert.ok(output.includes('0% excluded'), output);
+});
+
+test('formatTryOutput: hides source line when totalSourceBytes === 0', () => {
+  const depGraph = makeDepGraph([{ id: 'src/auth.ts', path: 'src/auth.ts' }]);
+  const fileSizer = () => 0;
+  const report = buildTryReport('auth', depGraph, emptyCurated, {}, fileSizer);
+  const output = formatTryOutput(report);
+  assert.ok(!output.includes('indexed source'), output);
+});
+
+test('formatTryOutput: percentage is clamped to [0, 100] when selectedSourceBytes > totalSourceBytes', () => {
+  const report: TryReport = {
+    objective: 'auth',
+    terms: [],
+    languages: new Map(),
+    totalFiles: 1,
+    selected: [],
+    omittedCount: 0,
+    selectedSourceBytes: 2000,
+    totalSourceBytes: 1000,
+  };
+  const output = formatTryOutput(report);
+  const sourceLine = output.split('\n').find((l) => l.includes('indexed source')) ?? '';
+  assert.ok(sourceLine.includes('(0% excluded)'), `expected clamped to 0%: ${sourceLine}`);
+});
+
+// ── formatTryOutput CTA states ─────────────────────────────────────────────────
+
+test('formatTryOutput: ctaState=uninitialized (default) shows all three install commands', () => {
+  const report = buildTryReport('auth', makeDepGraph([]), emptyCurated, {});
+  const output = formatTryOutput(report);
+  assert.ok(output.includes('--profile auto'), output);
+  assert.ok(output.includes('--refresh-codegraph'), output);
+  assert.ok(output.includes('--compile-context'), output);
+});
+
+test('formatTryOutput: ctaState=graph-unreadable shows "cannot be read" and "read permission", no --repair-codegraph', () => {
+  const report = buildTryReport('auth', makeDepGraph([]), emptyCurated, {});
+  const output = formatTryOutput(report, 'graph-unreadable');
+  assert.ok(output.includes('cannot be read'), output);
+  assert.ok(output.includes('read permission'), output);
+  assert.ok(!output.includes('--repair-codegraph'), output);
+  assert.ok(!output.includes('--profile auto'), output);
+});
+
+test('formatTryOutput: ctaState=needs-reinit shows --repair-codegraph and "corrupted", no --profile auto', () => {
+  const report = buildTryReport('auth', makeDepGraph([]), emptyCurated, {});
+  const output = formatTryOutput(report, 'needs-reinit');
+  assert.ok(output.includes('--repair-codegraph'), output);
+  assert.ok(output.includes('corrupted'), output);
+  assert.ok(!output.includes('--profile auto'), output);
+  assert.ok(!output.includes('--refresh-codegraph'), output);
+  assert.ok(!output.includes('--upgrade'), output);
+});
+
+test('formatTryOutput: ctaState=needs-graph shows --refresh-codegraph, no --profile auto', () => {
+  const report = buildTryReport('auth', makeDepGraph([]), emptyCurated, {});
+  const output = formatTryOutput(report, 'needs-graph');
+  assert.ok(output.includes('--refresh-codegraph'), output);
+  assert.ok(output.includes('Build the codegraph'), output);
+  assert.ok(!output.includes('--profile auto'), output);
+});
+
+test('formatTryOutput: ctaState=needs-refresh shows --refresh-codegraph and "stale or invalid"', () => {
+  const report = buildTryReport('auth', makeDepGraph([]), emptyCurated, {});
+  const output = formatTryOutput(report, 'needs-refresh');
+  assert.ok(output.includes('--refresh-codegraph'), output);
+  assert.ok(output.includes('stale or invalid'), output);
+});
+
+test('formatTryOutput: ctaState=ready shows --compile-context, no --refresh-codegraph', () => {
+  const report = buildTryReport('auth', makeDepGraph([]), emptyCurated, {});
+  const output = formatTryOutput(report, 'ready');
+  assert.ok(output.includes('--compile-context'), output);
+  assert.ok(!output.includes('--refresh-codegraph'), output);
 });

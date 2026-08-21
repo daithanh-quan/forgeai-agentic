@@ -1,15 +1,17 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { root, templateDir, dryRun, force, upgrade, requestedProfile, isProfileExplicit } from './context.js';
 import { readManifestResult, writeManifest } from './manifest.js';
 import { resolveProfile, profilePath, warnMonorepoSecondaryStack, parseCompositeProfile, detectConfidence, normalizeProfile } from './profiles.js';
-import { compareSemver, getPackageVersion, parseSemver } from './utils.js';
+import { compareSemver, getPackageVersion, getErrorMessage, formatStatus, parseSemver } from './utils.js';
 import { collectMigrationNotes, printMigrationNotes } from './upgrade-notes.js';
 
 export function usage(): string {
   return `Usage:
   forgeai-init [--dry-run] [--force] [--profile <name|auto>]
   forgeai-init try "<objective>"
+  forgeai-init --repair-codegraph
   forgeai-init --upgrade
   forgeai-init --check
   forgeai-init --check-updates
@@ -43,6 +45,10 @@ export function usage(): string {
   forgeai-init --help
 
 Options:
+  --repair-codegraph
+                Restore a malformed .ai/codegraph/graph.json from the
+                package template. Creates a uniquely named backup first.
+                Refuses if the file is already valid JSON or cannot be read.
   try           Preview ForgeAI context selection for an objective without
                 initializing. Reads source files, detects languages, and
                 prints the files that would be selected — no .ai/ required,
@@ -321,6 +327,109 @@ export function maintainContextGitignore(repositoryRoot: string, isDryRun: boole
   fs.writeFileSync(gitignorePath, content);
 }
 
+const CODEGRAPH_GITIGNORE_ENTRIES = ['graph.json.backup.*', 'graph.json.tmp.*'];
+
+function maintainCodeGraphGitignore(gitignorePath: string, isDryRun = false): void {
+  try {
+    const existing = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf-8') : '';
+    const existingLines = new Set(existing.split('\n').map((l) => l.trim()));
+    const missing = CODEGRAPH_GITIGNORE_ENTRIES.filter((p) => !existingLines.has(p));
+    if (missing.length === 0) return;
+    if (isDryRun) {
+      for (const p of missing) console.log(`would append ${p} to .ai/codegraph/.gitignore`);
+      return;
+    }
+    const sep = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
+    fs.writeFileSync(gitignorePath, existing + sep + missing.join('\n') + '\n');
+  } catch (err) {
+    process.stderr.write(`Warning: could not write .ai/codegraph/.gitignore (${getErrorMessage(err)}). Check git status before committing.\n`);
+  }
+}
+
+interface RepairCodeGraphOptions {
+  graphPath?: string;
+  templateGraphPath?: string;
+  gitignorePath?: string;
+  randomSuffix?: () => string;
+}
+
+export function runRepairCodeGraph({
+  graphPath = path.join(root, '.ai', 'codegraph', 'graph.json'),
+  templateGraphPath = path.join(templateDir, '.ai', 'codegraph', 'graph.json'),
+  gitignorePath = path.join(path.dirname(graphPath), '.gitignore'),
+  randomSuffix = () => crypto.randomBytes(4).toString('hex'),
+}: RepairCodeGraphOptions = {}): void {
+  if (!fs.existsSync(graphPath)) {
+    process.stderr.write('Error: .ai/codegraph/graph.json not found — nothing to repair.\n');
+    process.exitCode = 1;
+    return;
+  }
+  let content: string;
+  try {
+    content = fs.readFileSync(graphPath, 'utf-8');
+  } catch (err) {
+    process.stderr.write(`Error: could not read .ai/codegraph/graph.json (${getErrorMessage(err)}).\n`);
+    process.exitCode = 1;
+    return;
+  }
+  try {
+    JSON.parse(content);
+    console.log(formatStatus('ok', '.ai/codegraph/graph.json is already valid JSON — nothing to repair.'));
+    return;
+  } catch { /* JSON parse failed — proceed with repair */ }
+
+  maintainCodeGraphGitignore(gitignorePath);
+
+  const MAX_RETRY = 10;
+  let tmpPath: string | undefined;
+  try {
+    let backupPath: string;
+    for (let attempt = 0; ; attempt++) {
+      if (attempt >= MAX_RETRY) throw new Error('could not create unique backup path after 10 attempts');
+      backupPath = `${graphPath}.backup.${randomSuffix()}`;
+      try {
+        fs.copyFileSync(graphPath, backupPath, fs.constants.COPYFILE_EXCL);
+        break;
+      } catch (err: unknown) {
+        if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+      }
+    }
+
+    for (let attempt = 0; ; attempt++) {
+      if (attempt >= MAX_RETRY) throw new Error('could not create unique tmp path after 10 attempts');
+      const candidate = `${graphPath}.tmp.${randomSuffix()}`;
+      try {
+        fs.copyFileSync(templateGraphPath, candidate, fs.constants.COPYFILE_EXCL);
+        tmpPath = candidate;
+        break;
+      } catch (err: unknown) {
+        if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+      }
+    }
+
+    let tmpContent: string;
+    try {
+      tmpContent = fs.readFileSync(tmpPath, 'utf-8');
+    } catch (err) {
+      throw new Error(`could not read template copy (${getErrorMessage(err)})`);
+    }
+    try {
+      JSON.parse(tmpContent);
+    } catch {
+      throw new Error('template graph.json is not valid JSON — cannot repair');
+    }
+
+    fs.renameSync(tmpPath, graphPath);
+    tmpPath = undefined;
+
+    console.log(formatStatus('ok', `repaired .ai/codegraph/graph.json (backup: ${path.relative(root, backupPath!)})`));
+  } catch (err) {
+    if (tmpPath) { try { fs.unlinkSync(tmpPath); } catch { /* ignore */ } }
+    process.stderr.write(`Error: codegraph repair failed (${getErrorMessage(err)}).\n`);
+    process.exitCode = 1;
+  }
+}
+
 export function runInit(): void {
   const manifestResult = readManifestResult();
   const manifest = manifestResult.state === 'valid' ? manifestResult.data : null;
@@ -393,6 +502,7 @@ export function runInit(): void {
     console.log(`profile auto skipped: ${profile.detail}`);
   }
   writeManifest(profile.profile);
+  maintainCodeGraphGitignore(path.join(root, '.ai', 'codegraph', '.gitignore'), dryRun);
   // Skip the secondary-stack note when auto-profile already logged the ambiguity
   // message; they would be duplicate suggestions for the same composite profile.
   const autoAmbiguityLogged = normalizeProfile(profileInput) === 'auto' && profile.status === 'ok' && detectConfidence() === 'ambiguous';

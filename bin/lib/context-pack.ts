@@ -24,6 +24,55 @@ import { formatStatus, getErrorMessage } from './utils.js';
 
 export { globMatches } from './path-glob.js';
 
+function normalizeString(v: unknown): string | undefined {
+  return typeof v === 'string' ? v : undefined;
+}
+
+function normalizeStringArray(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((item): item is string => typeof item === 'string');
+}
+
+export function normalizeCuratedGraph(raw: unknown): CodeGraph {
+  if (raw === null || raw === undefined || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { nodes: [], edges: [] } as unknown as CodeGraph;
+  }
+  const obj = raw as Record<string, unknown>;
+  const nodes = Array.isArray(obj.nodes)
+    ? obj.nodes
+        .filter((n): n is Record<string, unknown> => n !== null && typeof n === 'object' && !Array.isArray(n))
+        .map((n) => ({
+          id: normalizeString(n.id),
+          path: normalizeString(n.path),
+          type: normalizeString(n.type),
+          summary: normalizeString(n.summary),
+          confidence: normalizeString(n.confidence),
+          owners: normalizeStringArray(n.owners),
+          entrypoints: normalizeStringArray(n.entrypoints),
+          public_contracts: normalizeStringArray(n.public_contracts),
+          dependencies: normalizeStringArray(n.dependencies),
+          dependents: normalizeStringArray(n.dependents),
+          tags: normalizeStringArray(n.tags),
+        }))
+    : [];
+  const edges = Array.isArray(obj.edges)
+    ? obj.edges.filter((e): e is Record<string, unknown> => e !== null && typeof e === 'object' && !Array.isArray(e))
+    : [];
+  return { ...obj, nodes, edges } as unknown as CodeGraph;
+}
+
+type ParseCuratedResult =
+  | { ok: true; graph: CodeGraph }
+  | { ok: false; error: unknown };
+
+function parseCuratedCodeGraph(graphPath: string): ParseCuratedResult {
+  try {
+    return { ok: true, graph: normalizeCuratedGraph(JSON.parse(fs.readFileSync(graphPath, 'utf8'))) };
+  } catch (error) {
+    return { ok: false, error };
+  }
+}
+
 const DEFAULT_MAX_NODES = 12;
 const DEFAULT_MAX_DEPTH = 2;
 const MAX_SEEDS = 5;
@@ -403,23 +452,20 @@ export function readCuratedCodeGraph(repositoryRoot = root): CodeGraph | null {
     process.exitCode = 1;
     return null;
   }
-  try {
-    return JSON.parse(fs.readFileSync(graphPath, 'utf8')) as CodeGraph;
-  } catch (error) {
-    console.error(`Error: .ai/codegraph/graph.json is invalid (${getErrorMessage(error)}).`);
+  const result = parseCuratedCodeGraph(graphPath);
+  if (!result.ok) {
+    console.error(`Error: .ai/codegraph/graph.json is invalid (${getErrorMessage(result.error)}).`);
     process.exitCode = 1;
     return null;
   }
+  return result.graph;
 }
 
 export function tryReadCuratedCodeGraph(repositoryRoot: string): CodeGraph | null {
   const graphPath = path.join(repositoryRoot, '.ai', 'codegraph', 'graph.json');
   if (!fs.existsSync(graphPath)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(graphPath, 'utf8')) as CodeGraph;
-  } catch {
-    return null;
-  }
+  const result = parseCuratedCodeGraph(graphPath);
+  return result.ok ? result.graph : null;
 }
 
 function parseBound(name: string, fallback: number, maximum: number): number | null {
