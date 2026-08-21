@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.12.0
+
+### Phase 16.6 — Quantified Context Proof
+
+- **`try` exclusion metrics**: output now shows `~42.1 KB of ~380.4 KB indexed source (89% excluded)` so users see the selection ratio at a glance.
+- **State-aware CTA in `try`**: the call-to-action at the bottom of `try` output adapts to the actual state of `.ai/` — `uninitialized`, `graph-unreadable`, `needs-reinit`, `needs-graph`, `needs-refresh`, or `ready`.
+- **`--repair-codegraph`**: new CLI command that restores a malformed `graph.json` from the package template with an atomic backup-first approach. Refuses to run if the file is already valid JSON or cannot be read.
+- **`--compile-context` source scope**: when `--output` is provided, the log now includes `source scope ~X KB of ~Y KB indexed source (N% excluded)` before the token estimate line.
+- **`--check-codegraph` null guards**: no longer crashes with TypeError on `null`, `[]`, `42`, or `{"nodes":[null]}` graph.json inputs — reports `invalid` with a clear message.
+- **Shared normalizer**: `normalizeCuratedGraph` moved to `context-pack.ts`; both `readCuratedCodeGraph` and `tryReadCuratedCodeGraph` now use a shared private `parseCuratedCodeGraph`.
+
+### Phase 16.5 — Zero-to-Value: Context Proof
+
+- **`try` subcommand** (`forgeai-init try "<objective>"`): read-only context selection preview requiring no `.ai/` initialization, no file writes, no network calls after the package is locally available. Detects languages and source file counts from the live repo, runs objective-matched context selection, and prints a human-readable terminal report with an included-file table and a three-step CTA for full installation.
+- **`normalizeCuratedGraph`**: pure function that rebuilds every CodeGraph node field-by-field so all six spread-iterated fields (`tags`, `entrypoints`, `public_contracts`, `dependencies`, `dependents`, `owners`) are always `string[]` — prevents `TypeError` when `.ai/codegraph/graph.json` exists but has stale or partially-valid schema.
+- **Terminal sanitization**: objective, file paths, and selection reasons are stripped of ANSI escape sequences and control characters before display.
+- **Update preflight bypass**: `try` never triggers the npm update check or version banner.
+- `try` is listed in `--help` with a value description.
+
 ## 3.11.0 — 2026-08-13
 
 This release consolidates Phases 16.1, 16.2, and 16.2b, which were developed

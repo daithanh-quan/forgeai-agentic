@@ -12,13 +12,16 @@ export function isTodoValue(value: unknown): boolean {
 
 export function isTemplateCodeGraph(graph: CodeGraph): boolean {
   if (isTodoValue(graph.generated_at) || isTodoValue(graph.source)) return true;
-  const nodeHasTodo = graph.nodes?.some(
-    (node) => isTodoValue(node.id) || isTodoValue(node.path) || isTodoValue(node.type) || isTodoValue(node.summary)
+  const nodes = Array.isArray(graph.nodes)
+    ? graph.nodes.filter((n) => n !== null && typeof n === 'object' && !Array.isArray(n))
+    : [];
+  const edges = Array.isArray(graph.edges)
+    ? graph.edges.filter((e) => e !== null && typeof e === 'object' && !Array.isArray(e))
+    : [];
+  return (
+    nodes.some((n) => isTodoValue(n.id) || isTodoValue(n.path) || isTodoValue(n.type) || isTodoValue(n.summary)) ||
+    edges.some((e) => isTodoValue(e.from) || isTodoValue(e.to) || isTodoValue(e.kind) || isTodoValue(e.summary))
   );
-  const edgeHasTodo = graph.edges?.some(
-    (edge) => isTodoValue(edge.from) || isTodoValue(edge.to) || isTodoValue(edge.kind) || isTodoValue(edge.summary)
-  );
-  return nodeHasTodo === true || edgeHasTodo === true;
 }
 
 export function isValidConfidence(value: string | undefined): boolean {
@@ -60,6 +63,14 @@ export function runCheckCodeGraph(options: { strict?: boolean } = {}): void {
     graph = JSON.parse(fs.readFileSync(graphPath, 'utf8')) as CodeGraph;
   } catch (error) {
     console.log(formatStatus('invalid', `.ai/codegraph/graph.json (${getErrorMessage(error)})`));
+    console.log('');
+    console.log('Result: CodeGraph JSON is invalid.');
+    process.exitCode = 1;
+    return;
+  }
+
+  if (graph === null || typeof graph !== 'object' || Array.isArray(graph)) {
+    console.log(formatStatus('invalid', `.ai/codegraph/graph.json must be a JSON object`));
     console.log('');
     console.log('Result: CodeGraph JSON is invalid.');
     process.exitCode = 1;
@@ -138,6 +149,11 @@ export function runCheckCodeGraph(options: { strict?: boolean } = {}): void {
 
   const nodeIds = new Set<string>();
   for (const [index, node] of nodes.entries()) {
+    if (node === null || typeof node !== 'object' || Array.isArray(node)) {
+      failures += 1;
+      console.log(formatStatus('invalid', `node[${index}] is not an object`));
+      continue;
+    }
     const label = node.id || `node[${index}]`;
     let nodeFailures = 0;
 
@@ -168,6 +184,11 @@ export function runCheckCodeGraph(options: { strict?: boolean } = {}): void {
   }
 
   for (const [index, edge] of edges.entries()) {
+    if (edge === null || typeof edge !== 'object' || Array.isArray(edge)) {
+      failures += 1;
+      console.log(formatStatus('invalid', `edge[${index}] is not an object`));
+      continue;
+    }
     const label = `edge[${index}]`;
     let edgeFailures = 0;
 
