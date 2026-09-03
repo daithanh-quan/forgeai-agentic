@@ -10,7 +10,7 @@ export function Header({ connected, disconnected }: Props) {
   });
 
   const icon  = disconnected ? '⚠' : connected ? '●' : '○';
-  const label = disconnected ? 'DISCONNECTED' : connected ? 'LIVE' : 'WAITING';
+  const label = disconnected ? 'DISCONNECTED' : connected ? 'LIVE' : 'READY';
   const color = disconnected ? 'yellow' : connected ? 'green' : 'gray';
 
   return (

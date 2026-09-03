@@ -14,9 +14,9 @@ export default function App() {
   const { exit } = useApp();
   const [state, dispatch] = useReducer(reducer, undefined, initialState);
   const [scrollOffset, setScrollOffset] = useState(0);
+  const pipePath = getPipePath();
 
   useEffect(() => {
-    const pipePath = getPipePath();
     const cleanup = createPipeReader(
       pipePath,
       (line) => {
@@ -33,7 +33,7 @@ export default function App() {
       },
     );
     return cleanup;
-  }, []);
+  }, [pipePath]);
 
   useInput((_input, key) => {
     const input = _input.toLowerCase();
@@ -52,7 +52,7 @@ export default function App() {
   return (
     <Box flexDirection="column">
       <Header connected={state.connected} disconnected={state.disconnected} />
-      <TaskBar task={state.task} />
+      <TaskBar task={state.task} pipePath={pipePath} />
       <Box flexDirection="row">
         <AgentPanel agents={state.agents} />
         <ActivityLog logs={state.logs} scrollOffset={scrollOffset} />

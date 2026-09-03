@@ -1,5 +1,24 @@
 # Changelog
 
+## 3.12.1 — 2026-09-03
+
+### Documentation
+
+- Clarify that npm, pnpm, and Yarn must execute the ForgeAI initializer to
+  create `.ai/`; installing the package as a dependency only adds it to the
+  package graph. Add equivalent one-off and local-package commands for all
+  three package managers, and document why ForgeAI intentionally has no
+  `postinstall` hook.
+- Replace the long-form README with a focused quick start, a compact command
+  reference, and an accurate terminal-monitor troubleshooting flow.
+
+### Terminal monitor
+
+- Show `READY` as soon as the Ink monitor has opened its event pipe, including
+  the pipe path and a useful next action instead of an ambiguous `WAITING`.
+- Emit `check.run` and `check.result` events from ForgeAI check commands so the
+  monitor's checks panel now reflects real CLI activity.
+
 ## 3.12.0
 
 ### Phase 16.6 — Quantified Context Proof
