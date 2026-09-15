@@ -230,7 +230,9 @@ export const pythonParser: LanguageParser = {
       const target = candidates.find((candidate) => sourceFiles.has(candidate));
       return target ? { status: 'resolved', paths: [target] } : { status: 'unresolved_local' };
     }
-    const target = moduleCandidates(specifier.replace(/\./g, '/')).find((candidate) => sourceFiles.has(candidate));
+    const modulePath = specifier.replace(/\./g, '/');
+    const roots = ['', 'src'].filter((root) => root === '' || [...sourceFiles].some((file) => file.startsWith(`${root}/`)));
+    const target = roots.flatMap((root) => moduleCandidates(root ? `${root}/${modulePath}` : modulePath)).find((candidate) => sourceFiles.has(candidate));
     return target ? { status: 'resolved', paths: [target] } : { status: 'external' };
   }
 };

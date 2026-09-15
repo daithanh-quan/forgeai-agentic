@@ -510,7 +510,7 @@ function markdownFence(content: string): string {
 
 function languageForPath(file: string): string {
   const extension = path.extname(file).slice(1);
-  return ({ ts: 'typescript', tsx: 'tsx', mts: 'typescript', cts: 'typescript', js: 'javascript', jsx: 'jsx', mjs: 'javascript', cjs: 'javascript', py: 'python', pyi: 'python', go: 'go' } as Record<string, string>)[extension] ?? '';
+  return ({ ts: 'typescript', tsx: 'tsx', mts: 'typescript', cts: 'typescript', js: 'javascript', jsx: 'jsx', mjs: 'javascript', cjs: 'javascript', py: 'python', pyi: 'python', go: 'go', rs: 'rust' } as Record<string, string>)[extension] ?? '';
 }
 
 export function renderCompiledContextMarkdown(artifact: CompiledContextArtifact): string {

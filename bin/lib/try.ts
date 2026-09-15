@@ -35,7 +35,7 @@ function sanitizeTerminalText(value: string): string {
     .trim();
 }
 
-function detectCtaState(projectRoot: string): CtaState {
+export function detectCtaState(projectRoot: string): CtaState {
   const curatedGraphFile = path.join(projectRoot, '.ai', 'codegraph', 'graph.json');
   const depGraphFile = path.join(projectRoot, DEPENDENCY_GRAPH_PATH);
 
@@ -95,7 +95,7 @@ export function buildTryReport(
 }
 
 const LANGUAGE_DISPLAY: Record<string, string> = {
-  typescript: 'TypeScript', javascript: 'JavaScript', python: 'Python', go: 'Go',
+  typescript: 'TypeScript', javascript: 'JavaScript', python: 'Python', go: 'Go', rust: 'Rust',
 };
 
 function displayLanguage(id: string): string {
