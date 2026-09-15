@@ -740,6 +740,28 @@ test('no cross-language edges: Go import path never resolves to .ts file', () =>
   fs.rmSync(target, { recursive: true, force: true });
 });
 
+test('indexes Rust nodes and resolves crate imports', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-rust-graph-'));
+  fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(target, 'src', 'lib.rs'), 'pub mod store;\nuse crate::store::Db;\n');
+  fs.writeFileSync(path.join(target, 'src', 'store.rs'), 'pub struct Db;\n');
+  const graph = generateDependencyGraph(target);
+  assert.equal(graph.nodes.find((n) => n.path === 'src/lib.rs')!.language, 'rust');
+  assert.ok(graph.edges.some((e) => e.from === 'src/lib.rs' && e.to === 'src/store.rs'));
+  fs.rmSync(target, { recursive: true, force: true });
+});
+
+test('Python absolute imports resolve through src layout', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-py-src-graph-'));
+  fs.mkdirSync(path.join(target, 'src', 'app'), { recursive: true });
+  fs.writeFileSync(path.join(target, 'src', 'app', '__init__.py'), '');
+  fs.writeFileSync(path.join(target, 'src', 'app', 'models.py'), 'class User: pass\n');
+  fs.writeFileSync(path.join(target, 'src', 'app', 'views.py'), 'from app.models import User\n');
+  const graph = generateDependencyGraph(target);
+  assert.ok(graph.edges.some((e) => e.from === 'src/app/views.py' && e.to === 'src/app/models.py'));
+  fs.rmSync(target, { recursive: true, force: true });
+});
+
 test('changing go.mod module path makes dependency graph stale', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-go-stale-mod-'));
   try {

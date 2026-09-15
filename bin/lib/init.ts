@@ -11,6 +11,7 @@ export function usage(): string {
   return `Usage:
   forgeai-init [--dry-run] [--force] [--profile <name|auto>]
   forgeai-init try "<objective>"
+  forgeai-init task --dry-run "<objective>"
   forgeai-init --repair-codegraph
   forgeai-init --upgrade
   forgeai-init --check
@@ -53,6 +54,9 @@ Options:
                 initializing. Reads source files, detects languages, and
                 prints the files that would be selected — no .ai/ required,
                 no file writes, no network calls after the package is local.
+  task           Execute a bounded task with a CLI adapter, scope guard, and
+                validation. Add --dry-run for a no-write preview; --yes skips
+                interactive confirmation; --json emits a machine-readable report.
   --dry-run     Print files that would be created without writing them.
   --force       Overwrite existing harness files during initialization.
   --upgrade     Overwrite installed ForgeAI harness files with this package version.

@@ -38,6 +38,7 @@ import {
   checkUpgrade,
   overrideFlag,
   trySubcommand,
+  taskSubcommand,
   repairCodeGraph,
 } from './lib/context.js';
 import { runValidateArtifact, runRoute } from './lib/router.js';
@@ -65,6 +66,7 @@ import { runCheckApproval } from './lib/approval.js';
 import { runCheckEvaluation } from './lib/evaluation.js';
 import { usage, runInit, runRepairCodeGraph } from './lib/init.js';
 import { runTry } from './lib/try.js';
+import { runTask } from './lib/task.js';
 import { runListRuns } from './lib/run-record.js';
 import { runEvaluate } from './lib/evaluation-record.js';
 import { runReport } from './lib/evaluation-report.js';
@@ -129,5 +131,6 @@ else if (report) runReport();
 else if (expandContext) runExpandContext();
 else if (checkUpgrade) runCheckUpgrade();
 else if (trySubcommand) runTry();
+else if (taskSubcommand) await runTask();
 else if (repairCodeGraph) runRepairCodeGraph();
 else runInit();

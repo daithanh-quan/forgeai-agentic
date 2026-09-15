@@ -60,6 +60,34 @@ Code discover the harness automatically. Other tools should start at
 
 ## See it before installing
 
+Preview the complete task plan in one command:
+
+```bash
+npx --yes forgeai-agentic-init@latest task --dry-run "add authentication middleware"
+```
+
+This combines profile detection, relevant context, adapter availability, and
+validation commands without writing `.ai/` or changing source files.
+
+Adapter names are annotated as `available`, `unavailable`, or `unknown` using
+their configured healthcheck, so a preview exposes setup problems before an
+execution attempt.
+
+With a CLI adapter configured, the same command can execute the bounded task
+after confirmation:
+
+```bash
+npx --yes forgeai-agentic-init@latest task "fix the login validation bug" --yes
+```
+
+ForgeAI snapshots git state, checks changes against the selected context (or an
+explicit `--write-scope`), and runs detected validation scripts. API-only
+adapters remain previewable but cannot apply repository edits.
+
+For CI or scripts, add `--json`; the result includes status, scope, changed
+files, validation results, and the next action. Reports are also saved under
+`.ai/state/tasks/`.
+
 Preview context selection without creating `.ai/` or writing files:
 
 ```bash
@@ -175,6 +203,8 @@ is useful.
 | Command | Purpose |
 | --- | --- |
 | `try "<objective>"` | Preview context selection without initialization |
+| `task --dry-run "<objective>"` | Preview a complete bounded task plan |
+| `task "<objective>" --yes` | Execute through a CLI adapter and validate the change |
 | `--profile auto` | Initialize with stack detection |
 | `--upgrade` | Update managed harness files while preserving project state |
 | `--refresh-codegraph` | Rebuild the dependency graph |

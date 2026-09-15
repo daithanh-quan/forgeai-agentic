@@ -110,12 +110,32 @@ test('production registry routes ts and py and unions both extension sets', () =
 
 // --- goParser registry + shape guards ---
 import { goParser } from '../bin/lib/go-analysis.js';
+import { rustParser, analyzeRust } from '../bin/lib/rust-analysis.js';
 
 test('production registry routes .go → go; allExtensions includes .go', () => {
   assert.equal(prodParserForFile('a/b.go')?.id, 'go');
   const extensions = prodAllExtensions();
   assert.ok(extensions.includes('.go'));
   assert.deepEqual(extensions, [...extensions].sort());
+});
+
+test('production registry routes .rs → rust; allExtensions includes .rs', () => {
+  assert.equal(prodParserForFile('src/lib.rs')?.id, 'rust');
+  assert.ok(prodAllExtensions().includes('.rs'));
+});
+
+test('rust parser indexes public declarations and resolves crate modules', () => {
+  const analysis = analyzeRust('/// Adds values\npub fn add(a: i32, b: i32) -> i32 { a + b }\nstruct Hidden;\n', 'src/lib.rs');
+  assert.deepEqual(analysis.exports, ['add']);
+  assert.equal(analysis.declarations.find((d) => d.name === 'add')?.kind, 'function');
+  assert.deepEqual(
+    rustParser.resolveImport('src/lib.rs', 'crate::store', { sourceFiles: new Set(['src/lib.rs', 'src/store.rs']) }),
+    { status: 'resolved', paths: ['src/store.rs'] }
+  );
+});
+
+test('rust parser treats standard-library imports as external', () => {
+  assert.deepEqual(rustParser.resolveImport('src/lib.rs', 'std::collections::HashMap', { sourceFiles: new Set(['src/lib.rs']) }), { status: 'external' });
 });
 
 test('goParser resolveImport: module-prefixed → resolved with all non-test .go files', () => {

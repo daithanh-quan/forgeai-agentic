@@ -1,5 +1,34 @@
 # Changelog
 
+## 3.13.0 — 2026-09-14
+
+### User-facing task preview
+
+- Add `task --dry-run "<objective>"`, a single-command preview that combines
+  profile detection, bounded context selection, adapter availability, detected
+  validation scripts, and explicit next actions. It performs no writes and
+  bypasses the update preflight.
+- Add bounded `task "<objective>"` execution through CLI adapters with
+  confirmation, git-backed out-of-scope detection, and post-run validation.
+  Native API-only adapters remain ineligible because they cannot apply edits.
+- Persist a structured task report under `.ai/state/tasks/` and support
+  `--json` output for automation, including scope, changed files, validation
+  results, and next action.
+- Show CLI adapter availability during task preview and provide a direct setup
+  hint when no adapter is configured. Task execution now runs adapters from the
+  target repository root and excludes ForgeAI's own generated state from the
+  user-change proof.
+
+### Phase 16.2c — Rust and Python source layouts
+
+- Add a dependency-graph language parser for Rust (`.rs`), indexing public
+  functions, structs, enums, traits, types, constants, and modules.
+- Resolve Rust `crate::`, `self::`, and `super::` module imports to `*.rs` or
+  `mod.rs`, while keeping standard-library and third-party imports external.
+- Resolve Python absolute imports from a conventional `src/` layout in addition
+  to repository-root packages.
+- Rust excerpts now render with a `rust` Markdown fence.
+
 ## 3.12.1 — 2026-09-03
 
 ### Documentation

@@ -317,7 +317,8 @@ function routeCliAdapter(
   adapterName: string,
   model: string | null,
   repositoryRoot: string,
-  json: string
+  json: string,
+  quiet = false
 ): void {
   const configPath = path.join(repositoryRoot, ADAPTERS_RELATIVE);
   if (!fs.existsSync(configPath)) {
@@ -406,8 +407,9 @@ function routeCliAdapter(
     return;
   }
   const result = spawnSync(adapter.command, resolved, {
+    cwd: repositoryRoot,
     input: json,
-    stdio: ['pipe', 'inherit', 'inherit'],
+    stdio: ['pipe', quiet ? 'pipe' : 'inherit', 'inherit'],
     encoding: 'utf8'
   });
   const adapterLabel = `${adapterName} (stdin)`;
@@ -438,7 +440,8 @@ export async function routeToAdapter(
   adapterName: string | null,
   model: string | null,
   repositoryRoot: string,
-  stream = false
+  stream = false,
+  quiet = false
 ): Promise<void> {
   const json = `${JSON.stringify(artifact, null, 2)}\n`;
 
@@ -465,14 +468,14 @@ export async function routeToAdapter(
     const effectiveModel = model ?? apiEntry.model;
     const { result } = await callApiAdapter(adapterName, artifact, artifactPath, repositoryRoot, model, {
       stream,
-      onDelta: (t) => process.stdout.write(t),
+      onDelta: (t) => { if (!quiet) process.stdout.write(t); },
     });
     const status = result.ok ? 'ok' : `failed (${result.error_kind ?? 'error'})`;
     appendJournal(buildJournalEntry(artifact, artifactPath, `${adapterName} (api${result.streamed ? ', stream' : ''})`, effectiveModel, status), repositoryRoot);
 
     if (result.ok) {
       // Buffered: write the full text once. Streamed: bytes already went to stdout.
-      if (!result.streamed && result.text) process.stdout.write(result.text);
+      if (!quiet && !result.streamed && result.text) process.stdout.write(result.text);
       return;
     }
 
@@ -493,7 +496,7 @@ export async function routeToAdapter(
     if (result.error_kind === 'quota') {
       const cliFallback = apiEntry.fallback_adapter ?? adapterName;
       process.stderr.write(`${formatStatus('warn', `API adapter '${adapterName}' hit quota; falling back to CLI adapter '${cliFallback}'`)}\n`);
-      routeCliAdapter(artifact, artifactPath, cliFallback, effectiveModel, repositoryRoot, json);
+      routeCliAdapter(artifact, artifactPath, cliFallback, effectiveModel, repositoryRoot, json, quiet);
       return;
     }
 
@@ -505,7 +508,7 @@ export async function routeToAdapter(
 
   // No API adapter by this name — fall through to CLI
   if (stream) process.stderr.write(`${formatStatus('warn', `--stream has no effect on CLI adapter '${adapterName}' (it already streams via stdio)`)}\n`);
-  routeCliAdapter(artifact, artifactPath, adapterName, model, repositoryRoot, json);
+  routeCliAdapter(artifact, artifactPath, adapterName, model, repositoryRoot, json, quiet);
 }
 
 export async function runRoute(): Promise<void> {
