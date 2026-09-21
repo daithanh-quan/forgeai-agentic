@@ -1,5 +1,27 @@
 # Changelog
 
+## 3.14.0 — 2026-09-21
+
+### Token-efficient single-agent workflow
+
+- Add compact model-facing assignments that preserve bounded excerpts, rules,
+  write scope, contracts, and a standard JSON response contract without sending
+  the full audit artifact to stdin adapters.
+- Add `payload: assignment|artifact` and optional strict `output: text|json`
+  adapter modes. JSON responses are schema-validated before routing succeeds.
+- Compare an agent's declared `changed_files` with the actual git changes and
+  persist the validated response in the task report.
+- Let `task` hand off to the current agent when no CLI adapter is configured;
+  router configuration is no longer required for single-agent projects.
+- Use packaged baseline rules for pre-initialization context compilation without
+  writing `.ai/RULES.md` into the user's repository.
+- Make task context bounds apply consistently to previews and execution, and
+  add `--no-check` with an explicit `needs-human` result.
+
+### Terminal monitor
+
+- Avoid Ink raw-mode failures when `--watch` runs without an interactive stdin.
+
 ## 3.13.0 — 2026-09-14
 
 ### User-facing task preview

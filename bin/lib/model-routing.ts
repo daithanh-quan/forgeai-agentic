@@ -156,6 +156,18 @@ export function runAddModel(): void {
     process.exitCode = 1;
     return;
   }
+  const payload = getArgValue('--payload') ?? (input === 'stdin' ? 'assignment' : 'artifact');
+  if (payload !== 'artifact' && payload !== 'assignment') {
+    console.error(`Invalid --payload "${payload}". Use "artifact" or "assignment".`);
+    process.exitCode = 1;
+    return;
+  }
+  const output = getArgValue('--output') ?? 'text';
+  if (output !== 'text' && output !== 'json') {
+    console.error(`Invalid --output "${output}". Use "text" or "json".`);
+    process.exitCode = 1;
+    return;
+  }
 
   const tier = getArgValue('--tier');
   if (tier !== null && !REPOINTABLE_TIERS.includes(tier)) {
@@ -215,6 +227,8 @@ export function runAddModel(): void {
     args: adapterArgs,
     healthcheck: { args: healthcheckArgs, timeout_ms: timeoutMs },
     input,
+    payload: payload as Adapter['payload'],
+    output: output as Adapter['output'],
     quota_patterns: quotaPatterns
   };
   config.adapters[provider] = adapter;

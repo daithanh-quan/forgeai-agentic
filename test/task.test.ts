@@ -115,3 +115,42 @@ test('task execution detects a newly created in-scope file', () => {
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+test('task report records a validated agent response and matches git changes', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-task-response-'));
+  try {
+    writeTaskFixture(target, "require('fs').appendFileSync('src/input.ts', 'export const answer = 42;\\n'); process.stdout.write(JSON.stringify({status:'completed',summary:'implemented',changed_files:['src/input.ts'],validation:[{command:'npm test',passed:true}],risks:[],next_action:'review diff'}))");
+    const configPath = path.join(target, '.ai', 'cli-adapters.json');
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf8')) as { adapters: Record<string, Record<string, unknown>> };
+    config.adapters.fixture.payload = 'assignment';
+    config.adapters.fixture.output = 'json';
+    fs.writeFileSync(configPath, JSON.stringify(config));
+    const output = runTs(cli, ['task', '--yes', '--json', '--adapter', 'fixture', '--write-scope', 'src', 'add answer'], { cwd: target });
+    const report = JSON.parse(output) as { status: string; agent_response?: { status: string; changed_files: string[] } };
+    assert.equal(report.status, 'passed');
+    assert.equal(report.agent_response?.status, 'completed');
+    assert.deepEqual(report.agent_response?.changed_files, ['src/input.ts']);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('task hands off to the current agent when no CLI adapter or harness is configured', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-task-handoff-'));
+  try {
+    fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+    fs.writeFileSync(path.join(target, 'package.json'), JSON.stringify({ scripts: { test: 'node -e "process.exit(0)"' } }));
+    fs.writeFileSync(path.join(target, 'src', 'login.ts'), 'export function login() { return true; }\n');
+    execFileSync('git', ['init', '-q'], { cwd: target });
+
+    const output = runTs(cli, ['task', '--json', '--write-scope', 'src', 'fix login'], { cwd: target });
+    const report = JSON.parse(output) as { status: string; adapter: string | null; next_action: string };
+    assert.equal(report.status, 'needs-human');
+    assert.equal(report.adapter, null);
+    assert.match(report.next_action, /context\/TASK-/);
+    assert.equal(fs.existsSync(path.join(target, '.ai', 'cli-adapters.json')), false);
+    assert.equal(fs.existsSync(path.join(target, '.ai', 'state', 'context')), true);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});

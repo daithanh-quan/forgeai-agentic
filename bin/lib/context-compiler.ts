@@ -532,6 +532,53 @@ export function renderCompiledContextMarkdown(artifact: CompiledContextArtifact)
   return `# ForgeAI Compiled Context\n\n- Objective: ${artifact.objective}${parentLine}\n- Repository fingerprint: ${artifact.repository.fingerprint}\n- Estimated tokens: ${artifact.budget.estimated_tokens}/${artifact.budget.limit_tokens}\n- Estimator: ${artifact.budget.estimator}\n- Omitted candidates: ${artifact.omitted_candidates}\n\n## Selected Files\n\n| Path | Depth | Reason | Graph path |\n| --- | ---: | --- | --- |\n${files || '| none | n/a | no objective match | n/a |'}\n\n## Omitted by Profile Exclusion\n\n| Path | Pattern | Reason | Profiles |\n| --- | --- | --- | --- |\n${omittedRows || '| none | n/a | n/a | n/a |'}\n\n## Applicable Rules\n\n${rules || 'No applicable rule section was found.'}\n\n## Diagnostics\n\n${diagnosticFence}json\n${JSON.stringify(artifact.diagnostics, null, 2)}\n${diagnosticFence}\n\n## Contracts\n\n${artifact.contracts.map((value) => `- ${value}`).join('\n') || '- none'}\n\n## Entrypoints\n\n${artifact.entrypoints.map((value) => `- ${value}`).join('\n') || '- none'}\n\n## Source Excerpts\n\n${excerpts || 'No syntax node fit the configured budget.'}\n`;
 }
 
+/**
+ * Render the model-facing payload. The full artifact remains the auditable
+ * source of truth, but sending it verbatim repeats metadata and diagnostics on
+ * every delegation. This compact envelope keeps the bounded excerpts,
+ * applicable rules, and write contract while making the expected response
+ * machine-readable.
+ */
+export function renderAgentAssignment(artifact: CompiledContextArtifact): string {
+  const scope = artifact.selection.files.map((file) => `- ${file.path}`).join('\n') || '- none';
+  const context = artifact.excerpts.map((excerpt) => {
+    const fence = markdownFence(excerpt.content);
+    return `${excerpt.path}:${excerpt.source_start_line}-${excerpt.source_end_line} (${excerpt.kind}, ${excerpt.mode})\n${fence}${languageForPath(excerpt.path)}\n${excerpt.content}\n${fence}`;
+  }).join('\n\n') || '(No source excerpt fit the configured budget.)';
+  const rules = artifact.rules.map((rule) => `- ${rule.heading}: ${rule.content}`).join('\n') || '- Use repository defaults and preserve existing conventions.';
+  const contracts = artifact.contracts.map((value) => `- ${value}`).join('\n') || '- none';
+  const entrypoints = artifact.entrypoints.map((value) => `- ${value}`).join('\n') || '- none';
+  const body = [
+    '# ForgeAI Bounded Assignment',
+    '',
+    `Objective: ${artifact.objective}`,
+    `Artifact budget: ${artifact.budget.estimated_tokens}/${artifact.budget.limit_tokens} estimated tokens`,
+    '',
+    '## Write scope (hard boundary)',
+    scope,
+    'Do not modify files outside this scope. Do not edit .ai configuration, git metadata, dependencies, or generated files unless explicitly listed above.',
+    '',
+    '## Applicable rules',
+    rules,
+    '',
+    '## Contracts and entrypoints',
+    `Contracts:\n${contracts}`,
+    `Entrypoints:\n${entrypoints}`,
+    '',
+    '## Bounded source context',
+    context,
+    '',
+    '## Required response',
+    'Return JSON only, with this shape:',
+    '{"status":"completed|blocked|needs-review","summary":"short result","changed_files":["repo/path"],"validation":[{"command":"...","passed":true}],"risks":[],"next_action":"..."}',
+    'Do not claim completed unless the requested change is implemented and validation evidence is available. Keep summary and next_action concise.'
+  ].join('\n');
+  return body.replace(
+    `Artifact budget: ${artifact.budget.estimated_tokens}/${artifact.budget.limit_tokens} estimated tokens`,
+    `Artifact budget: ${artifact.budget.estimated_tokens}/${artifact.budget.limit_tokens} estimated tokens\nAssignment estimate: ${estimateTokens(body)} tokens`
+  );
+}
+
 function parseIntegerArg(name: string, fallback: number, minimum: number, maximum: number): number | null {
   const raw = getArgValue(name);
   if (raw === null) return fallback;

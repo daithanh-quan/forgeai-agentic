@@ -38,6 +38,8 @@ export function usage(): string {
   forgeai-init --test-summary
   forgeai-init --watch
   forgeai-init --emit '<json>'
+  forgeai-init task <objective> [--dry-run] [--budget <tokens>] [--max-depth <0-5>] [--max-nodes <1-50>]
+                    [--yes] [--no-check] [--adapter <name>] [--write-scope <paths>] [--json]
   forgeai-init --list-profiles
   forgeai-init --add-model <provider> [--model <id>] [options]
   forgeai-init --list-models
@@ -55,8 +57,9 @@ Options:
                 prints the files that would be selected — no .ai/ required,
                 no file writes, no network calls after the package is local.
   task           Execute a bounded task with a CLI adapter, scope guard, and
-                validation. Add --dry-run for a no-write preview; --yes skips
-                interactive confirmation; --json emits a machine-readable report.
+                validation, or hand off a bounded assignment to the current
+                agent when no CLI adapter is configured. Add --dry-run for a
+                no-write preview; --yes skips confirmation; --json emits a report.
   --dry-run     Print files that would be created without writing them.
   --force       Overwrite existing harness files during initialization.
   --upgrade     Overwrite installed ForgeAI harness files with this package version.
@@ -188,7 +191,7 @@ Options:
   --add-model <provider>
                 Register your own model CLI as a routable adapter in
                 .ai/cli-adapters.json. Defaults: --command <provider>,
-                --args ["--model","{model}"], --input stdin,
+                --args ["--model","{model}"], --input stdin, --payload assignment,
                 --healthcheck-args ["--version"], --healthcheck-timeout 5000.
   --model <id>  Model id for the adapter; required with --tier.
   --command <cmd>
@@ -197,6 +200,12 @@ Options:
                 Adapter args; keep the {model} placeholder, not a literal id.
   --input <stdin|argv>
                 How the assignment is passed to the CLI (default stdin).
+  --payload <artifact|assignment>
+                For stdin adapters, use the full JSON artifact or compact
+                model-facing assignment (default assignment).
+  --output <text|json>
+                Adapter response mode. json validates the standard task
+                response contract; default is text for compatibility.
   --healthcheck-args <csv>
                 Healthcheck args used to detect a missing CLI (default --version).
   --healthcheck-timeout <ms>

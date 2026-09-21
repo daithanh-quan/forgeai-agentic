@@ -15,6 +15,11 @@ export default function App() {
   const [state, dispatch] = useReducer(reducer, undefined, initialState);
   const [scrollOffset, setScrollOffset] = useState(0);
   const pipePath = getPipePath();
+  // Ink's useInput enables raw mode. That is only available when stdin is an
+  // interactive terminal; --watch is also useful when its output is captured
+  // by a pipe, an IDE, or a test runner. Keep rendering and consuming events
+  // in those environments, but disable keyboard handling there.
+  const inputIsAvailable = process.stdin.isTTY === true;
 
   useEffect(() => {
     const cleanup = createPipeReader(
@@ -47,7 +52,7 @@ export default function App() {
     }
     if (key.upArrow)   setScrollOffset((o) => Math.max(o - 1, -(state.logs.length)));
     if (key.downArrow) setScrollOffset((o) => Math.min(o + 1, 0));
-  });
+  }, { isActive: inputIsAvailable });
 
   return (
     <Box flexDirection="column">

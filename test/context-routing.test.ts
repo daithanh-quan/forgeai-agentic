@@ -226,6 +226,51 @@ test('stdin adapter receives compiled context JSON and outputs adapter result', 
   }
 });
 
+test('assignment payload sends a compact model contract instead of the audit artifact', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-route-assignment-'));
+  const scriptDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-route-assignment-s-'));
+  try {
+    const artifact = initAndCompile(target);
+    const artifactPath = writeArtifact(target, artifact);
+    const script = writeTempScript(scriptDir, 'adapter.mjs',
+      'const c=[]; process.stdin.on("data",d=>c.push(d)); process.stdin.on("end",()=>{ const s=Buffer.concat(c).toString(); process.stdout.write(JSON.stringify({first:s.split("\\n")[0],hasContract:s.includes("## Required response"),hasKind:s.includes("forgeai_compiled_context")})); });'
+    );
+    writeAdapterConfig(target, {
+      'assignment-adapter': { command: process.execPath, args: [script], input: 'stdin', payload: 'assignment' }
+    });
+    const output = runTs(cli, ['--route', '--adapter', 'assignment-adapter', '--artifact', artifactPath], { cwd: target });
+    const result = JSON.parse(output) as { first: string; hasContract: boolean; hasKind: boolean };
+    assert.equal(result.first, '# ForgeAI Bounded Assignment');
+    assert.equal(result.hasContract, true);
+    assert.equal(result.hasKind, false);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+    fs.rmSync(scriptDir, { recursive: true, force: true });
+  }
+});
+
+test('json output mode validates and normalizes the standard agent response', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-route-json-output-'));
+  const scriptDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-route-json-output-s-'));
+  try {
+    const artifact = initAndCompile(target);
+    const artifactPath = writeArtifact(target, artifact);
+    const script = writeTempScript(scriptDir, 'adapter.mjs',
+      'process.stdin.resume(); process.stdin.on("end",()=>process.stdout.write(JSON.stringify({status:"completed",summary:"implemented",changed_files:["src/entry.ts"],validation:[{command:"npm test",passed:true}],risks:[],next_action:"review diff"})));'
+    );
+    writeAdapterConfig(target, {
+      'json-adapter': { command: process.execPath, args: [script], input: 'stdin', payload: 'assignment', output: 'json' }
+    });
+    const output = runTs(cli, ['--route', '--adapter', 'json-adapter', '--artifact', artifactPath], { cwd: target });
+    const result = JSON.parse(output) as { status: string; summary: string };
+    assert.equal(result.status, 'completed');
+    assert.equal(result.summary, 'implemented');
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+    fs.rmSync(scriptDir, { recursive: true, force: true });
+  }
+});
+
 test('--route resolves {model} and {token_budget} placeholders in adapter args', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-route-placeholder-'));
   const scriptDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-route-placeholder-s-'));

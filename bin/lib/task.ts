@@ -10,10 +10,10 @@ import { detectProjectProfile, getAvailableProfiles } from './profiles.js';
 import { resolveExclusions } from './profile-exclusions.js';
 import { normalizeCuratedGraph, tryReadCuratedCodeGraph, type SelectedContextNode } from './context-pack.js';
 import { formatTryOutput, buildTryReport, parseTryObjective, detectCtaState } from './try.js';
-import { compileContext, renderCompiledContextMarkdown } from './context-compiler.js';
+import { compileContext, renderAgentAssignment, renderCompiledContextMarkdown } from './context-compiler.js';
 import { routeToAdapter } from './router.js';
 import { createTaskReport, writeTaskReport } from './task-report.js';
-import type { Adapter, AdapterConfig, CompiledContextArtifact, DependencyGraph } from './types.js';
+import type { Adapter, AdapterConfig, AgentResponse, CompiledContextArtifact, DependencyGraph } from './types.js';
 
 const CONTEXT_DIR = '.ai/state/context';
 const ROUTE_JOURNAL = '.ai/state/context-routes.md';
@@ -377,9 +377,18 @@ function printValidation(results: TaskValidationResult[], checks: string[]): voi
 
 export async function runTask(): Promise<void> {
   const jsonMode = rawArgs.includes('--json');
+  const skipChecks = rawArgs.includes('--no-check');
   const objective = parseTaskObjective(rawArgs);
   if (validateArgFlag('--objective', rawArgs) !== null || !objective || objective.trim() === '') {
-    process.stderr.write('Usage: forgeai-init task "<objective>" [--yes] [--adapter <name>] [--write-scope <path[,path...]>]\n       forgeai-init task --dry-run "<objective>"\n       forgeai-init task --dry-run --objective "<description>"\n');
+    process.stderr.write('Usage: forgeai-init task "<objective>" [--yes] [--no-check] [--adapter <name>] [--write-scope <path[,path...]>]\n       forgeai-init task --dry-run "<objective>" [--budget <tokens>] [--max-depth <0-5>] [--max-nodes <1-50>]\n       forgeai-init task --dry-run --objective "<description>"\n');
+    process.exitCode = 2;
+    return;
+  }
+
+  const budget = parseIntegerOption('--budget', DEFAULT_BUDGET, 256, 200_000);
+  const maxDepth = parseIntegerOption('--max-depth', DEFAULT_MAX_DEPTH, 0, 5);
+  const maxNodes = parseIntegerOption('--max-nodes', DEFAULT_MAX_NODES, 1, 50);
+  if (budget === null || maxDepth === null || maxNodes === null) {
     process.exitCode = 2;
     return;
   }
@@ -397,7 +406,7 @@ export async function runTask(): Promise<void> {
   const components = profile && getAvailableProfiles().includes(profile) ? [profile] : [];
   const rules = resolveExclusions(components);
   const curated = tryReadCuratedCodeGraph(root) ?? normalizeCuratedGraph(null);
-  const report = buildTryReport(objective, depGraph, curated, { maxNodes: DEFAULT_MAX_NODES, maxDepth: DEFAULT_MAX_DEPTH, rules, includeGlobs: [] });
+  const report = buildTryReport(objective, depGraph, curated, { maxNodes, maxDepth, rules, includeGlobs: [] });
 
   if (rawArgs.includes('--dry-run')) {
     const adapters = configuredAdapters();
@@ -407,7 +416,7 @@ export async function runTask(): Promise<void> {
       '',
       `  Objective   ${report.objective}`,
       `  Profile     ${profile ?? 'base (auto-detection unavailable)'}`,
-      `  Context     ${report.selected.length} selected file${report.selected.length === 1 ? '' : 's'} / max 12, depth max 2`,
+      `  Context     ${report.selected.length} selected file${report.selected.length === 1 ? '' : 's'} / max ${maxNodes}, depth max ${maxDepth}, budget ${budget} tokens`,
       `  Adapters    ${adapters.length ? adapters.map((name) => `${name} (${checkCliAdapter(name)})`).join(', ') : 'none configured (copy/paste assignment only)'}`,
       `  Checks      ${checks.length ? checks.join(', ') : 'none detected'}`,
       '',
@@ -415,7 +424,7 @@ export async function runTask(): Promise<void> {
       '  Proposed task flow:',
       '    1. Compile the bounded context artifact.',
       `    2. ${adapters.length ? `Route it through ${adapters[0]}.` : 'Run --add-model <provider> or configure .ai/cli-adapters.json, then route the artifact.'}`,
-      `    3. Run ${checks.length ? checks.join(', ') : 'the repository validation command'} and inspect the diff.`,
+      `    3. ${skipChecks ? 'Validation is disabled by --no-check; inspect the diff and run checks manually.' : `Run ${checks.length ? checks.join(', ') : 'the repository validation command'} and inspect the diff.`}`,
       '',
       '  This is a preview: no .ai/ files, source files, or git state were changed.'
     ].join('\n'));
@@ -433,13 +442,9 @@ export async function runTask(): Promise<void> {
   // in the preview.
   const adapters = configuredCliAdapters();
   const selectedAdapter = selectAdapter(adapters);
-  if (!selectedAdapter.name) {
-    process.stderr.write('Error: task execution requires a CLI adapter. API-only adapters can be used with --route, but cannot apply repository changes. Configure .ai/cli-adapters.json first.\n');
-    process.exitCode = 1;
-    return;
-  }
-  if (!adapters.includes(selectedAdapter.name)) {
-    process.stderr.write(`Error: adapter '${selectedAdapter.name}' is not configured.\n`);
+  const explicitlyRequestedAdapter = getArgValue('--adapter');
+  if (explicitlyRequestedAdapter !== null && !adapters.includes(explicitlyRequestedAdapter)) {
+    process.stderr.write(`Error: adapter '${explicitlyRequestedAdapter}' is not configured.\n`);
     process.exitCode = 1;
     return;
   }
@@ -460,8 +465,8 @@ export async function runTask(): Promise<void> {
   const taskId = taskIdArg ?? generatedTaskId(objective);
   const artifactPath = path.join(root, CONTEXT_DIR, `${taskId}.json`);
   const markdownPath = path.join(root, CONTEXT_DIR, `${taskId}.md`);
-  const saveReport = (status: 'passed' | 'failed' | 'cancelled' | 'needs-human', changedFiles: string[], outOfScopeFiles: string[], validations: TaskValidationResult[], error: string | null, nextAction: string): void => {
-    const taskReport = createTaskReport({ task_id: taskId, objective: report.objective, adapter: selectedAdapter.name, model: selectedAdapter.model, write_scope: writeScope, changed_files: changedFiles, out_of_scope_files: outOfScopeFiles, validations, status, error, next_action: nextAction });
+  const saveReport = (status: 'passed' | 'failed' | 'cancelled' | 'needs-human', changedFiles: string[], outOfScopeFiles: string[], validations: TaskValidationResult[], error: string | null, nextAction: string, agentResponse: AgentResponse | null = null): void => {
+    const taskReport = createTaskReport({ task_id: taskId, objective: report.objective, adapter: selectedAdapter.name, model: selectedAdapter.model, write_scope: writeScope, changed_files: changedFiles, out_of_scope_files: outOfScopeFiles, validations, status, error, next_action: nextAction, agent_response: agentResponse });
     const paths = writeTaskReport(root, taskReport);
     if (jsonMode) process.stdout.write(`${JSON.stringify(taskReport, null, 2)}\n`);
     else process.stdout.write(`${formatStatus('ok', `task report written to ${relativePath(paths.markdownPath)}`)}\n`);
@@ -469,14 +474,56 @@ export async function runTask(): Promise<void> {
 
   let artifact: CompiledContextArtifact;
   try {
-    const budget = parseIntegerOption('--budget', DEFAULT_BUDGET, 256, 200_000);
-    const maxDepth = parseIntegerOption('--max-depth', DEFAULT_MAX_DEPTH, 0, 5);
-    const maxNodes = parseIntegerOption('--max-nodes', DEFAULT_MAX_NODES, 1, 50);
-    if (budget === null || maxDepth === null || maxNodes === null) { process.exitCode = 2; return; }
     artifact = compileContext(objective, curated, depGraph, root, { budget, maxDepth, maxNodes, taskId, rules, includeGlobs: [], profiles: components });
   } catch (error) {
     process.stderr.write(`Error: context compilation failed (${getErrorMessage(error)}).\n`);
     process.exitCode = 1;
+    return;
+  }
+
+  // A single local model does not need ForgeAI to spawn another model. Keep
+  // the compiled artifact and handoff useful: the current agent can consume
+  // this assignment directly, while multi-model users continue through the
+  // configured adapter/router path below.
+  if (!selectedAdapter.name) {
+    writeArtifact(artifact, taskId);
+    if (jsonMode) {
+      saveReport(
+        'needs-human',
+        [],
+        [],
+        [],
+        'no CLI adapter configured; execution handed off to the current agent',
+        `Review ${relativePath(markdownPath)}, apply only the listed write scope, then run the repository checks.`,
+      );
+    } else {
+      process.stdout.write([
+        'ForgeAI task handoff — no external CLI adapter configured',
+        '',
+        `  Context artifact: ${relativePath(artifactPath)}`,
+        `  Assignment:       ${relativePath(markdownPath)}`,
+        `  Write scope:      ${writeScope.length ? writeScope.join(', ') : '(none)'}`,
+        '',
+        'The current coding agent can continue this task using the bounded',
+        'assignment above. ForgeAI will not spawn another model or modify',
+        'router configuration automatically.',
+        '',
+        renderAgentAssignment(artifact),
+        '',
+        'Next action: implement the change inside the write scope, run checks,',
+        'and review the diff. Configure .ai/cli-adapters.json only if you want',
+        'ForgeAI to invoke a separate CLI model automatically.',
+        ''
+      ].join('\n'));
+      saveReport(
+        'needs-human',
+        [],
+        [],
+        [],
+        'no CLI adapter configured; execution handed off to the current agent',
+        `Review ${relativePath(markdownPath)}, apply only the listed write scope, then run the repository checks.`,
+      );
+    }
     return;
   }
 
@@ -500,7 +547,7 @@ export async function runTask(): Promise<void> {
 
   const previousExitCode = process.exitCode;
   process.exitCode = undefined;
-  await routeToAdapter(artifact, artifactPath, selectedAdapter.name, selectedAdapter.model, root, false, jsonMode);
+  const agentResponse = await routeToAdapter(artifact, artifactPath, selectedAdapter.name, selectedAdapter.model, root, false, jsonMode);
   const adapterFailed = process.exitCode !== undefined && process.exitCode !== 0;
   process.exitCode = previousExitCode;
 
@@ -520,28 +567,54 @@ export async function runTask(): Promise<void> {
     saveReport('failed', changed, outOfScope, [], 'adapter changed files outside write scope', 'Inspect the listed files and decide whether to keep or revert them manually.');
     return;
   }
+  if (agentResponse) {
+    const actual = [...changed].sort();
+    const declared = [...agentResponse.changed_files].sort();
+    if (actual.length !== declared.length || actual.some((file, index) => file !== declared[index])) {
+      process.stderr.write(`Error: adapter response changed_files does not match git changes. Declared: ${declared.join(', ') || 'none'}; actual: ${actual.join(', ') || 'none'}.\n`);
+      process.exitCode = 1;
+      saveReport('failed', changed, [], [], 'adapter response changed_files does not match git changes', 'Inspect the adapter output and git diff, then rerun with a truthful response.', agentResponse);
+      return;
+    }
+  }
   if (adapterFailed) {
     process.stderr.write('Error: adapter execution failed; validation was skipped.\n');
     process.exitCode = 1;
-    saveReport('failed', changed, [], [], 'adapter execution failed', 'Inspect the adapter error and rerun after fixing its configuration.');
+    saveReport('failed', changed, [], [], 'adapter execution failed', 'Inspect the adapter error and rerun after fixing its configuration.', agentResponse ?? null);
     return;
   }
 
   if (changed.length === 0) {
     process.stderr.write('Error: adapter completed without changing any repository file; task is not verified.\n');
     process.exitCode = 1;
-    saveReport('failed', changed, [], [], 'adapter completed without changing any repository file', 'Refine the objective or adapter instructions and rerun.');
+    saveReport('failed', changed, [], [], 'adapter completed without changing any repository file', 'Refine the objective or adapter instructions and rerun.', agentResponse ?? null);
     return;
   }
 
-  const checks = validationScripts();
-  const validations = runTaskValidation(checks);
-  if (!jsonMode) { process.stdout.write('\nValidation\n'); printValidation(validations, checks); }
+  const checks = skipChecks ? [] : validationScripts();
+  const validations = skipChecks ? [] : runTaskValidation(checks);
+  if (!jsonMode) {
+    process.stdout.write('\nValidation\n');
+    if (skipChecks) process.stdout.write(formatStatus('skipped', 'disabled by --no-check; run checks manually') + '\n');
+    else printValidation(validations, checks);
+  }
   const validationFailed = validations.some((result) => !result.passed);
   if (!jsonMode) {
     process.stdout.write('\n');
-    process.stdout.write(validationFailed ? 'Result: task changed only the allowed scope, but validation failed.\n' : 'Result: task execution completed within scope and validation passed.\n');
+    process.stdout.write(validationFailed
+      ? 'Result: task changed only the allowed scope, but validation failed.\n'
+      : skipChecks
+        ? 'Result: task changed only the allowed scope; validation remains unverified.\n'
+        : 'Result: task execution completed within scope and validation passed.\n');
   }
-  saveReport(validationFailed ? 'failed' : 'passed', changed, [], validations, validationFailed ? 'validation failed' : null, validationFailed ? 'Fix the failing validation and rerun the task.' : 'Review the diff and commit when ready.');
+  saveReport(
+    validationFailed ? 'failed' : skipChecks ? 'needs-human' : 'passed',
+    changed,
+    [],
+    validations,
+    validationFailed ? 'validation failed' : skipChecks ? 'validation skipped by --no-check' : null,
+    validationFailed ? 'Fix the failing validation and rerun the task.' : skipChecks ? 'Run the repository validation commands and review the diff.' : 'Review the diff and commit when ready.',
+    agentResponse ?? null,
+  );
   if (validationFailed) process.exitCode = 1;
 }

@@ -84,6 +84,32 @@ ForgeAI snapshots git state, checks changes against the selected context (or an
 explicit `--write-scope`), and runs detected validation scripts. API-only
 adapters remain previewable but cannot apply repository edits.
 
+If no CLI adapter is configured, `task` does not require you to edit router
+files. It writes a bounded context artifact and a copy/paste-ready assignment
+for the current coding agent, then records the task as `needs-human`. Configure
+`.ai/cli-adapters.json` only when ForgeAI should spawn a separate CLI model.
+
+For configured stdin adapters, ForgeAI sends the compact `assignment` payload
+by default rather than the full audit artifact. It contains only the selected
+excerpts, applicable rules, write boundary, and a fixed JSON response contract;
+use `--payload artifact` with `--add-model` when an integration needs the full
+machine-readable artifact instead.
+
+For automation, opt into strict response validation:
+
+```bash
+forgeai-init --add-model my-agent --command my-agent \
+  --model my-model --payload assignment --output json
+```
+
+Invalid JSON or a response missing `status`, `summary`, `changed_files`,
+`validation`, `risks`, or `next_action` is rejected before ForgeAI records the
+route as successful.
+
+The context boundary can be tuned for a task with `--budget`, `--max-depth`,
+and `--max-nodes`. If validation must run elsewhere, use `--no-check`; the
+saved task report will remain `needs-human` rather than claiming verification.
+
 For CI or scripts, add `--json`; the result includes status, scope, changed
 files, validation results, and the next action. Reports are also saved under
 `.ai/state/tasks/`.

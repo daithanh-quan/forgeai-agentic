@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import type { AgentResponse } from './types.js';
 import type { TaskValidationResult } from './task.js';
 
 export type TaskReportStatus = 'passed' | 'failed' | 'cancelled' | 'needs-human';
@@ -17,6 +18,7 @@ export type TaskReport = {
   status: TaskReportStatus;
   error: string | null;
   next_action: string;
+  agent_response?: AgentResponse | null;
 };
 
 export function createTaskReport(input: Omit<TaskReport, 'schema_version'>): TaskReport {
@@ -45,6 +47,7 @@ export function renderTaskReport(report: TaskReport): string {
     '', '## Validation', '',
     ...(report.validations.length ? report.validations.map((check) => `- ${check.passed ? 'PASS' : 'FAIL'} ${check.name} (${check.durationMs}ms)`) : ['- not run']),
     ...(report.out_of_scope_files.length ? ['', '## Out-of-scope files', '', ...report.out_of_scope_files.map((file) => `- ${file}`)] : []),
+    ...(report.agent_response ? ['', '## Agent response', '', `- Status: ${report.agent_response.status}`, `- Summary: ${report.agent_response.summary}`, `- Next action: ${report.agent_response.next_action}`] : []),
     '', `- Next action: ${report.next_action}`,
     ...(report.error ? [`- Error: ${report.error}`] : []), ''
   ];
