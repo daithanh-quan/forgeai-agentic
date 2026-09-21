@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { CompiledDiagnostics, CompiledRuleSection } from './types.js';
 import { runCommand } from './utils.js';
+import { templateDir } from './context.js';
 
 const MAX_DIAGNOSTIC_FILES = 30;
 const ALWAYS_RULE_HEADINGS = new Set([
@@ -58,8 +59,14 @@ function specializedRuleReason(heading: string, terms: string[]): string | null 
 
 export function selectApplicableRules(repositoryRoot: string, objectiveTerms: string[]): CompiledRuleSection[] {
   const relativePath = '.ai/RULES.md' as const;
-  const absolutePath = path.join(repositoryRoot, relativePath);
-  if (!fs.existsSync(absolutePath)) throw new Error(`${relativePath} not found; run forgeai-init --upgrade`);
+  const projectPath = path.join(repositoryRoot, relativePath);
+  // Context preview and single-agent handoff are intentionally usable before
+  // initialization. Prefer project rules, but fall back to the packaged
+  // baseline without writing it into the user's repository.
+  const absolutePath = fs.existsSync(projectPath)
+    ? projectPath
+    : path.join(templateDir, relativePath);
+  if (!fs.existsSync(absolutePath)) throw new Error(`${relativePath} not found and the packaged baseline is unavailable`);
   const sections = parseRuleSections(fs.readFileSync(absolutePath, 'utf8'));
   const selected: CompiledRuleSection[] = [];
   for (const section of sections) {

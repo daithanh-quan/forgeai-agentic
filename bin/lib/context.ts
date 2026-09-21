@@ -40,13 +40,13 @@ export function validateArgFlag(name: string, argv: string[]): string | null {
 // Eagerly validate value-requiring flags at module load: rejects bare flags, empty/whitespace values,
 // values starting with "--", and duplicate occurrences. Value check runs before the duplicate count
 // so a bare trailing flag reports the most actionable error ("requires a value", not "specified more than once").
-for (const name of ['--profile', '--emit', '--adapter', '--model', '--task', '--mode', '--experiment', '--min-samples', '--outcome', '--reason', '--by', '--include-excluded', '--write-scope'] as const) {
+for (const name of ['--profile', '--emit', '--adapter', '--model', '--task', '--mode', '--experiment', '--min-samples', '--outcome', '--reason', '--by', '--include-excluded', '--write-scope', '--payload', '--output'] as const) {
   const err = validateArgFlag(name, rawArgs);
   if (err) { process.stderr.write(`${err}\n`); process.exit(1); }
 }
 
 // Boolean flags carry no value and must appear at most once, never as --flag=...
-for (const name of ['--clear-outcome', '--yes', '--json'] as const) {
+for (const name of ['--clear-outcome', '--yes', '--json', '--no-check'] as const) {
   const bare = rawArgs.filter((a) => a === name).length;
   const withValue = rawArgs.some((a) => a.startsWith(`${name}=`));
   if (withValue || bare > 1) {
@@ -98,6 +98,7 @@ export const testSummary = args.has('--test-summary');
 export const skipUpdateCheck = args.has('--skip-update-check') || process.env.FORGEAI_SKIP_UPDATE_CHECK === '1' || rawArgs[0] === 'try' || rawArgs[0] === 'task';
 export const trySubcommand = rawArgs[0] === 'try';
 export const taskSubcommand = rawArgs[0] === 'task';
+export const noCheck = args.has('--no-check');
 export const repairCodeGraph = args.has('--repair-codegraph');
 export const watch = args.has('--watch');
 export const emit = args.has('--emit');

@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import type { ArtifactValidationResult, CompiledContextArtifact, AdapterConfig } from './types.js';
-import { computeArtifactEstimate } from './context-compiler.js';
+import type { AgentResponse, ArtifactValidationResult, CompiledContextArtifact, AdapterConfig } from './types.js';
+import { computeArtifactEstimate, renderAgentAssignment } from './context-compiler.js';
 import { checkDependencyGraphHealth, readDependencyGraph } from './dependency-graph.js';
 import { formatStatus, getErrorMessage, isValidTaskId, isValidExperimentId } from './utils.js';
 import { root, getArgValue, stream as streamFlag } from './context.js';
@@ -260,7 +260,9 @@ export function resolvePlaceholders(
   };
   const unresolved: string[] = [];
   const resolved = args.map((arg) =>
-    arg.replace(/\{[^}]+\}/g, (placeholder) => {
+    // Only treat identifier-shaped braces as placeholders. This leaves inline
+    // JavaScript/JSON object literals in adapter command arguments untouched.
+    arg.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (placeholder) => {
       if (placeholder in map) {
         if (map[placeholder] === undefined) {
           unresolved.push(placeholder);
@@ -319,7 +321,7 @@ function routeCliAdapter(
   repositoryRoot: string,
   json: string,
   quiet = false
-): void {
+): AgentResponse | null | undefined {
   const configPath = path.join(repositoryRoot, ADAPTERS_RELATIVE);
   if (!fs.existsSync(configPath)) {
     process.stderr.write(`Error: ${ADAPTERS_RELATIVE} not found. Run forgeai-init first.\n`);
@@ -370,6 +372,16 @@ function routeCliAdapter(
     process.exitCode = 1;
     return;
   }
+  if (adapter.payload !== undefined && adapter.payload !== 'artifact' && adapter.payload !== 'assignment') {
+    process.stderr.write(`Error: adapter '${adapterName}' payload must be 'artifact' or 'assignment'.\n`);
+    process.exitCode = 1;
+    return;
+  }
+  if (adapter.output !== undefined && adapter.output !== 'text' && adapter.output !== 'json') {
+    process.stderr.write(`Error: adapter '${adapterName}' output must be 'text' or 'json'.\n`);
+    process.exitCode = 1;
+    return;
+  }
   const adapterArgs = adapter.args ?? [];
   if (!Array.isArray(adapterArgs) || adapterArgs.some((a) => typeof a !== 'string')) {
     process.stderr.write(`Error: adapter '${adapterName}' args must be an array of strings.\n`);
@@ -406,10 +418,12 @@ function routeCliAdapter(
     process.exitCode = 1;
     return;
   }
+  const inputPayload = adapter.payload === 'assignment' ? renderAgentAssignment(artifact) : json;
+  const strictJsonOutput = adapter.output === 'json';
   const result = spawnSync(adapter.command, resolved, {
     cwd: repositoryRoot,
-    input: json,
-    stdio: ['pipe', quiet ? 'pipe' : 'inherit', 'inherit'],
+    input: inputPayload,
+    stdio: ['pipe', strictJsonOutput || quiet ? 'pipe' : 'inherit', 'inherit'],
     encoding: 'utf8'
   });
   const adapterLabel = `${adapterName} (stdin)`;
@@ -426,12 +440,41 @@ function routeCliAdapter(
     return;
   }
   const exitCode = result.status ?? 0;
+  if (exitCode === 0 && strictJsonOutput) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(typeof result.stdout === 'string' ? result.stdout.trim() : '');
+    } catch {
+      process.stderr.write(`Error: adapter '${adapterName}' returned invalid JSON; configure output=text or fix the model response.\n`);
+      appendJournal(buildJournalEntry(artifact, artifactPath, adapterLabel, model, 'failed (invalid json output)'), repositoryRoot);
+      process.exitCode = 1;
+      return;
+    }
+    const response = parsed as Record<string, unknown>;
+    const validStatus = response && typeof response === 'object' && ['completed', 'blocked', 'needs-review'].includes(String(response.status));
+    const validShape = validStatus
+      && typeof response.summary === 'string' && response.summary.trim().length > 0
+      && Array.isArray(response.changed_files) && response.changed_files.every((value) => typeof value === 'string')
+      && Array.isArray(response.validation)
+      && response.validation.every((entry) => typeof entry === 'object' && entry !== null && typeof (entry as Record<string, unknown>).command === 'string' && typeof (entry as Record<string, unknown>).passed === 'boolean')
+      && Array.isArray(response.risks) && response.risks.every((value) => typeof value === 'string')
+      && typeof response.next_action === 'string' && response.next_action.trim().length > 0;
+    if (!validShape) {
+      process.stderr.write(`Error: adapter '${adapterName}' returned JSON that does not match the ForgeAI response contract.\n`);
+      appendJournal(buildJournalEntry(artifact, artifactPath, adapterLabel, model, 'failed (invalid response contract)'), repositoryRoot);
+      process.exitCode = 1;
+      return;
+    }
+    if (!quiet) process.stdout.write(`${JSON.stringify(response)}\n`);
+    return response as AgentResponse;
+  }
   const status = exitCode === 0 ? 'ok' : `failed (exit ${exitCode})`;
   appendJournal(buildJournalEntry(artifact, artifactPath, adapterLabel, model, status), repositoryRoot);
   if (exitCode !== 0) {
     process.stderr.write(`Error: adapter '${adapterName}' exited with code ${exitCode}.\n`);
     process.exitCode = 1;
   }
+  return null;
 }
 
 export async function routeToAdapter(
@@ -442,13 +485,13 @@ export async function routeToAdapter(
   repositoryRoot: string,
   stream = false,
   quiet = false
-): Promise<void> {
+): Promise<AgentResponse | null | undefined> {
   const json = `${JSON.stringify(artifact, null, 2)}\n`;
 
   if (!adapterName) {
     process.stdout.write(json);
     appendJournal(buildJournalEntry(artifact, artifactPath, 'stdout', model, 'ok'), repositoryRoot);
-    return;
+    return null;
   }
 
   // Check API adapters first
@@ -476,39 +519,38 @@ export async function routeToAdapter(
     if (result.ok) {
       // Buffered: write the full text once. Streamed: bytes already went to stdout.
       if (!quiet && !result.streamed && result.text) process.stdout.write(result.text);
-      return;
+      return null;
     }
 
     if (result.streamed) {
       // Bytes already written to stdout — cannot retry or fall back.
       process.stderr.write(`Error: API adapter '${adapterName}' failed mid-stream: ${result.error ?? 'unknown'}\n`);
       process.exitCode = 1;
-      return;
+      return null;
     }
 
     if (result.error_kind === 'auth') {
       // Auth errors never fall back — fail immediately
       process.stderr.write(`Error: API adapter '${adapterName}' authentication failed: ${result.error ?? ''}\n`);
       process.exitCode = 1;
-      return;
+      return null;
     }
 
     if (result.error_kind === 'quota') {
       const cliFallback = apiEntry.fallback_adapter ?? adapterName;
       process.stderr.write(`${formatStatus('warn', `API adapter '${adapterName}' hit quota; falling back to CLI adapter '${cliFallback}'`)}\n`);
-      routeCliAdapter(artifact, artifactPath, cliFallback, effectiveModel, repositoryRoot, json, quiet);
-      return;
+      return routeCliAdapter(artifact, artifactPath, cliFallback, effectiveModel, repositoryRoot, json, quiet);
     }
 
     // Other errors (network, provider, invalid_response) — fail
     process.stderr.write(`Error: API adapter '${adapterName}' failed: ${result.error ?? 'unknown'}\n`);
     process.exitCode = 1;
-    return;
+    return null;
   }
 
   // No API adapter by this name — fall through to CLI
   if (stream) process.stderr.write(`${formatStatus('warn', `--stream has no effect on CLI adapter '${adapterName}' (it already streams via stdio)`)}\n`);
-  routeCliAdapter(artifact, artifactPath, adapterName, model, repositoryRoot, json, quiet);
+  return routeCliAdapter(artifact, artifactPath, adapterName, model, repositoryRoot, json, quiet);
 }
 
 export async function runRoute(): Promise<void> {

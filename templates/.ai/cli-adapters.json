@@ -19,6 +19,7 @@
         "timeout_ms": 5000
       },
       "input": "stdin",
+      "payload": "assignment",
       "quota_patterns": [
         "quota",
         "rate limit",
@@ -37,6 +38,7 @@
         "timeout_ms": 5000
       },
       "input": "stdin",
+      "payload": "assignment",
       "quota_patterns": [
         "quota",
         "rate limit",
@@ -55,6 +57,7 @@
         "timeout_ms": 5000
       },
       "input": "stdin",
+      "payload": "assignment",
       "quota_patterns": [
         "quota",
         "rate limit",
@@ -73,6 +76,7 @@
         "timeout_ms": 5000
       },
       "input": "stdin",
+      "payload": "assignment",
       "quota_patterns": []
     },
     "aider": {

@@ -6,6 +6,14 @@ export type Adapter = {
     timeout_ms?: number;
   };
   input?: 'stdin' | 'argv';
+  // `artifact` preserves the machine-readable context artifact. `assignment`
+  // sends a compact model-facing prompt with the same bounded excerpts and a
+  // stable JSON response contract.
+  payload?: 'artifact' | 'assignment';
+  // Optional strict response validation for automation. Text remains the
+  // backwards-compatible default; json requires the assignment response
+  // contract to be valid JSON.
+  output?: 'text' | 'json';
   quota_patterns?: string[];
 };
 
@@ -13,6 +21,15 @@ export type AdapterConfig = {
   version?: number;
   fallback?: unknown;
   adapters?: Record<string, Adapter>;
+};
+
+export type AgentResponse = {
+  status: 'completed' | 'blocked' | 'needs-review';
+  summary: string;
+  changed_files: string[];
+  validation: Array<{ command: string; passed: boolean }>;
+  risks: string[];
+  next_action: string;
 };
 
 export type HarnessManifest = {
