@@ -32,11 +32,23 @@ reviewer:
 
 # Replace provider/model values with models available in your tools.
 tiers:
+  direct:
+    provider: agy
+    model: "Gemini 3.5 Flash (Low)"
+    score_range: [0, 0]
+    token_budget: 1200
+    reasoning: minimal
+    use_for:
+      - exact lookup or extraction
+      - deterministic transformation
+      - formatting or renaming
+      - single obvious edit with an explicit validation command
+
   fast:
     provider: agy
     model: "Gemini 3.5 Flash (Low)"
-    score_range: [0, 2]
-    token_budget: 4000
+    score_range: [1, 2]
+    token_budget: 2500
     use_for:
       - repository search
       - documentation cleanup

@@ -25,7 +25,11 @@ export async function callGemini(
   const body = JSON.stringify({
     contents: [{ role: 'user', parts: [{ text: JSON.stringify(artifact) }] }],
     systemInstruction: { parts: [{ text: config.system ?? DEFAULT_SYSTEM }] },
-    generationConfig: { maxOutputTokens: config.max_tokens ?? 8192 },
+    generationConfig: {
+      maxOutputTokens: config.max_tokens ?? 8192,
+      ...(config.thinking_budget !== undefined ? { thinkingConfig: { thinkingBudget: config.thinking_budget } } : {}),
+      ...(config.thinking_level !== undefined ? { thinkingConfig: { thinkingLevel: config.thinking_level } } : {}),
+    },
   });
 
   const start = Date.now();

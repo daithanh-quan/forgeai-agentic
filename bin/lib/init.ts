@@ -134,6 +134,10 @@ Options:
                 Requires --objective "<description>". Add --compact for a
                 smaller delegation-ready assignment plan. Use --output <file>
                 to write to a file instead of stdout.
+  --system-one-route --signals <json-file>
+                Compose calibrated atomic decisions into answer_now, fast, or
+                deliberate routing. Uses confidence shrinkage, a conservative
+                lower bound, uncertainty, and hard safety vetoes.
   --context-pack
                 Emit a dependency-aware context pack for an objective. Refuses
                 missing or stale generated graphs. Requires --objective.

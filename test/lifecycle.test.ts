@@ -107,7 +107,8 @@ test('initialization copies the template files', () => {
     assert.equal(manifest.package_version, CURRENT_VERSION);
     assert.equal(manifest.profile, 'base');
     assert.match(routing, /provider: agy/);
-    assert.match(routing, /score_range: \[0, 2\]/);
+    assert.match(routing, /direct:\n[\s\S]*score_range: \[0, 0\]/);
+    assert.match(routing, /fast:\n[\s\S]*score_range: \[1, 2\]/);
     assert.match(routing, /provider: codex/);
     assert.match(routing, /score_range: \[3, 5\]/);
     assert.match(routing, /score_range: \[6, 8\]/);

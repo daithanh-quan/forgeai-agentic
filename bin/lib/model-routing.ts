@@ -17,7 +17,7 @@ export const DEFAULT_QUOTA_PATTERNS = [
 
 export const ADAPTERS_RELATIVE = '.ai/cli-adapters.json';
 export const ROUTING_RELATIVE = '.ai/model-routing.yaml';
-export const REPOINTABLE_TIERS = ['fast', 'standard', 'strong'];
+export const REPOINTABLE_TIERS = ['direct', 'fast', 'standard', 'strong'];
 
 // Parse a list-valued CLI flag. Accepts a JSON array (`'["a","b"]'`) or a
 // comma-separated string (`'a, b'`). Returns the fallback when value is null.

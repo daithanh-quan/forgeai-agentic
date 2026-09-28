@@ -19,6 +19,7 @@ import {
   listModels,
   removeModel,
   decompose,
+  systemOneRoute,
   contextPack,
   compileContext,
   checkApproval,
@@ -59,6 +60,7 @@ import { runCheckReview } from './lib/review.js';
 import { runCheckSecurity } from './lib/security.js';
 import { runCheckMemory } from './lib/memory.js';
 import { runDecompose } from './lib/decompose.js';
+import { runSystemOneRoute } from './lib/system-one-routing.js';
 import { runContextPack } from './lib/context-pack.js';
 import { runCompileContext } from './lib/context-compiler.js';
 import { runStatusSummary, runDiffSummary, runTestSummary } from './lib/diagnostics.js';
@@ -84,7 +86,7 @@ if (overrideFlag) {
   const commandsBeforeEvaluate = [
     help, version, listProfiles, checkGit, checkSessions, checkLifecycle, checkCodeGraph,
     refreshCodeGraph, checkProfile, checkReview, checkSecurity, checkMemory, checkAll,
-    check, checkUpdates, addModel, listModels, removeModel, decompose, contextPack,
+    check, checkUpdates, addModel, listModels, removeModel, decompose, systemOneRoute, contextPack,
     compileContext, checkApproval, checkEvaluation, statusSummary, diffSummary,
     testSummary, watch, emit, validateArtifactFlag, route, listRuns, trySubcommand,
     repairCodeGraph,
@@ -114,6 +116,7 @@ else if (addModel) runAddModel();
 else if (listModels) runListModels();
 else if (removeModel) runRemoveModel();
 else if (decompose) runDecompose();
+else if (systemOneRoute) runSystemOneRoute();
 else if (contextPack) runContextPack();
 else if (compileContext) runCompileContext();
 else if (checkApproval) runObservedCheck('approval', runCheckApproval);
