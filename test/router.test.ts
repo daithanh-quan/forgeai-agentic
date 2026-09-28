@@ -87,6 +87,28 @@ test('router dry-run uses the AGY fast-tier adapter', () => {
   assert.equal(payload.input, 'stdin');
 });
 
+test('router dry-run resolves the token-minimal direct tier', () => {
+  const output = runTs(
+    path.join(projectRoot, 'templates', '.ai', 'router', 'run-model.ts'),
+    [
+      '--tier',
+      'direct',
+      '--routing',
+      path.join(projectRoot, 'templates', '.ai', 'model-routing.yaml'),
+      '--adapters',
+      path.join(projectRoot, 'templates', '.ai', 'cli-adapters.json'),
+      '--assignment',
+      path.join(projectRoot, 'templates', '.ai', 'state', 'assignments', 'TASK-CODEX-TEST.md'),
+      '--dry-run'
+    ],
+    { cwd: projectRoot }
+  );
+  const payload = parseRouterPayload(output);
+
+  assert.equal(payload.command, 'agy');
+  assert.deepEqual(payload.args, ['--model', 'Gemini 3.5 Flash (Low)', '--print']);
+});
+
 test('router falls back to the current model when delegated CLI command fails', () => {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-router-fail-'));
   const aiDir = path.join(target, '.ai');

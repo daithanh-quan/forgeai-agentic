@@ -1,6 +1,15 @@
 {
   "version": 1,
   "adapters": {
+    "gemini-direct": {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash",
+      "max_tokens": 1200,
+      "thinking_budget": 0,
+      "max_retries": 1,
+      "retry_base_ms": 250,
+      "fallback_adapter": "agy"
+    },
     "anthropic": {
       "provider": "anthropic",
       "model": "claude-sonnet-4-6",

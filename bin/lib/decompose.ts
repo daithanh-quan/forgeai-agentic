@@ -13,7 +13,8 @@ Scoring dimensions:
   X = context    (0–2): 0 one file   1 one subsystem   2 broad/cross-system
 
 Tier routing (total score):
-  0–2  → fast     (agy, token_budget 4000)
+  0    → direct   (agy, token_budget 1200)
+  1–2  → fast     (agy, token_budget 2500)
   3–5  → standard (codex, token_budget 8000)
   6–8  → strong   (codex/current model, token_budget 16000)
   9–10 → lead     (current orchestrator, token_budget 24000)
@@ -34,8 +35,8 @@ export function buildDecompositionTemplate(objective: string): string {
 
 | Subtask | C | R | A | X | Total | Tier | Agent | Token budget |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | ---: |
-| TODO: describe subtask 1 | 0 | 0 | 0 | 0 | 0 | fast | agy | 4000 |
-| TODO: describe subtask 2 | 0 | 0 | 0 | 0 | 0 | fast | agy | 4000 |
+| TODO: describe subtask 1 | 0 | 0 | 0 | 0 | 0 | direct | agy | 1200 |
+| TODO: describe subtask 2 | 0 | 0 | 0 | 0 | 0 | direct | agy | 1200 |
 
 ${SCORING_GUIDE}
 
@@ -44,8 +45,8 @@ ${SCORING_GUIDE}
 ### Subtask 1
 - ID: TASK-01
 - Role: TODO (research | backend | frontend | reviewer)
-- Tier: fast
-- Token budget: 4000
+- Tier: direct
+- Token budget: 1200
 - Objective: TODO — one measurable outcome
 - Read scope: TODO (exact files or directories)
 - Write scope: TODO (exact files or directories)
@@ -57,8 +58,8 @@ ${SCORING_GUIDE}
 ### Subtask 2
 - ID: TASK-02
 - Role: TODO
-- Tier: fast
-- Token budget: 4000
+- Tier: direct
+- Token budget: 1200
 - Objective: TODO
 - Read scope: TODO
 - Write scope: TODO
@@ -91,15 +92,15 @@ export function buildCompactDecompositionTemplate(objective: string): string {
 
 | Subtask | C | R | A | X | Total | Tier | Token budget |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: |
-| TODO: subtask 1 | 0 | 0 | 0 | 0 | 0 | fast | 4000 |
+| TODO: subtask 1 | 0 | 0 | 0 | 0 | 0 | direct | 1200 |
 
 ## Assignment Template
 
 - ID: TASK-01
 - Role: TODO
 - Objective: TODO: one measurable outcome
-- Tier: fast
-- Token budget: 4000
+- Tier: direct
+- Token budget: 1200
 - Allowed context:
   - TODO: exact files or context-pack nodes
 - Write scope:

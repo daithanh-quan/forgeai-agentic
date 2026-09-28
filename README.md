@@ -224,6 +224,23 @@ Model routing is explicit. ForgeAI provides policy and adapters; your active
 agent still needs to follow `AGENTS.md` and invoke the router when delegation
 is useful.
 
+### Experimental System-One routing
+
+ForgeAI can compose calibrated, atomic task signals into a typed routing
+decision without generating a chain-of-thought or prose justification:
+
+```bash
+npx --yes forgeai-agentic-init@latest --system-one-route \
+  --signals .ai/state/system-one-signals.json
+```
+
+The result is `answer_now` (`direct` tier), `fast`, or `deliberate`
+(`standard` tier). Low-confidence probabilities are pulled toward uncertainty;
+high-risk tasks fail closed to deliberate routing. See
+`.ai/workflows/system-one-routing.md` for the seven-signal schema. This feature
+is experimental: measure pass rate, total tokens, latency, and false-direct
+rate on your own tasks before automating execution.
+
 ## Core commands
 
 | Command | Purpose |
@@ -241,6 +258,7 @@ is useful.
 | `--check-all` | Run all local ForgeAI gates |
 | `--check-upgrade` | Compare installed harness and CLI versions offline |
 | `--decompose` | Produce a scored task decomposition |
+| `--system-one-route --signals <file>` | Compose typed signals into a reasoning tier |
 | `--evaluate` / `--report` | Record and aggregate task outcomes |
 
 See every command and option:

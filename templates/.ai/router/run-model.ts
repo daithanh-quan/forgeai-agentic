@@ -75,7 +75,7 @@ function getStringArg(args: CliArgs, key: string): string | undefined {
 
 function usage(): string {
   return `Usage:
-  npx tsx .ai/router/run-model.ts --tier <fast|standard|strong|lead> --assignment <file>
+  npx tsx .ai/router/run-model.ts --tier <direct|fast|standard|strong|lead> --assignment <file>
   npx tsx .ai/router/run-model.ts --provider <name> --model <name> --assignment <file>
 
 Options:

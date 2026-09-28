@@ -21,7 +21,9 @@ export type CallApiAdapterOptions = {
 
 const VALID_PROVIDERS = new Set(['anthropic', 'openai', 'gemini']);
 const KNOWN_TOP_FIELDS = new Set(['version', 'adapters']);
-const KNOWN_ENTRY_FIELDS = new Set(['provider', 'model', 'max_tokens', 'system', 'timeout_ms', 'fallback_adapter', 'max_retries', 'retry_base_ms']);
+const KNOWN_ENTRY_FIELDS = new Set(['provider', 'model', 'max_tokens', 'reasoning_effort', 'thinking_budget', 'thinking_level', 'system', 'timeout_ms', 'fallback_adapter', 'max_retries', 'retry_base_ms']);
+const REASONING_EFFORTS = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh']);
+const THINKING_LEVELS = new Set(['minimal', 'low', 'medium', 'high']);
 
 export function validateApiAdaptersConfig(raw: unknown): { ok: true; config: ApiAdapterConfig } | { ok: false; detail: string } {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
@@ -74,6 +76,33 @@ export function validateApiAdaptersConfig(raw: unknown): { ok: true; config: Api
         if ((e['max_tokens'] as number) > 65536) {
           return { ok: false, detail: `adapter "${name}" max_tokens exceeds maximum of 65536` };
         }
+      }
+      if (e['reasoning_effort'] !== undefined) {
+        if (e['provider'] !== 'openai') {
+          return { ok: false, detail: `adapter "${name}" reasoning_effort is only valid for provider "openai"` };
+        }
+        if (typeof e['reasoning_effort'] !== 'string' || !REASONING_EFFORTS.has(e['reasoning_effort'])) {
+          return { ok: false, detail: `adapter "${name}" reasoning_effort must be one of: ${[...REASONING_EFFORTS].join(', ')}` };
+        }
+      }
+      if (e['thinking_budget'] !== undefined) {
+        if (e['provider'] !== 'gemini') {
+          return { ok: false, detail: `adapter "${name}" thinking_budget is only valid for provider "gemini"` };
+        }
+        if (typeof e['thinking_budget'] !== 'number' || !Number.isInteger(e['thinking_budget']) || e['thinking_budget'] < -1 || e['thinking_budget'] > 32768) {
+          return { ok: false, detail: `adapter "${name}" thinking_budget must be an integer from -1 to 32768` };
+        }
+      }
+      if (e['thinking_level'] !== undefined) {
+        if (e['provider'] !== 'gemini') {
+          return { ok: false, detail: `adapter "${name}" thinking_level is only valid for provider "gemini"` };
+        }
+        if (typeof e['thinking_level'] !== 'string' || !THINKING_LEVELS.has(e['thinking_level'])) {
+          return { ok: false, detail: `adapter "${name}" thinking_level must be one of: ${[...THINKING_LEVELS].join(', ')}` };
+        }
+      }
+      if (e['thinking_budget'] !== undefined && e['thinking_level'] !== undefined) {
+        return { ok: false, detail: `adapter "${name}" cannot set both thinking_budget and thinking_level` };
       }
       if (e['timeout_ms'] !== undefined) {
         if (typeof e['timeout_ms'] !== 'number' || !Number.isInteger(e['timeout_ms']) || (e['timeout_ms'] as number) <= 0) {

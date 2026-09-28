@@ -40,7 +40,7 @@ export function validateArgFlag(name: string, argv: string[]): string | null {
 // Eagerly validate value-requiring flags at module load: rejects bare flags, empty/whitespace values,
 // values starting with "--", and duplicate occurrences. Value check runs before the duplicate count
 // so a bare trailing flag reports the most actionable error ("requires a value", not "specified more than once").
-for (const name of ['--profile', '--emit', '--adapter', '--model', '--task', '--mode', '--experiment', '--min-samples', '--outcome', '--reason', '--by', '--include-excluded', '--write-scope', '--payload', '--output'] as const) {
+for (const name of ['--profile', '--emit', '--adapter', '--model', '--task', '--mode', '--experiment', '--min-samples', '--outcome', '--reason', '--by', '--include-excluded', '--write-scope', '--payload', '--output', '--signals'] as const) {
   const err = validateArgFlag(name, rawArgs);
   if (err) { process.stderr.write(`${err}\n`); process.exit(1); }
 }
@@ -88,6 +88,7 @@ export const addModel = args.has('--add-model');
 export const listModels = args.has('--list-models');
 export const removeModel = args.has('--remove-model');
 export const decompose = args.has('--decompose');
+export const systemOneRoute = args.has('--system-one-route');
 export const contextPack = args.has('--context-pack');
 export const compileContext = args.has('--compile-context');
 export const checkApproval = args.has('--check-approval');

@@ -312,6 +312,9 @@ export type ApiAdapterEntry = {
   provider: ApiAdapterProvider;
   model: string;
   max_tokens?: number;
+  reasoning_effort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+  thinking_budget?: number;
+  thinking_level?: 'minimal' | 'low' | 'medium' | 'high';
   system?: string;
   timeout_ms?: number;
   fallback_adapter?: string;

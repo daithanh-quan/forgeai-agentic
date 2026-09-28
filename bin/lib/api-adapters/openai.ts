@@ -22,6 +22,7 @@ export async function callOpenAI(
   const body = JSON.stringify({
     model: config.model,
     max_tokens: config.max_tokens ?? 8192,
+    ...(config.reasoning_effort ? { reasoning_effort: config.reasoning_effort } : {}),
     messages: [
       { role: 'system', content: config.system ?? DEFAULT_SYSTEM },
       { role: 'user', content: JSON.stringify(artifact) },

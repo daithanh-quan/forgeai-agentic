@@ -329,6 +329,20 @@ function openaiConfig(): ApiAdapterEntry {
   return { provider: 'openai', model: 'gpt-4.1', max_tokens: 1024 };
 }
 
+test('callOpenAI: sends configured reasoning_effort', async () => {
+  let capturedBody: Record<string, unknown> = {};
+  const mockFetch = async (_url: string, init: RequestInit): Promise<Response> => {
+    capturedBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' } }] }), { status: 200 });
+  };
+
+  process.env.OPENAI_API_KEY = 'test-key';
+  await callOpenAI(minimalArtifact(), { ...openaiConfig(), reasoning_effort: 'minimal' }, mockFetch as typeof fetch);
+  delete process.env.OPENAI_API_KEY;
+
+  assert.equal(capturedBody['reasoning_effort'], 'minimal');
+});
+
 test('callOpenAI: 200 → ok result with tokens', async () => {
   const mockFetch = async (): Promise<Response> => new Response(JSON.stringify({
     choices: [{ message: { content: 'openai response' } }],
@@ -572,6 +586,20 @@ import { callGemini } from '../bin/lib/api-adapters/gemini.js';
 function geminiConfig(): ApiAdapterEntry {
   return { provider: 'gemini', model: 'gemini-2.5-flash', max_tokens: 1024 };
 }
+
+test('callGemini: sends configured thinking budget', async () => {
+  let capturedBody: Record<string, any> = {};
+  const mockFetch = async (_url: string, init: RequestInit): Promise<Response> => {
+    capturedBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }), { status: 200 });
+  };
+
+  process.env.GOOGLE_API_KEY = 'test-key';
+  await callGemini(minimalArtifact(), { ...geminiConfig(), thinking_budget: 0 }, mockFetch as typeof fetch);
+  delete process.env.GOOGLE_API_KEY;
+
+  assert.equal(capturedBody.generationConfig.thinkingConfig.thinkingBudget, 0);
+});
 
 test('callGemini streaming: aggregates parts + usage on clean EOF', async () => {
   const frames = [
@@ -874,6 +902,18 @@ test('validateApiAdaptersConfig: rejects model " gpt-4.1 " (surrounding whitespa
 test('validateApiAdaptersConfig: accepts valid config', () => {
   const r = validateApiAdaptersConfig({ version: 1, adapters: { a: { provider: 'anthropic', model: 'claude-sonnet-4-6' } } });
   assert.equal(r.ok, true);
+});
+
+test('validateApiAdaptersConfig: accepts provider-specific reasoning controls', () => {
+  assert.equal(validateApiAdaptersConfig({ adapters: { a: { provider: 'openai', model: 'gpt-5', reasoning_effort: 'minimal' } } }).ok, true);
+  assert.equal(validateApiAdaptersConfig({ adapters: { a: { provider: 'gemini', model: 'gemini-2.5-flash', thinking_budget: 0 } } }).ok, true);
+  assert.equal(validateApiAdaptersConfig({ adapters: { a: { provider: 'gemini', model: 'gemini-3-flash', thinking_level: 'minimal' } } }).ok, true);
+});
+
+test('validateApiAdaptersConfig: rejects incompatible reasoning controls', () => {
+  assert.equal(validateApiAdaptersConfig({ adapters: { a: { provider: 'anthropic', model: 'm', reasoning_effort: 'low' } } }).ok, false);
+  assert.equal(validateApiAdaptersConfig({ adapters: { a: { provider: 'openai', model: 'm', thinking_budget: 0 } } }).ok, false);
+  assert.equal(validateApiAdaptersConfig({ adapters: { a: { provider: 'gemini', model: 'm', thinking_budget: 0, thinking_level: 'minimal' } } }).ok, false);
 });
 
 test('validateApiAdaptersConfig: rejects fallback_adapter: "" (empty string)', () => {

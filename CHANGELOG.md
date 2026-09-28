@@ -1,5 +1,28 @@
 # Changelog
 
+## 3.15.0 — 2026-09-28
+
+### System-One routing
+
+- Add `--system-one-route --signals <json-file>` to compose seven independent,
+  calibrated task signals into typed `answer_now`, `fast`, or `deliberate`
+  decisions without asking a generative model to write a routing explanation.
+- Shrink low-confidence probabilities toward uncertainty, calculate a
+  conservative eligibility lower bound, measure entropy, and fail closed on
+  high-risk work before selecting the token-minimal direct tier.
+- Add a `direct` tier with a 1,200-token context budget and reduce the `fast`
+  tier budget from 4,000 to 2,500 tokens.
+- Add provider-native reasoning controls: `reasoning_effort` for OpenAI and
+  `thinking_budget`/`thinking_level` for Gemini, including strict validation
+  against incompatible provider settings.
+- Add a bundled `gemini-direct` API adapter that disables thinking for Gemini
+  2.5 Flash and caps visible output at 1,200 tokens.
+
+This release introduces an experimental routing policy, not a claim of
+production-proven token savings. Teams should compare pass rate, total tokens,
+latency, and false-direct decisions against their own baseline before enabling
+automatic execution.
+
 ## 3.14.0 — 2026-09-21
 
 ### Token-efficient single-agent workflow

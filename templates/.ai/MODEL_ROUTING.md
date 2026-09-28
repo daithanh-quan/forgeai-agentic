@@ -43,10 +43,37 @@ score = complexity + risk + ambiguity + context
 ```
 
 The maximum score is 10. Route by the configured score range, then apply
-`rules.minimum_tier` overrides. By default, scores `0-2` route to the fast
-tier, scores `3-5` route to the standard tier, scores `6-8` route to the
-strong tier, and scores `9-10` stay with the current orchestrator. A security
+`rules.minimum_tier` overrides. By default, score `0` routes to the direct
+tier, scores `1-2` route to the fast tier, scores `3-5` route to the standard
+tier, scores `6-8` route to the strong tier, and scores `9-10` stay with the
+current orchestrator. A security
 task with a low numeric score still routes to the configured minimum tier.
+
+Use `direct` only when the operation is mechanically specified and success is
+cheap to verify. It is not a weaker quality target: it is an instruction to
+skip exploration, alternatives, commentary, and speculative reasoning. If the
+task needs a design choice, diagnosis, or an unstated assumption, score it at
+least `1`.
+
+## Control all three token pools
+
+Token cost has three independent sources:
+
+1. Input context: controlled by compiled-context selection and `token_budget`.
+2. Hidden reasoning: controlled by `reasoning_effort` for OpenAI or
+   `thinking_budget`/`thinking_level` for Gemini API adapters.
+3. Visible output: controlled by API adapter `max_tokens` and a concise return
+   contract.
+
+For deterministic work, prefer the bundled `gemini-direct` API adapter. It
+sets `thinking_budget: 0` and caps output at 1200 tokens. For OpenAI reasoning
+models, create a dedicated adapter with `reasoning_effort: none` or `minimal`
+and a small `max_tokens`; support depends on the selected model. Gemini 2.5
+uses `thinking_budget` (`0` disables thinking), while Gemini 3+ should use
+`thinking_level: minimal`. Never set both Gemini controls on one adapter.
+
+Escalate from `direct` after one failed validation or when new ambiguity is
+discovered. Do not spend repeated cheap calls on a task that was misclassified.
 
 Record the decision:
 
