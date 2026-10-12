@@ -423,7 +423,7 @@ export async function runTask(): Promise<void> {
       formatTryOutput(report, detectCtaState(root)),
       '  Proposed task flow:',
       '    1. Compile the bounded context artifact.',
-      `    2. ${adapters.length ? `Route it through ${adapters[0]}.` : 'Run --add-model <provider> or configure .ai/cli-adapters.json, then route the artifact.'}`,
+      `    2. ${adapters.length ? `Route it through ${adapters[0]}.` : 'Hand the assignment to your current coding agent; no adapter setup required.'}`,
       `    3. ${skipChecks ? 'Validation is disabled by --no-check; inspect the diff and run checks manually.' : `Run ${checks.length ? checks.join(', ') : 'the repository validation command'} and inspect the diff.`}`,
       '',
       '  This is a preview: no .ai/ files, source files, or git state were changed.'

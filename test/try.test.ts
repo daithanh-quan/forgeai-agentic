@@ -400,7 +400,7 @@ test('formatTryOutput: hides source line when totalSourceBytes === 0', () => {
   assert.ok(!output.includes('indexed source'), output);
 });
 
-test('formatTryOutput: percentage is clamped to [0, 100] when selectedSourceBytes > totalSourceBytes', () => {
+test('formatTryOutput: no matches never imply successful source reduction', () => {
   const report: TryReport = {
     objective: 'auth',
     terms: [],
@@ -413,7 +413,8 @@ test('formatTryOutput: percentage is clamped to [0, 100] when selectedSourceByte
   };
   const output = formatTryOutput(report);
   const sourceLine = output.split('\n').find((l) => l.includes('indexed source')) ?? '';
-  assert.ok(sourceLine.includes('(0% excluded)'), `expected clamped to 0%: ${sourceLine}`);
+  assert.equal(sourceLine, '');
+  assert.match(output, /No usable context found/);
 });
 
 // ── formatTryOutput CTA states ─────────────────────────────────────────────────
