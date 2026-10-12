@@ -11,6 +11,7 @@ export function usage(): string {
   return `Usage:
   forgeai-init [--dry-run] [--force] [--profile <name|auto>]
   forgeai-init try "<objective>"
+  forgeai-init context "<objective>" [--budget 6000] [--json] [--output <new-file>]
   forgeai-init task --dry-run "<objective>"
   forgeai-init --repair-codegraph
   forgeai-init --upgrade

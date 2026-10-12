@@ -6,7 +6,7 @@
 
 `Task` → `Context` → `Route` → `Agents` → `Review` → `✓`
 
-**A project-local workflow harness for AI coding agents**
+**Focused code context for your next AI coding task**
 
 [![npm version](https://img.shields.io/npm/v/forgeai-agentic-init?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/forgeai-agentic-init)
 [![Node.js ≥20](https://img.shields.io/badge/node-%E2%89%A520-brightgreen?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
@@ -26,6 +26,35 @@ Markdown; no server or database is required.
 ## Quick start
 
 Requirements: Node.js 20+ and npm, pnpm, or Yarn.
+
+From an existing repository, create context for a specific bug or change:
+
+```bash
+npx --yes forgeai-agentic-init@latest context "fix login redirect loop"
+```
+
+Use file or symbol names from your project for the best matches. The command
+prints source excerpts with file locations, selection reasons, applicable
+rules, and detected validation scripts. Give this output to your current
+coding agent. No initialization, API key, or adapter configuration is needed.
+It does not execute a model or modify your repository by default.
+
+Save it to a **new** file, or request the JSON artifact for automation:
+
+```bash
+npx --yes forgeai-agentic-init@latest context "fix login redirect loop" --output login-context.md
+npx --yes forgeai-agentic-init@latest context "fix login redirect loop" --json --budget 8000
+```
+
+Existing output files are never overwritten; the parent directory must exist.
+Selection uses keyword matches and dependencies, not semantic translation.
+No matches produce an actionable error. Context may be incomplete: omitted
+excerpts and signature-only excerpts are reported. The budget applies to the
+estimated JSON artifact size (characters / 4), not exact provider usage or the
+rendered Markdown size. Source exclusion percentages are not token savings.
+The command works locally once the npm package is available.
+
+## Optional: install the full workflow
 
 Run the initializer from your project root:
 
@@ -245,6 +274,7 @@ rate on your own tasks before automating execution.
 
 | Command | Purpose |
 | --- | --- |
+| `context "<objective>"` | Print usable source context without initialization; supports `--json`, `--budget`, and `--output` |
 | `try "<objective>"` | Preview context selection without initialization |
 | `task --dry-run "<objective>"` | Preview a complete bounded task plan |
 | `task "<objective>" --yes` | Execute through a CLI adapter and validate the change |

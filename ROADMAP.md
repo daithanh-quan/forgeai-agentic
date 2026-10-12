@@ -21,6 +21,14 @@ boundary; they do not replace it.
 
 ## Current Delivery Priority
 
+Version 3.16.0 prioritizes **usable context before initialization**:
+`context "<objective>"` produces source excerpts directly for the current coding
+agent. See [the delivery and validation plan](docs/context-next-release.md).
+Before adding more platform features, validate first-use completion and repeat
+use with outside developers, then measure task outcomes against their existing
+workflow. The phase history below records architectural progress, not a reason
+to expand scope before this validation.
+
 Phase numbers describe the product architecture; they are not the current
 delivery order. Near-term work prioritizes core user value and upgrade trust
 before audience expansion and distribution:

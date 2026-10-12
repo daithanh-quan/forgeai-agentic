@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.16.0 — 2026-10-12
+
+- Add `context "<objective>"` to compile source excerpts directly from an
+  existing repository without initialization, model calls, or automatic writes.
+  Supports Markdown stdout, `--json`, exclusive-create `--output`, and bounded
+  selection via `--budget`, `--max-depth`, and `--max-nodes`.
+- Report no-match selection as a failure for `context`; stop showing a misleading
+  100% exclusion ratio in empty `try` previews.
+- Explain estimated budgets and incomplete context in the new onboarding flow.
+- Align task previews with the existing current-agent handoff behavior.
+
 ## 3.15.0 — 2026-09-28
 
 ### System-One routing

@@ -114,7 +114,7 @@ export function formatTryOutput(report: TryReport, ctaState: CtaState = 'uniniti
   const selectedCount = report.selected.length;
   lines.push(`  Relevant    ${selectedCount === 0 ? 'none — no objective-matched files' : `${selectedCount} file${selectedCount === 1 ? '' : 's'} selected`}`);
   if (report.omittedCount > 0) lines.push(`  Excluded    ${report.omittedCount} by profile exclusion`);
-  if (report.totalSourceBytes > 0) {
+  if (report.totalSourceBytes > 0 && selectedCount > 0) {
     const rawPct = Math.round((1 - report.selectedSourceBytes / report.totalSourceBytes) * 100);
     const pct = Math.max(0, Math.min(100, rawPct));
     lines.push(
@@ -142,6 +142,11 @@ export function formatTryOutput(report: TryReport, ctaState: CtaState = 'uniniti
     }
   }
   lines.push('');
+  if (selectedCount === 0) {
+    lines.push('  No usable context found. Include an existing file path or symbol name.');
+    lines.push('  Selection uses keywords and dependencies, not semantic translation.');
+    lines.push('');
+  }
   if (ctaState === 'uninitialized') {
     lines.push('  Ready to use ForgeAI on this repository?');
     lines.push('    npx forgeai-agentic-init@latest --profile auto');
