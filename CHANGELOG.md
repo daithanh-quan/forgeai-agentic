@@ -1,5 +1,47 @@
 # Changelog
 
+## Unreleased
+
+## 3.17.0 — 2026-11-04
+
+- Match common English word variants in declaration names within selected files
+  (for example, `estimation` with `estimateTokens`), splitting camelCase,
+  acronym, and snake_case identifiers. Preserve existing substring matches.
+  The unchanged local retrieval corpus now retrieves all nine required
+  implementations across five cases within the same 6,000-token estimated budget.
+
+- Add a development-only `evaluate:context` command with five labeled local
+  investigations, implementation coverage, source-provenance checks, budget
+  verification, and an optional strict `--check` gate. Document observed misses
+  separately from task success or provider-token savings.
+
+- Match objective terms in declaration bodies within seed files, including
+  private helpers, so relevant branches can be included even when enclosing
+  symbol names do not match the objective.
+- Pack matched declarations before test bodies and imports, and use selection
+  rank instead of alphabetical file order to break priority ties.
+- List selected files without full implementation excerpts in Markdown output.
+  Artifact schemas and estimated budget enforcement remain unchanged.
+- Add `ub-mode`-inspired engineering guardrails and deterministic code-quality
+  gates:
+  - Integrate TDD (`Red -> Green -> Refactor`), behavioral testing, root-cause
+    discipline, boundary/type discipline, and `Attack the Premise` escalation
+    into `.ai/RULES.md`, `.ai/TASTE.md`, `.ai/skills/testing/SKILL.md`,
+    `.ai/skills/code-review/SKILL.md`, `.ai/agents/tester.md`, and
+    `.ai/workflows/quality-gates.md`.
+  - Add `--check-quality [--strict]` (also run during `--check-all` and
+    post-task validation) to enforce cyclomatic complexity (`< 10`), LCOV-backed
+    CRAP score (`< 10` when `coverage/lcov.info` is present, `null` otherwise),
+    and structural duplication-lite (`< 0.8` shingle similarity across changed
+    functions, class methods, and existing repository source files). Does not
+    bundle a mutation-testing runner.
+  - Enforce `Attack the Premise` in `--check-review` when a gated task journal
+    records two consecutive `fail` rows for the same validation command or two
+    consecutive `Request changes` findings without a `Premise:` statement or
+    `## Premise Check` section.
+- Remove the unused `ink-testing-library` development dependency. Keep `ink`,
+  `react`, and `@types/react`, which are required by the terminal monitor.
+
 ## 3.16.0 — 2026-10-12
 
 - Add `context "<objective>"` to compile source excerpts directly from an
