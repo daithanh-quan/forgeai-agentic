@@ -15,6 +15,7 @@
     "bin/**/*.ts",
     "bin/**/*.tsx",
     "templates/**/*.ts",
-    "test/**/*.ts"
+    "test/**/*.ts",
+    "scripts/**/*.ts"
   ]
 }

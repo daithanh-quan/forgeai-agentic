@@ -49,7 +49,15 @@ npx --yes forgeai-agentic-init@latest context "fix login redirect loop" --json -
 Existing output files are never overwritten; the parent directory must exist.
 Selection uses keyword matches and dependencies, not semantic translation.
 No matches produce an actionable error. Context may be incomplete: omitted
-excerpts and signature-only excerpts are reported. The budget applies to the
+excerpts and signature-only excerpts are reported. Markdown also lists selected
+files without full implementation excerpts. Within objective-matched files,
+the compiler searches declaration bodies as well as symbol names, and prioritizes
+matching implementation excerpts before test bodies and imports. This is lexical
+matching, including limited English word variants in declaration names such as
+`estimation` and `estimateTokens`, so a match does not guarantee that the right
+implementation is present. Word-variant matching applies within selected files;
+file selection still uses the original keyword and dependency rules.
+The budget applies to the
 estimated JSON artifact size (characters / 4), not exact provider usage or the
 rendered Markdown size. Source exclusion percentages are not token savings.
 The command works locally once the npm package is available.
@@ -313,6 +321,15 @@ npx --yes forgeai-agentic-init@latest --upgrade
 Project context, task journals, run records, routing customizations, and memory
 are preserved during a normal upgrade. Use `--force` only when you explicitly
 want to overwrite preserved files.
+
+## Development: evaluate context retrieval
+
+From a source checkout with dependencies installed, run
+`npm run --silent evaluate:context` to report required implementation coverage
+for five local investigations. Add `-- --check` to fail when a requirement is
+missing. This measures retrieval, not task success or provider-token savings.
+See [the evaluation guide](docs/context-retrieval-evaluation.md) for current
+results and limitations.
 
 ## License
 

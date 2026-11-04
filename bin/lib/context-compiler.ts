@@ -11,6 +11,7 @@ import {
 } from './context-pack.js';
 import { type SourceDeclaration, type SourceAnalysis } from './source-analysis.js';
 import { parserForFile } from './language-registry.js';
+import { symbolMatchesObjective } from './symbol-matching.js';
 import { collectDiagnostics, selectApplicableRules } from './context-inputs.js';
 import {
   checkDependencyGraphHealth,
@@ -34,6 +35,13 @@ const MIN_BUDGET = 256;
 const MAX_BUDGET = 200_000;
 const MAX_NODES = 50;
 const MAX_DEPTH = 5;
+// Syntax words do not provide useful evidence when searching declaration text.
+const BODY_SYNTAX_TERMS = new Set([
+  'function', 'class', 'interface', 'type', 'const', 'let', 'var', 'export',
+  'default', 'return', 'async', 'await', 'import', 'from', 'public', 'private',
+  'protected', 'static', 'string', 'number', 'boolean', 'void', 'null', 'true',
+  'false', 'undefined', 'def', 'self', 'pass', 'func', 'struct', 'impl', 'pub'
+]);
 
 type ExcerptCandidate = {
   priority: number;
@@ -129,13 +137,14 @@ function candidatesForFile(
   const analysis = analyzeRegisteredSource(content, selected.node.path);
   const candidates: ExcerptCandidate[] = [];
   const declarationSpans = analysis.declarations.map((declaration) => [declaration.start, declaration.end] as const);
+  const bodyTerms = terms.filter((term) => !BODY_SYNTAX_TERMS.has(term));
 
   for (const sourceImport of analysis.imports) {
     if (declarationSpans.some(([start, end]) => start <= sourceImport.start && sourceImport.end <= end)) continue;
     const fullContent = content.slice(sourceImport.start, sourceImport.end).trim();
     if (!fullContent) continue;
     candidates.push({
-      priority: selected.depth === 0 ? 1 : 3,
+      priority: selected.depth === 0 ? 3 : 5,
       full: {
         path: selected.node.path,
         kind: 'import',
@@ -151,13 +160,19 @@ function candidatesForFile(
   }
 
   for (const declaration of analysis.declarations) {
-    const objectiveMatch = matchesTerms(declaration.search_names, terms);
+    const objectiveMatch = symbolMatchesObjective(declaration.search_names, terms);
+    // Search bodies only within objective-selected files. This can recover a
+    // fallback branch even when its enclosing function has a different name.
+    const bodyMatch = selected.depth === 0
+      && matchesTerms([content.slice(declaration.start, declaration.end)], bodyTerms);
     const isSelectedTest = declaration.kind === 'test' && /^test validating /.test(selected.reason);
-    if (!objectiveMatch && !declaration.exported && !isSelectedTest) continue;
+    if (!objectiveMatch && !bodyMatch && !declaration.exported && !isSelectedTest) continue;
     const reason = objectiveMatch
       ? `objective matched ${declaration.kind} "${declaration.name}"`
-      : `${declaration.kind} retained from ${selected.reason}`;
-    const priority = objectiveMatch ? 0 : isSelectedTest ? 1 : selected.depth === 0 ? 2 : 4;
+      : bodyMatch ? `objective term found in ${declaration.kind} "${declaration.name}" source`
+        : `${declaration.kind} retained from ${selected.reason}`;
+    const priority = declaration.kind === 'test' ? 2
+      : objectiveMatch ? 0 : bodyMatch ? 1 : selected.depth === 0 ? 2 : 4;
     candidates.push({
       priority,
       full: excerptFromDeclaration(selected, declaration, content, 'full', reason),
@@ -245,11 +260,13 @@ export function compileContext(
   const entrypoints = Array.from(new Set(selection.curated.flatMap((node) => node.entrypoints ?? []))).sort();
   const rules = selectApplicableRules(repositoryRoot, selection.terms);
   const diagnostics = collectDiagnostics(repositoryRoot);
+  const selectionRank = new Map(selection.selected.map((selected, index) => [selected.node.path, index]));
   const candidates = mode === 'compact'
     ? deduplicateCandidates(
         selection.selected.flatMap((selected) => candidatesForFile(repositoryRoot, selected, selection.terms))
       ).sort((a, b) =>
         a.priority - b.priority
+        || selectionRank.get(a.full.path)! - selectionRank.get(b.full.path)!
         || a.full.path.localeCompare(b.full.path)
         || a.full.source_start_line - b.full.source_start_line
         || a.full.name.localeCompare(b.full.name)
@@ -514,6 +531,10 @@ function languageForPath(file: string): string {
 }
 
 export function renderCompiledContextMarkdown(artifact: CompiledContextArtifact): string {
+  const missingImplementation = artifact.selection.files.filter((file) =>
+    !artifact.excerpts.some((excerpt) => excerpt.path === file.path && excerpt.mode === 'full'
+      && ['function', 'class', 'variable', 'test', 'file'].includes(excerpt.kind))
+  );
   const files = artifact.selection.files
     .map((file) => `| ${file.path} | ${file.depth} | ${file.reason} | ${file.graph_path} |`)
     .join('\n');
@@ -525,7 +546,10 @@ export function renderCompiledContextMarkdown(artifact: CompiledContextArtifact)
     `### ${rule.heading}\n\n- Source: ${rule.path}:${rule.source_start_line}-${rule.source_end_line}\n- Reason: ${rule.reason}\n\n${rule.content}`
   ).join('\n\n');
   const diagnosticFence = markdownFence(JSON.stringify(artifact.diagnostics, null, 2));
-  const parentLine = artifact.parent_artifact ? `\n- Parent artifact: ${artifact.parent_artifact}` : '';
+  const parentLine = (artifact.parent_artifact ? `\n- Parent artifact: ${artifact.parent_artifact}` : '')
+    + (missingImplementation.length
+      ? `\n- Selected files without full implementation excerpts: ${missingImplementation.map((file) => file.path).join(', ')}. These may contain only contracts, imports, signatures, or no excerpts; request missing context before editing.`
+      : '');
   const omittedRows = (artifact.omitted_context ?? [])
     .map((o) => `| ${o.path} | ${o.pattern} | ${o.reason} | ${o.profiles.join(', ')} |`)
     .join('\n');

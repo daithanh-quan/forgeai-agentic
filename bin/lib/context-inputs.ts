@@ -4,7 +4,7 @@ import type { CompiledDiagnostics, CompiledRuleSection } from './types.js';
 import { runCommand } from './utils.js';
 import { templateDir } from './context.js';
 
-const MAX_DIAGNOSTIC_FILES = 30;
+const MAX_DIAGNOSTIC_FILES = 10;
 const ALWAYS_RULE_HEADINGS = new Set([
   'non-negotiable safety rules',
   'before editing code',
