@@ -24,12 +24,11 @@ If a task is ambiguous, the agent may state assumptions and continue with the sm
 
 ## Code quality rules
 
-- Prefer strict TypeScript and clear types. Avoid `any` unless there is a documented reason.
-- Do not duplicate business logic.
-- Do not hardcode important text/config if the project already has constants, i18n, or config layers.
-- UI components must keep basic accessibility: labels, alt text, keyboard state, and focus behavior where needed.
-- Data-fetching UI must handle loading, error, and empty states.
-- Optimistic UI must include rollback when mutation fails.
+- Prefer strict TypeScript/types that make illegal states impossible; avoid `any` without a reason.
+- One decision lives in one place: do not duplicate logic or hardcode existing config/constants.
+- Subtract complexity first; validate at boundaries and keep core logic pure and idempotent.
+- Fix root causes (reproduce with a failing test first); a guard hiding a crash is not a fix.
+- Keep UI accessibility, loading/error/empty states, and rollback on failed optimistic mutations.
 
 ## Dependency rules
 

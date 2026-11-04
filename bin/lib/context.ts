@@ -77,6 +77,7 @@ export const refreshCodeGraph = args.has('--refresh-codegraph');
 export const checkProfile = args.has('--check-profile');
 export const checkAll = args.has('--check-all');
 export const checkReview = args.has('--check-review');
+export const checkQuality = args.has('--check-quality');
 export const checkSecurity = args.has('--check-security');
 export const checkMemory = args.has('--check-memory');
 export const strict = args.has('--strict');

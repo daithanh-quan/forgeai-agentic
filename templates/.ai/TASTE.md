@@ -11,7 +11,9 @@ This file stores style and preference guidance so AI agents produce output that 
 
 ## Engineering taste
 
-- Prefer maintainable structure over clever code.
+- Follow *First Make it Work, Then Make it Right*: write the failing behavioral test first, ship the smallest edit that passes, then refactor so functions stay small (`complexity < 10`) and free of structural duplication (`similarity < 0.8`).
+- Get the data shape right before writing logic; separate state instead of sharing mutable state across concurrent writers.
+- Prefer maintainable structure over clever code; subtract complexity before adding new branches.
 - Do not over-engineer the initial implementation.
 - Move business logic out of UI when the logic becomes complex.
 - Use clear names instead of abbreviations.

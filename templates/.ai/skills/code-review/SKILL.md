@@ -23,14 +23,14 @@ Review changes like a senior engineer focused on correctness, safety, maintainab
 
 ## Questions to Ask
 
-- Does the change solve the actual task?
-- Did it modify unrelated behavior?
-- Are edge cases handled?
+- Does the change solve the actual task and fix the root cause (rather than adding a guard that only hides a crash)?
+- Did it modify unrelated behavior or add avoidable complexity (`complexity >= 10` or structural duplication `>= 0.8`)?
+- Are edge cases handled and external inputs validated at system boundaries?
 - Are loading/error/empty states covered?
 - Can mutation failure leave UI in wrong state?
-- Can backend partial failure corrupt data?
+- Can backend partial failure corrupt data (are state mutations idempotent)?
 - Is any secret or sensitive data exposed?
-- Are tests adequate for the risk level?
+- Do tests verify observable behavior (would they fail if the target implementation returned nothing)?
 
 ## Severity Labels
 

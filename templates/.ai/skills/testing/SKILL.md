@@ -28,13 +28,23 @@ review.
 - Find existing tests near the changed code.
 - Reuse fixtures/mocks/helpers already in the project.
 
-### 3. Write tests
+### 3. Practice TDD (Red -> Green -> Refactor)
 
+- Write the failing test before changing implementation code (or to reproduce a bug).
+- See the test fail for the reason you expect.
+- Make the smallest code change that makes the test pass, then refactor.
 - Cover the happy path and the edge cases from the acceptance criteria.
 - For UI: cover loading, error, and empty states where applicable.
 - For APIs: cover success and key error responses.
+- If an honest automated test is impractical, do not write a bad one; document manual QA instead.
 
-### 4. Run validation
+### 4. Test behavior, not implementation
+
+- Call the code the way its caller/user does and check the observable result.
+- If a test would still pass when every target function returned nothing, throw it out.
+- Avoid coupling tests to private helpers or internal mock call counts when observable outputs exist.
+
+### 5. Run validation
 
 Run, in order:
 
@@ -49,7 +59,7 @@ If the project uses pnpm/yarn/bun, use the matching commands. If a command
 does not exist, note that and choose the closest equivalent from
 `package.json`.
 
-### 5. Document results
+### 6. Document results
 
 - Command run → result.
 - Command not run → reason.
