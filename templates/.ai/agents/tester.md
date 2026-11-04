@@ -36,6 +36,7 @@ the project's validation commands.
 ## Must Not Do
 
 - Must not weaken or delete existing tests to make a change pass.
+- Must not write implementation-coupled tests that still pass when target functions return nothing.
 - Must not skip validation commands without documenting the reason.
 - Must not mark a task as validated without actually running the commands.
 

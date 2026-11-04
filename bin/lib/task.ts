@@ -13,6 +13,7 @@ import { formatTryOutput, buildTryReport, parseTryObjective, detectCtaState } fr
 import { compileContext, renderAgentAssignment, renderCompiledContextMarkdown } from './context-compiler.js';
 import { routeToAdapter } from './router.js';
 import { createTaskReport, writeTaskReport } from './task-report.js';
+import { analyzeFilesQuality } from './code-quality.js';
 import type { Adapter, AdapterConfig, AgentResponse, CompiledContextArtifact, DependencyGraph } from './types.js';
 
 const CONTEXT_DIR = '.ai/state/context';
@@ -593,6 +594,22 @@ export async function runTask(): Promise<void> {
 
   const checks = skipChecks ? [] : validationScripts();
   const validations = skipChecks ? [] : runTaskValidation(checks);
+  if (!skipChecks) {
+    const qualityStarted = Date.now();
+    const quality = analyzeFilesQuality(root, changed);
+    if (!quality.passed) {
+      const issues = [
+        ...quality.complex_functions.map((fn) => `${fn.path}:${fn.start_line} "${fn.name}" complexity ${fn.complexity}${fn.crap_score !== null ? `, CRAP ${fn.crap_score}` : ''} >= 10`),
+        ...quality.duplicates.map((dup) => `${dup.first.path}:${dup.first.start_line} "${dup.first.name}" and ${dup.second.path}:${dup.second.start_line} "${dup.second.name}" similarity ${dup.similarity} >= 0.8`)
+      ];
+      validations.push({
+        name: 'code-quality',
+        passed: false,
+        durationMs: Date.now() - qualityStarted,
+        output: issues.slice(0, MAX_OUTPUT_LINES).join('\n')
+      });
+    }
+  }
   if (!jsonMode) {
     process.stdout.write('\nValidation\n');
     if (skipChecks) process.stdout.write(formatStatus('skipped', 'disabled by --no-check; run checks manually') + '\n');

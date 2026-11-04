@@ -8,6 +8,7 @@ import { runCheckCodeGraph } from './codegraph.js';
 import { runCheckLifecycle } from './lifecycle.js';
 import { runCheckProfile } from './profiles.js';
 import { runCheckReview } from './review.js';
+import { runCheckQuality } from './code-quality.js';
 import { runCheckSecurity } from './security.js';
 import { runCheckMemory } from './memory.js';
 import { runCheckApproval } from './approval.js';
@@ -119,6 +120,8 @@ export function runCheckAll(): void {
   runCheckProfile();
   separator();
   runCheckReview();
+  separator();
+  runCheckQuality();
   separator();
   runCheckSecurity();
   separator();

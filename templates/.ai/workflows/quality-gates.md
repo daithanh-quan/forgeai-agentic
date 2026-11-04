@@ -50,6 +50,16 @@ the implementing model once. If the second attempt still fails, the current
 model fixes the issue locally or escalates the remaining decision to the human.
 Do not set the verdict to `Approve` while blockers remain unresolved.
 
+**Attack the Premise:** When two consecutive fixes that share one premise fail
+the same validation or review gate, stop attempting another code fix. Write that
+shared premise in one sentence, identify which actors hold the state imbalance,
+and remove that assignment (or escalate to the human) before starting another
+fix. `forgeai-init --check-review` enforces this deterministically: if a gated
+task journal records two consecutive `fail` rows for the same command in
+*Commands And Validation* or two consecutive `Request changes` rows in *Review
+Findings*, the journal must include a non-TODO `Premise: <one sentence>` line
+or `## Premise Check` section before the review gate passes.
+
 ## CI example
 
 Copy this into `.github/workflows/forgeai.yml` (or your provider's equivalent)

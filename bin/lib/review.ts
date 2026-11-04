@@ -52,6 +52,30 @@ export function isRealFindingRow(cells: string[]): boolean {
   return validRecommendations.includes((status ?? '').toLowerCase());
 }
 
+export function hasRepeatedGateFailure(evidenceRows: string[][], findingRows: string[][]): boolean {
+  let previousFailedCommand: string | null = null;
+  for (const [, command, result] of evidenceRows) {
+    const key = (command ?? '').trim().toLowerCase();
+    const isFail = (result ?? '').toLowerCase() === 'fail';
+    if (isFail && key && previousFailedCommand === key) return true;
+    previousFailedCommand = isFail && key ? key : null;
+  }
+  let requestChangesStreak = 0;
+  for (const [, , status] of findingRows) {
+    requestChangesStreak = (status ?? '').toLowerCase() === 'request changes' ? requestChangesStreak + 1 : 0;
+    if (requestChangesStreak >= 2) return true;
+  }
+  return false;
+}
+
+export function hasPremiseStatement(content: string): boolean {
+  const premiseValue = extractLabeledValue(content, 'Premise');
+  if (premiseValue && !/\bTODO\b/i.test(premiseValue) && premiseValue !== '...') return true;
+  const match = content.match(/^##\s+Premise Check\s*$([\s\S]*?)(?=^##\s+|\Z)/im);
+  const body = (match?.[1] ?? '').trim();
+  return body.length > 0 && !/\bTODO\b/i.test(body) && body !== '...';
+}
+
 export function runCheckReview(): void {
   console.log('ForgeAI review gate check');
   console.log('');
@@ -94,6 +118,13 @@ export function runCheckReview(): void {
     if (findingRows.length === 0) {
       journalFailures += 1;
       console.log(formatStatus('invalid', `${file} has no review finding with a recommendation`));
+    }
+
+    if (hasRepeatedGateFailure(evidenceRows, findingRows) && !hasPremiseStatement(content)) {
+      journalFailures += 1;
+      console.log(
+        formatStatus('invalid', `${file} has >= 2 repeated gate failures without an Attack the Premise statement (add "Premise: <one sentence>")`)
+      );
     }
 
     const scorecardRelative = journal.taskId ? `.ai/state/reviews/${journal.taskId}.md` : '';

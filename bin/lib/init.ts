@@ -26,6 +26,7 @@ export function usage(): string {
   forgeai-init --check-profile
   forgeai-init --check-all
   forgeai-init --check-review
+  forgeai-init --check-quality [--strict]
   forgeai-init --check-security
   forgeai-init --check-memory
   forgeai-init --check-approval
@@ -97,6 +98,10 @@ Options:
   --check-review
                 Validate that gated task journals carry real validation
                 evidence and a completed reviewer scorecard before merge.
+  --check-quality
+                Validate changed source functions (or all source files with
+                --strict) for cyclomatic complexity (< 10) and structural
+                duplication (< 0.8 similarity).
   --check-security
                 Scan for supply-chain risks (pipe-to-shell installs,
                 off-registry/unpinned deps, install scripts, private keys)

@@ -11,6 +11,7 @@ import {
   checkProfile,
   checkAll,
   checkReview,
+  checkQuality,
   checkSecurity,
   checkMemory,
   check,
@@ -58,6 +59,7 @@ import { runRefreshCodeGraph } from './lib/dependency-graph.js';
 import { runCheckGit } from './lib/git.js';
 import { runCheck, runCheckAll } from './lib/check.js';
 import { runCheckReview } from './lib/review.js';
+import { runCheckQuality } from './lib/code-quality.js';
 import { runCheckSecurity } from './lib/security.js';
 import { runCheckMemory } from './lib/memory.js';
 import { runDecompose } from './lib/decompose.js';
@@ -87,7 +89,7 @@ runUpdatePreflight();
 if (overrideFlag) {
   const commandsBeforeEvaluate = [
     help, version, listProfiles, checkGit, checkSessions, checkLifecycle, checkCodeGraph,
-    refreshCodeGraph, checkProfile, checkReview, checkSecurity, checkMemory, checkAll,
+    refreshCodeGraph, checkProfile, checkReview, checkQuality, checkSecurity, checkMemory, checkAll,
     check, checkUpdates, addModel, listModels, removeModel, decompose, systemOneRoute, contextPack,
     compileContext, checkApproval, checkEvaluation, statusSummary, diffSummary,
     testSummary, watch, emit, validateArtifactFlag, route, listRuns, trySubcommand,
@@ -110,6 +112,7 @@ else if (checkCodeGraph) runObservedCheck('codegraph', () => runCheckCodeGraph({
 else if (refreshCodeGraph) runRefreshCodeGraph();
 else if (checkProfile) runObservedCheck('profile', runCheckProfile);
 else if (checkReview) runObservedCheck('review', runCheckReview);
+else if (checkQuality) runObservedCheck('quality', () => runCheckQuality({ strict }));
 else if (checkSecurity) runObservedCheck('security', runCheckSecurity);
 else if (checkMemory) runObservedCheck('memory', runCheckMemory);
 else if (checkAll) runObservedCheck('all', runCheckAll);
