@@ -280,12 +280,65 @@ export function branchHeavy(a: number, b: number, c: number, d: boolean, e: bool
 });
 
 test('code-quality module itself satisfies ub-mode complexity (< 10) and duplication (< 0.8) gates', () => {
-  const selfReport = analyzeFilesQuality(projectRoot, ['bin/lib/code-quality.ts', 'bin/lib/symbol-matching.ts'], {
+  const selfReport = analyzeFilesQuality(projectRoot, ['bin/lib/code-quality.ts', 'bin/lib/symbol-matching.ts', 'bin/lib/mcp.ts', 'bin/lib/context-command.ts'], {
     compareAgainstRepo: false
   });
   assert.equal(selfReport.passed, true);
   assert.equal(selfReport.complex_functions.length, 0);
   assert.equal(selfReport.duplicates.length, 0);
+});
+
+test('extractClassMethodSpans preserves exact line numbers and complexity when comments and strings precede methods', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-quality-offsets-'));
+  try {
+    fs.mkdirSync(path.join(target, 'src'), { recursive: true });
+    fs.mkdirSync(path.join(target, 'coverage'), { recursive: true });
+    fs.writeFileSync(
+      path.join(target, 'src/commented-class.ts'),
+      [
+        'export class PaymentGateway {',
+        '  /*',
+        '   * Multi-line block comment with lots of text and braces { } ( )',
+        '   * that previously shifted character offsets in stripCommentsAndStrings.',
+        '   */',
+        '  private banner = "A long string literal with { braces } and ( parens ) inside";',
+        '  // Another single-line comment before the method',
+        '  chargeCustomer(amount: number, active: boolean, retry: boolean): number {',
+        '    const label = "long string literal inside method body to test end offset";',
+        '    if (amount > 0 && active) {',
+        '      return retry ? amount : amount + 1;',
+        '    }',
+        '    return label.length;',
+        '  }',
+        '}'
+      ].join('\n')
+    );
+    fs.writeFileSync(
+      path.join(target, 'coverage/lcov.info'),
+      [
+        `SF:${path.join(target, 'src/commented-class.ts')}`,
+        'DA:8,0',
+        'DA:9,0',
+        'DA:10,0',
+        'DA:11,0',
+        'DA:13,0',
+        'end_of_record'
+      ].join('\n')
+    );
+
+    const report = analyzeFilesQuality(target, ['src/commented-class.ts']);
+    assert.equal(report.functions_analyzed, 1);
+    const fn = report.complex_functions[0];
+    assert.ok(fn, 'uncovered method with complexity 4 must be flagged via CRAP score');
+    assert.equal(fn.name, 'PaymentGateway.chargeCustomer');
+    assert.equal(fn.start_line, 8);
+    assert.equal(fn.end_line, 14);
+    assert.equal(fn.complexity, 4);
+    assert.equal(fn.coverage, 0);
+    assert.equal(fn.crap_score, 20);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
 });
 
 test('analyzeFilesQuality extracts class methods, computes real CRAP from LCOV coverage, and catches duplication against unchanged repo files', () => {

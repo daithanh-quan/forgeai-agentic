@@ -42,6 +42,7 @@ import {
   trySubcommand,
   taskSubcommand,
   contextSubcommand,
+  mcpSubcommand,
   repairCodeGraph,
 } from './lib/context.js';
 import { runValidateArtifact, runRoute } from './lib/router.js';
@@ -73,6 +74,7 @@ import { usage, runInit, runRepairCodeGraph } from './lib/init.js';
 import { runTry } from './lib/try.js';
 import { runTask } from './lib/task.js';
 import { runContext } from './lib/context-command.js';
+import { runMcp } from './lib/mcp.js';
 import { runListRuns } from './lib/run-record.js';
 import { runEvaluate } from './lib/evaluation-record.js';
 import { runReport } from './lib/evaluation-report.js';
@@ -93,7 +95,7 @@ if (overrideFlag) {
     check, checkUpdates, addModel, listModels, removeModel, decompose, systemOneRoute, contextPack,
     compileContext, checkApproval, checkEvaluation, statusSummary, diffSummary,
     testSummary, watch, emit, validateArtifactFlag, route, listRuns, trySubcommand,
-    repairCodeGraph, contextSubcommand,
+    taskSubcommand, repairCodeGraph, contextSubcommand, mcpSubcommand,
   ];
   if (!evaluate || commandsBeforeEvaluate.some(Boolean)) {
     process.stderr.write(`Error: ${overrideFlag} is only valid with --evaluate.\n`);
@@ -104,6 +106,7 @@ if (overrideFlag) {
 if (help) console.log(usage());
 else if (version) console.log(getPackageVersion());
 else if (contextSubcommand) runContext();
+else if (mcpSubcommand) runMcp();
 else if (listProfiles) console.log(['base', ...getAvailableProfiles()].join('\n'));
 else if (checkGit) runObservedCheck('git', runCheckGit);
 else if (checkSessions) runObservedCheck('sessions', runCheckSessions);

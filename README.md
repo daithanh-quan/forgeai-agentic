@@ -12,7 +12,7 @@
 [![Node.js ≥20](https://img.shields.io/badge/node-%E2%89%A520-brightgreen?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](./LICENSE)
 
-[Quick start](#quick-start) · [Monitor](#terminal-monitor) · [Profiles](#profiles) · [Commands](#core-commands)
+[Quick start](#quick-start) · [MCP Server](#mcp-server) · [Why ForgeAI](#why-forgeai) · [Monitor](#terminal-monitor) · [Profiles](#profiles) · [Commands](#core-commands)
 
 </div>
 
@@ -39,9 +39,10 @@ rules, and detected validation scripts. Give this output to your current
 coding agent. No initialization, API key, or adapter configuration is needed.
 It does not execute a model or modify your repository by default.
 
-Save it to a **new** file, or request the JSON artifact for automation:
+Save it to a **new** file, copy it directly to your clipboard, or request the JSON artifact for automation:
 
 ```bash
+npx --yes forgeai-agentic-init@latest context "fix login redirect loop" --copy
 npx --yes forgeai-agentic-init@latest context "fix login redirect loop" --output login-context.md
 npx --yes forgeai-agentic-init@latest context "fix login redirect loop" --json --budget 8000
 ```
@@ -61,6 +62,44 @@ The budget applies to the
 estimated JSON artifact size (characters / 4), not exact provider usage or the
 rendered Markdown size. Source exclusion percentages are not token savings.
 The command works locally once the npm package is available.
+
+## MCP Server
+
+Expose ForgeAI's bounded context compiler and code-quality gates directly to
+Claude Code, Cursor, Windsurf, Cline, or VS Code Copilot over `stdio`:
+
+```bash
+# Claude Code
+claude mcp add forgeai -- npx -y forgeai-agentic-init@latest mcp
+```
+
+Or add to `.cursor/mcp.json` / `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "forgeai": {
+      "command": "npx",
+      "args": ["-y", "forgeai-agentic-init@latest", "mcp"]
+    }
+  }
+}
+```
+
+Available MCP tools:
+- `forgeai_context`: Compile AST-level source excerpts, rules, and line provenance within a token budget.
+- `forgeai_try`: Preview matching source files and exclusion ratios before reading files.
+- `forgeai_check_quality`: Check modified or specified files for cyclomatic complexity (`< 10`), LCOV CRAP score (`< 10`), and structural duplication (`< 0.8`).
+- `forgeai_diagnostics`: Return compact git status and diff summaries.
+
+## Why ForgeAI
+
+| Approach | Granularity | Setup / Infra | Budget Enforcement | Code Quality Gate |
+| --- | --- | --- | --- | --- |
+| **ForgeAI (`context` / `mcp`)** | AST declarations, signatures & dependency edges | Zero-config (`npx`), no DB or API key | Hard character/4 token budget with signature fallback | Built-in complexity (`< 10`), CRAP & clone detection |
+| **Repo dumpers (`repomix`, `code2prompt`)** | Whole files / entire repo | Zero-config | None (dumps entire files) | None |
+| **Vector RAG / Embeddings** | Fixed text chunks (often splits syntax nodes) | Requires vector DB + embedding API key | Approximate top-K chunks | None |
+| **Manual agent `grep` / `read`** | Ad-hoc | None | Unbounded multi-turn reads | None |
 
 ## Optional: install the full workflow
 
@@ -282,7 +321,8 @@ rate on your own tasks before automating execution.
 
 | Command | Purpose |
 | --- | --- |
-| `context "<objective>"` | Print usable source context without initialization; supports `--json`, `--budget`, and `--output` |
+| `context "<objective>"` | Print usable source context without initialization; supports `--copy` (`-c`), `--json`, `--budget`, and `--output` |
+| `mcp` | Start the Model Context Protocol (`stdio`) server for Claude Code, Cursor, Windsurf, and Copilot |
 | `try "<objective>"` | Preview context selection without initialization |
 | `task --dry-run "<objective>"` | Preview a complete bounded task plan |
 | `task "<objective>" --yes` | Execute through a CLI adapter and validate the change |

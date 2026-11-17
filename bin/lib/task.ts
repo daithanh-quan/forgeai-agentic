@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import readline from 'node:readline/promises';
 import { root, rawArgs, getArgValue, validateArgFlag } from './context.js';
-import { generateDependencyGraph } from './dependency-graph.js';
+import { loadOrGenerateDependencyGraph } from './dependency-graph.js';
 import { getErrorMessage, formatStatus, isValidTaskId } from './utils.js';
 import { detectProjectProfile, getAvailableProfiles } from './profiles.js';
 import { resolveExclusions } from './profile-exclusions.js';
@@ -396,7 +396,7 @@ export async function runTask(): Promise<void> {
 
   let depGraph: DependencyGraph;
   try {
-    depGraph = generateDependencyGraph(root);
+    depGraph = loadOrGenerateDependencyGraph(root);
   } catch (error) {
     process.stderr.write(`Error: could not analyze source files (${getErrorMessage(error)}).\n`);
     process.exitCode = 1;
@@ -558,7 +558,7 @@ export async function runTask(): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  const internalPaths = new Set([relativePath(artifactPath), relativePath(markdownPath), ROUTE_JOURNAL]);
+  const internalPaths = new Set([relativePath(artifactPath), relativePath(markdownPath), ROUTE_JOURNAL, '.forgeai.pipe']);
   const changed = changedPaths.filter((file) => !internalPaths.has(file));
   const outOfScope = findOutOfScopePaths(changedPaths, writeScope, internalPaths);
   if (outOfScope.length > 0) {

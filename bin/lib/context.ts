@@ -97,7 +97,18 @@ export const checkEvaluation = args.has('--check-evaluation');
 export const statusSummary = args.has('--status-summary');
 export const diffSummary = args.has('--diff-summary');
 export const testSummary = args.has('--test-summary');
-export const skipUpdateCheck = args.has('--skip-update-check') || process.env.FORGEAI_SKIP_UPDATE_CHECK === '1' || ['try', 'task', 'context'].includes(rawArgs[0]);
+export const mcpSubcommand = rawArgs[0] === 'mcp' || args.has('--mcp');
+export const skipUpdateCheck =
+  args.has('--skip-update-check')
+  || process.env.FORGEAI_SKIP_UPDATE_CHECK === '1'
+  || ['try', 'task', 'context', 'mcp'].includes(rawArgs[0])
+  || args.has('--mcp')
+  || args.has('--json')
+  || args.has('--compile-context')
+  || args.has('--expand-context')
+  || args.has('--system-one-route')
+  || args.has('--watch')
+  || args.has('--emit');
 export const contextSubcommand = rawArgs[0] === 'context';
 export const trySubcommand = rawArgs[0] === 'try';
 export const taskSubcommand = rawArgs[0] === 'task';

@@ -279,8 +279,7 @@ export function analyzeSource(content: string, file: string): SourceAnalysis {
 
 const TS_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs'] as const;
 
-function tsResolutionCandidates(importer: string, specifier: string): string[] {
-  const base = path.posix.normalize(path.posix.join(path.posix.dirname(importer), specifier)).replace(/\\/g, '/');
+function tsBaseCandidates(base: string): string[] {
   const extension = path.posix.extname(base);
   const candidates = new Set<string>();
   if (extension && (TS_EXTENSIONS as readonly string[]).includes(extension)) {
@@ -295,13 +294,49 @@ function tsResolutionCandidates(importer: string, specifier: string): string[] {
   return Array.from(candidates);
 }
 
+function tsResolutionCandidates(importer: string, specifier: string): string[] {
+  const base = path.posix.normalize(path.posix.join(path.posix.dirname(importer), specifier)).replace(/\\/g, '/');
+  return tsBaseCandidates(base);
+}
+
+function normalizeAliasRest(rawRest: string): string | null {
+  const normalized = path.posix.normalize(rawRest).replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!normalized || normalized === '.' || normalized === '..' || normalized.startsWith('../')) return null;
+  return normalized;
+}
+
+const ALIAS_PREFIXES: ReadonlyArray<readonly [string, readonly string[]]> = [
+  ['@/', ['src/', '']],
+  ['~/', ['src/', '']],
+  ['$lib/', ['src/lib/', 'lib/']],
+  ['#', ['src/', '']]
+];
+
+function tsAliasBases(specifier: string): string[] {
+  if (specifier === '$lib') return ['src/lib', 'lib'];
+  for (const [prefix, roots] of ALIAS_PREFIXES) {
+    if (specifier.startsWith(prefix)) {
+      const rest = normalizeAliasRest(specifier.slice(prefix.length));
+      return rest ? roots.map((r) => `${r}${rest}`) : [];
+    }
+  }
+  return [];
+}
+
 export const typescriptParser: LanguageParser = {
   id: 'typescript',
   extensions: TS_EXTENSIONS,
   analyze: analyzeSource,
   resolveImport(importer: string, specifier: string, { sourceFiles }: ImportResolutionContext): ImportResolution {
-    if (!specifier.startsWith('.')) return { status: 'external' };
-    const target = tsResolutionCandidates(importer, specifier).find((candidate) => sourceFiles.has(candidate));
-    return target ? { status: 'resolved', paths: [target] } : { status: 'unresolved_local' };
+    if (specifier.startsWith('.')) {
+      const target = tsResolutionCandidates(importer, specifier).find((candidate) => sourceFiles.has(candidate));
+      return target ? { status: 'resolved', paths: [target] } : { status: 'unresolved_local' };
+    }
+    const aliases = tsAliasBases(specifier);
+    if (aliases.length > 0) {
+      const target = aliases.flatMap(tsBaseCandidates).find((candidate) => sourceFiles.has(candidate));
+      if (target) return { status: 'resolved', paths: [target] };
+    }
+    return { status: 'external' };
   }
 };

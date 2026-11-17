@@ -24,7 +24,17 @@ function declarationEnd(lines: Line[], start: number): number {
 }
 
 function signature(lines: Line[], start: number, end: number): string {
-  return lines.slice(start, Math.min(end + 1, start + 8)).map((line) => stripComment(line.text)).join('\n').trim();
+  const sigLines: string[] = [];
+  for (let i = start; i <= Math.min(end, start + 7); i++) {
+    const clean = stripComment(lines[i].text);
+    const braceIdx = clean.indexOf('{');
+    if (braceIdx !== -1) {
+      sigLines.push(`${clean.slice(0, braceIdx).trimEnd()} { /* body omitted */ }`);
+      return sigLines.join('\n').trim();
+    }
+    sigLines.push(clean);
+  }
+  return sigLines.join('\n').trim();
 }
 
 function moduleCandidates(root: string, modulePath: string): string[] {

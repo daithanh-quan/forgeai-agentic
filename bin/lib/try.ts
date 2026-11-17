@@ -9,7 +9,7 @@ import {
   type ContextPackOptions,
   type SelectedContextNode,
 } from './context-pack.js';
-import { generateDependencyGraph, DEPENDENCY_GRAPH_PATH, readDependencyGraph, checkDependencyGraphHealth } from './dependency-graph.js';
+import { loadOrGenerateDependencyGraph, DEPENDENCY_GRAPH_PATH, readDependencyGraph, checkDependencyGraphHealth } from './dependency-graph.js';
 import { detectProjectProfile, getAvailableProfiles } from './profiles.js';
 import { resolveExclusions } from './profile-exclusions.js';
 import { getErrorMessage, formatBytes } from './utils.js';
@@ -181,7 +181,7 @@ export function runTry(): void {
   }
   let depGraph: DependencyGraph;
   try {
-    depGraph = generateDependencyGraph(root);
+    depGraph = loadOrGenerateDependencyGraph(root);
   } catch (error) {
     process.stderr.write(`Error: could not analyze source files (${getErrorMessage(error)}).\n`);
     process.exitCode = 1;

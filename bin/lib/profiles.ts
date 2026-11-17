@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { PackageJson } from './types.js';
-import { root, profilesDir } from './context.js';
+import { root, profilesDir, args } from './context.js';
 import { formatStatus, getErrorMessage, listFilesRecursive } from './utils.js';
 import { readManifestResult } from './manifest.js';
 
@@ -32,7 +32,9 @@ export function getProjectPackageJson(): PackageJson | null {
   try {
     return JSON.parse(fs.readFileSync(absolutePath, 'utf8')) as PackageJson;
   } catch (error) {
-    console.log(`invalid package.json: ${getErrorMessage(error)} (profile detection skipped)`);
+    const message = `invalid package.json: ${getErrorMessage(error)} (profile detection skipped)`;
+    if (args.has('--json')) process.stderr.write(`${message}\n`);
+    else console.log(message);
     return null;
   }
 }

@@ -2,22 +2,26 @@
 
 This project was initialized with the ForgeAI agentic harness (`.ai/`).
 
-At the start of the first agent session, check whether the installed
-ForgeAI harness is behind the latest package:
+## Fast Path: Bounded Context & Quality Gates
+
+Before reading broad repository files, compile bounded source excerpts and applicable rules for your current objective:
 
 ```bash
-npx forgeai-agentic-init@latest --check-updates --check
+npx forgeai-agentic-init context "<objective>"
 ```
 
-If the check reports an outdated harness, ask the human whether to skip for
-now or update to the latest version before implementation work. If the human
-chooses update, the agent runs:
+After implementing changes, verify code quality (complexity `< 10` and structural duplication `< 0.8`) and harness health offline:
 
 ```bash
-npx forgeai-agentic-init@latest --upgrade
+npx forgeai-agentic-init --check-quality
+npx forgeai-agentic-init --check-upgrade
 ```
 
-Before making any code changes, read these files in order:
+If `--check-upgrade` reports an outdated harness, ask the human whether to skip for now or upgrade (`npx forgeai-agentic-init@latest --upgrade`).
+
+## Full Harness Read Order
+
+For architectural, multi-step, or delegated tasks, read these files in order:
 
 1. `.ai/README.md` — harness overview and full recommended read order
 2. `.ai/PROJECT.md` — project identity, stack, architecture, constraints

@@ -14,6 +14,9 @@ export function createPipeReader(
   onLine: (line: string) => void,
   onError?: (err: Error) => void,
 ): () => void {
+  if (process.platform === 'win32') {
+    throw new Error('ForgeAI --watch requires POSIX named pipes (FIFO) and is supported on macOS, Linux, and WSL.');
+  }
   try {
     execFileSync('mkfifo', [pipePath]);
   } catch {

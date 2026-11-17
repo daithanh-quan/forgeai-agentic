@@ -11,7 +11,8 @@ export function usage(): string {
   return `Usage:
   forgeai-init [--dry-run] [--force] [--profile <name|auto>]
   forgeai-init try "<objective>"
-  forgeai-init context "<objective>" [--budget 6000] [--json] [--output <new-file>]
+  forgeai-init context "<objective>" [--budget 6000] [--json] [--copy] [--output <new-file>]
+  forgeai-init mcp
   forgeai-init task --dry-run "<objective>"
   forgeai-init --repair-codegraph
   forgeai-init --upgrade
@@ -58,6 +59,14 @@ Options:
                 initializing. Reads source files, detects languages, and
                 prints the files that would be selected — no .ai/ required,
                 no file writes, no network calls after the package is local.
+  context       Compile bounded source excerpts, applicable rules, and line
+                provenance for an objective without initialization. Supports
+                --budget, --max-depth, --max-nodes, --json, --copy (-c), and
+                --output <new-file>.
+  mcp           Start the Model Context Protocol (MCP) stdio server exposing
+                forgeai_context, forgeai_try, forgeai_check_quality, and
+                forgeai_diagnostics tools to Claude Code, Cursor, Windsurf,
+                and VS Code Copilot.
   task           Execute a bounded task with a CLI adapter, scope guard, and
                 validation, or hand off a bounded assignment to the current
                 agent when no CLI adapter is configured. Add --dry-run for a
@@ -87,7 +96,7 @@ Options:
                 Validate CodeGraph artifacts for graph-guided context selection.
                 Add --strict to exit non-zero when the graph is still a template.
   --refresh-codegraph
-                Parse TypeScript, JavaScript, Python, and Go source files and
+                Parse TypeScript, JavaScript, Python, Go, and Rust source files and
                 write a deterministic dependency graph. This is the only command
                 that updates .ai/codegraph/dependency-graph.json.
   --check-profile
@@ -151,7 +160,7 @@ Options:
                 to write to a file instead of stdout.
   --compile-context
                 Compile selected source nodes (TypeScript, JavaScript, Python,
-                Go) into a bounded JSON artifact. Requires a fresh dependency graph and
+                Go, Rust) into a bounded JSON artifact. Requires a fresh dependency graph and
                 --objective. Defaults: --budget 6000, --max-depth 2,
                 --max-nodes 12. With --output, also writes a Markdown rendering;
                 override its path with --markdown-output <file>.
@@ -327,7 +336,7 @@ export function copyRecursive(src: string, dest: string): void {
   console.log(`created ${relativePath}`);
 }
 
-const CONTEXT_GITIGNORE_ENTRIES = ['.ai/state/context/', '.ai/state/context-routes.md', '.ai/state/runs/', '.ai/state/evaluations/', '.ai/state/context-escapes/'];
+const CONTEXT_GITIGNORE_ENTRIES = ['.ai/state/context/', '.ai/state/context-routes.md', '.ai/state/runs/', '.ai/state/evaluations/', '.ai/state/context-escapes/', '.forgeai.pipe'];
 
 export function maintainContextGitignore(repositoryRoot: string, isDryRun: boolean): void {
   const gitignorePath = path.join(repositoryRoot, '.gitignore');
