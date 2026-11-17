@@ -63,6 +63,30 @@ test('typescriptParser classifies bare and missing specifiers', () => {
   assert.deepEqual(typescriptParser.resolveImport('src/entry.ts', './missing', { sourceFiles: new Set() }), { status: 'unresolved_local' });
 });
 
+test('typescriptParser resolves @/, ~/, $lib/, and # path aliases against sourceFiles', () => {
+  const files = new Set(['src/lib/auth.ts', 'src/components/Button.tsx', 'src/lib/server/db.ts', 'src/utils/hash.ts']);
+  assert.deepEqual(
+    typescriptParser.resolveImport('src/app/page.tsx', '@/lib/auth', { sourceFiles: files }),
+    { status: 'resolved', paths: ['src/lib/auth.ts'] }
+  );
+  assert.deepEqual(
+    typescriptParser.resolveImport('src/app/page.tsx', '~/components/Button', { sourceFiles: files }),
+    { status: 'resolved', paths: ['src/components/Button.tsx'] }
+  );
+  assert.deepEqual(
+    typescriptParser.resolveImport('src/routes/+page.server.ts', '$lib/server/db', { sourceFiles: files }),
+    { status: 'resolved', paths: ['src/lib/server/db.ts'] }
+  );
+  assert.deepEqual(
+    typescriptParser.resolveImport('src/index.ts', '#utils/hash', { sourceFiles: files }),
+    { status: 'resolved', paths: ['src/utils/hash.ts'] }
+  );
+  assert.deepEqual(
+    typescriptParser.resolveImport('src/index.ts', '@babel/parser', { sourceFiles: files }),
+    { status: 'external' }
+  );
+});
+
 test('typescriptParser never resolves a relative specifier to a .py file', () => {
   const files = new Set(['src/a.py']);
   assert.deepEqual(typescriptParser.resolveImport('src/entry.ts', './a', { sourceFiles: files }), { status: 'unresolved_local' });
@@ -125,9 +149,11 @@ test('production registry routes .rs → rust; allExtensions includes .rs', () =
 });
 
 test('rust parser indexes public declarations and resolves crate modules', () => {
-  const analysis = analyzeRust('/// Adds values\npub fn add(a: i32, b: i32) -> i32 { a + b }\nstruct Hidden;\n', 'src/lib.rs');
+  const analysis = analyzeRust('/// Adds values\npub fn add(a: i32, b: i32) -> i32 {\n    let sum = a + b;\n    sum\n}\nstruct Hidden;\n', 'src/lib.rs');
   assert.deepEqual(analysis.exports, ['add']);
-  assert.equal(analysis.declarations.find((d) => d.name === 'add')?.kind, 'function');
+  const addDecl = analysis.declarations.find((d) => d.name === 'add');
+  assert.equal(addDecl?.kind, 'function');
+  assert.equal(addDecl?.signature, 'pub fn add(a: i32, b: i32) -> i32 { /* body omitted */ }');
   assert.deepEqual(
     rustParser.resolveImport('src/lib.rs', 'crate::store', { sourceFiles: new Set(['src/lib.rs', 'src/store.rs']) }),
     { status: 'resolved', paths: ['src/store.rs'] }

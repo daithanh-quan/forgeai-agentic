@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+## 3.18.0 — 2026-11-17
+
+- Add `forgeai-init mcp` (and `--mcp`) to run a built-in Model Context Protocol
+  (`stdio`) server exposing `forgeai_context`, `forgeai_try`,
+  `forgeai_check_quality`, and `forgeai_diagnostics` to Claude Code, Cursor,
+  Windsurf, Cline, and VS Code Copilot.
+- Add `--copy` (`-c`) to `context "<objective>"` to copy bounded context directly
+  to the system clipboard, and register the short `forgeai` CLI bin alias
+  alongside `forgeai-init`.
+- Resolve TypeScript/JavaScript path aliases (`@/`, `~/`, `$lib`, `$lib/`, `#`)
+  against indexed repository source files during dependency graph construction.
+- Add a camelCase/snake_case word-stem fallback pass to seed selection when no
+  file path, export, or exact declaration name matches the objective.
+- Reuse a fresh `.ai/codegraph/dependency-graph.json` in `context`, `try`, and
+  `task` before re-parsing the repository from scratch.
+- Fix character-offset corruption in `extractClassMethodSpans` (`--check-quality`)
+  when comments or string literals precede or appear inside class methods, and
+  skip brace-based class method extraction on Python source files.
+- Truncate Rust signature excerpts at the opening brace instead of including up
+  to 8 lines of function body.
+- Skip the interactive npm update preflight on JSON/machine-output and TUI
+  commands (`--json`, `--compile-context`, `--expand-context`,
+  `--system-one-route`, `--watch`, `--emit`, `mcp`), and route invalid
+  `package.json` notices to `stderr` when `--json` is active.
+- Add `.forgeai.pipe` to managed `.gitignore` entries and `task` internal paths,
+  and surface a clear POSIX FIFO error on Windows when running `--watch`.
+- Update `templates/AGENTS.md` and `templates/CLAUDE.md` to prioritize bounded
+  context (`context "<objective>"`) and offline verification (`--check-quality`,
+  `--check-upgrade`).
+
 ## 3.17.0 — 2026-11-04
 
 - Match common English word variants in declaration names within selected files

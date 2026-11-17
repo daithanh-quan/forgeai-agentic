@@ -41,11 +41,18 @@ export type CodeQualityReport = {
   passed: boolean;
 };
 
+const COMMENT_OR_STRING_RE =
+  /\/\/[^\r\n]*|\/\*[\s\S]*?\*\/|#[^\r\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\/(?![/*])(?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\\r\n])+\/[gimsuy]*/g;
+
 export function stripCommentsAndStrings(source: string): string {
   return source.replace(
-    /\/\/[^\r\n]*|\/\*[\s\S]*?\*\/|#[^\r\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\/(?![/*])(?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\\r\n])+\/[gimsuy]*/g,
+    COMMENT_OR_STRING_RE,
     (match) => (match.startsWith('//') || match.startsWith('/*') || match.startsWith('#') ? ' ' : '""')
   );
+}
+
+function maskPreservingLength(source: string): string {
+  return source.replace(COMMENT_OR_STRING_RE, (match) => match.replace(/[^\r\n]/g, ' '));
 }
 
 export function computeCyclomaticComplexity(source: string): number {
@@ -173,11 +180,7 @@ export function computeStructuralSimilarity(firstSource: string, secondSource: s
 }
 
 function lineNumberAt(content: string, offset: number): number {
-  let line = 1;
-  for (let index = 0; index < offset && index < content.length; index += 1) {
-    if (content.charCodeAt(index) === 10) line += 1;
-  }
-  return line;
+  return content.slice(0, Math.max(0, offset)).split('\n').length;
 }
 
 function findMatchingDelimiter(sanitized: string, openIndex: number, openChar: string, closeChar: string): number {
@@ -199,7 +202,7 @@ function extractClassMethodSpans(
   classEnd: number
 ): Array<{ name: string; start: number; end: number }> {
   const classSlice = content.slice(classStart, classEnd);
-  const sanitized = stripCommentsAndStrings(classSlice);
+  const sanitized = maskPreservingLength(classSlice);
   const pattern = /\n\s*(?:(?:public|private|protected|static|async|override|readonly|get|set)\s+)*([A-Za-z_$][\w$]*)\s*\(/g;
   const methods: Array<{ name: string; start: number; end: number }> = [];
   let match: RegExpExecArray | null;
@@ -249,6 +252,11 @@ function buildAnalyzedFunction(
   };
 }
 
+function isBraceClassFile(relativeFile: string): boolean {
+  const ext = path.extname(relativeFile).toLowerCase();
+  return ext !== '.py' && ext !== '.pyi';
+}
+
 function extractFunctionsFromFile(
   repositoryRoot: string,
   relativeFile: string,
@@ -264,7 +272,7 @@ function extractFunctionsFromFile(
   for (const decl of analysis.declarations) {
     if (decl.kind === 'function') {
       out.push(buildAnalyzedFunction(content, relativeFile, decl.name, decl.start, decl.end, lcov));
-    } else if (decl.kind === 'class') {
+    } else if (decl.kind === 'class' && isBraceClassFile(relativeFile)) {
       for (const method of extractClassMethodSpans(content, decl.name, decl.start, decl.end)) {
         out.push(buildAnalyzedFunction(content, relativeFile, method.name, method.start, method.end, lcov));
       }

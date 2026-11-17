@@ -1,10 +1,11 @@
 {
   "name": "forgeai-agentic-init",
-  "version": "3.17.0",
-  "description": "AI project initialization kit for agentic coding workflows.",
+  "version": "3.18.0",
+  "description": "Deterministic code context compiler, MCP server, and AI guardrails for agentic coding workflows.",
   "type": "module",
   "bin": {
-    "forgeai-init": "dist/forgeai-init.js"
+    "forgeai-init": "dist/forgeai-init.js",
+    "forgeai": "dist/forgeai-init.js"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
@@ -36,7 +37,17 @@
     "agentic",
     "cli",
     "coding-agents",
-    "project-template"
+    "project-template",
+    "mcp",
+    "model-context-protocol",
+    "context-compiler",
+    "claude-code",
+    "cursor",
+    "codex",
+    "windsurf",
+    "codegraph",
+    "llm-context",
+    "ai-guardrails"
   ],
   "engines": {
     "node": ">=20.0.0"

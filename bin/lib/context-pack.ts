@@ -20,6 +20,7 @@ import { readManifestResult } from './manifest.js';
 import { getAvailableProfiles, normalizeProfile, parseCompositeProfile } from './profiles.js';
 import { resolveExclusions, parseIncludeExcluded, matchExclusion } from './profile-exclusions.js';
 import { globMatches } from './path-glob.js';
+import { symbolMatchesObjective } from './symbol-matching.js';
 import { formatStatus, getErrorMessage } from './utils.js';
 
 export { globMatches } from './path-glob.js';
@@ -251,6 +252,18 @@ function findSeeds(objective: string, curatedGraph: CodeGraph, dependencyGraph: 
       for (const generatedNode of dependencyGraph.nodes) {
         if (globMatches(entry.node.path!, generatedNode.path)) {
           addSeed({ id: generatedNode.id, score: entry.score, reasons: entry.reasons });
+        }
+      }
+    }
+  }
+
+  if (seeds.size === 0) {
+    const stemTerms = terms.filter((term) => term.length >= 4);
+    if (stemTerms.length > 0) {
+      for (const node of dependencyGraph.nodes) {
+        const names = [...node.exports, ...(node.declarations ?? [])];
+        if (names.length > 0 && symbolMatchesObjective(names, stemTerms)) {
+          addSeed({ id: node.id, score: 1, reasons: ['declaration word match'] });
         }
       }
     }

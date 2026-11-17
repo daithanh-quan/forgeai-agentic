@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { cli, runTs } from './helpers.js';
 import { computeArtifactEstimate } from '../bin/lib/context-compiler.js';
+import { handleMcpRequest } from '../bin/lib/mcp.js';
 import type { CompiledContextArtifact } from '../bin/lib/types.js';
 
 test('context retrieves private estimation helpers across TypeScript and Python naming styles', () => {
@@ -106,4 +107,98 @@ test('context fails clearly on missing matches and invalid options without write
     }
     assert.deepEqual(fs.readdirSync(cwd), ['login.ts']);
   } finally { fs.rmSync(cwd, { recursive: true, force: true }); }
+});
+
+test('context --copy writes compiled context to clipboard without creating repository files', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-context-copy-'));
+  const clipDir = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-clip-target-'));
+  try {
+    const source = 'export function verifySessionToken(token: string) { return token.length > 10; }\n';
+    fs.writeFileSync(path.join(cwd, 'session.ts'), source);
+    const clipFile = path.join(clipDir, 'clipboard.txt');
+    const stdout = runTs(cli, ['context', 'verifySessionToken', '--copy'], {
+      cwd,
+      env: { ...process.env, FORGEAI_CLIPBOARD_FILE: clipFile }
+    });
+    assert.equal(stdout, '');
+    assert.match(fs.readFileSync(clipFile, 'utf8'), /verifySessionToken/);
+    assert.deepEqual(fs.readdirSync(cwd), ['session.ts']);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+    fs.rmSync(clipDir, { recursive: true, force: true });
+  }
+});
+
+test('context falls back to camelCase/snake_case declaration word-stem seed matching and traverses @/ aliases', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-context-alias-seed-'));
+  try {
+    fs.mkdirSync(path.join(cwd, 'src', 'lib'), { recursive: true });
+    fs.writeFileSync(
+      path.join(cwd, 'src', 'lib', 'tax.ts'),
+      'export function computeVatRate() { return 0.1; }\n'
+    );
+    fs.writeFileSync(
+      path.join(cwd, 'src', 'service.ts'),
+      "import { computeVatRate } from '@/lib/tax';\nexport class BillingEngine {\n  calculateProratedInvoice(amount: number) { return amount * (1 + computeVatRate()); }\n}\n"
+    );
+    const output = runTs(cli, ['context', 'fix prorated invoice', '--json'], { cwd });
+    const artifact = JSON.parse(output) as CompiledContextArtifact;
+    const selectedPaths = artifact.selection.files.map((f) => f.path);
+    assert.ok(selectedPaths.includes('src/service.ts'), 'seed must match camelCase method inside class');
+    assert.ok(selectedPaths.includes('src/lib/tax.ts'), 'dependency via @/lib/tax alias must be traversed');
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test('MCP server handles initialize, tools/list, and tools/call for context, try, quality, and diagnostics', () => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-mcp-test-'));
+  try {
+    fs.mkdirSync(path.join(cwd, 'src'), { recursive: true });
+    fs.writeFileSync(
+      path.join(cwd, 'src', 'auth.ts'),
+      'export function validateLoginRedirect(url: string) { return url.startsWith("/"); }\n'
+    );
+
+    const initRes = handleMcpRequest({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05' } }, cwd) as {
+      result: { protocolVersion: string; serverInfo: { name: string } };
+    };
+    assert.equal(initRes.result.protocolVersion, '2024-11-05');
+    assert.equal(initRes.result.serverInfo.name, 'forgeai-agentic-init');
+
+    assert.equal(handleMcpRequest({ jsonrpc: '2.0', method: 'notifications/initialized' }, cwd), null);
+
+    const listRes = handleMcpRequest({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, cwd) as {
+      result: { tools: Array<{ name: string }> };
+    };
+    assert.deepEqual(
+      listRes.result.tools.map((t) => t.name),
+      ['forgeai_context', 'forgeai_try', 'forgeai_check_quality', 'forgeai_diagnostics']
+    );
+
+    const ctxRes = handleMcpRequest(
+      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'forgeai_context', arguments: { objective: 'validateLoginRedirect' } } },
+      cwd
+    ) as { result: { isError: boolean; content: Array<{ text: string }> } };
+    assert.equal(ctxRes.result.isError, false);
+    assert.match(ctxRes.result.content[0].text, /validateLoginRedirect/);
+
+    const tryRes = handleMcpRequest(
+      { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'forgeai_try', arguments: { objective: 'validateLoginRedirect' } } },
+      cwd
+    ) as { result: { isError: boolean; content: Array<{ text: string }> } };
+    assert.equal(tryRes.result.isError, false);
+    assert.match(tryRes.result.content[0].text, /src\/auth\.ts/);
+
+    const qualRes = handleMcpRequest(
+      { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'forgeai_check_quality', arguments: { strict: true } } },
+      cwd
+    ) as { result: { isError: boolean; content: Array<{ text: string }> } };
+    assert.equal(qualRes.result.isError, false);
+    const qualReport = JSON.parse(qualRes.result.content[0].text) as { passed: boolean; functions_analyzed: number };
+    assert.equal(qualReport.passed, true);
+    assert.equal(qualReport.functions_analyzed, 1);
+  } finally {
+    fs.rmSync(cwd, { recursive: true, force: true });
+  }
 });

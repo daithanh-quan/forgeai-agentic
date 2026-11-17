@@ -275,6 +275,14 @@ export function checkDependencyGraphHealth(repositoryRoot: string, graph = readD
   return { status: 'ok', inventory };
 }
 
+export function loadOrGenerateDependencyGraph(repositoryRoot: string): DependencyGraph {
+  const existing = readDependencyGraph(repositoryRoot);
+  if (existing && checkDependencyGraphHealth(repositoryRoot, existing).status === 'ok') {
+    return existing;
+  }
+  return generateDependencyGraph(repositoryRoot);
+}
+
 export function runRefreshCodeGraph(): void {
   const curatedGraphPath = path.join(root, '.ai', 'codegraph', 'graph.json');
   if (!fs.existsSync(curatedGraphPath)) {
