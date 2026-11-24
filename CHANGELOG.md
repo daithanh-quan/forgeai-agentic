@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+## 3.19.0 — 2026-11-23
+
+### Concurrent session locking (Phase 17)
+
+- Add `--lock-session`, `--heartbeat-session`, and `--unlock-session` for atomic
+  write-scope lock acquisition, lease extension, and release under
+  `.ai/state/locks/<session>.json` (protected by an atomic `.gate.lock` mutex).
+- Enforce normalized file and directory prefix overlap checks across both
+  `.ai/state/locks/` (including linked `git worktree` checkouts) and active rows
+  in `.ai/state/sessions.md`, emitting worktree- and branch-aware conflict
+  messages when scopes collide.
+- Add lock ownership checks, configurable TTL expiry (`--ttl`), optional PID
+  liveness tracking (`--pid`), automatic stale-lock reclamation during lock
+  acquisition, and explicit `--check-sessions --recover-stale` cleanup while
+  keeping bare `--check-sessions` (and `--check-sessions --json`) strictly
+  read-only.
+- Integrate crash-safe session lock acquisition and release into `forgeai-init task`
+  when executing a CLI adapter, and exclude `.ai/state/locks/` from task safety
+  snapshots, out-of-scope file detection, and git tracking (`.gitignore` and
+  `--upgrade` preservation).
+
+### Context compiler: symbol-level caller analysis & project memory selection (Phase 10 completion)
+
+- Add symbol-level caller analysis in `compileContext`: identify target symbols
+  from objective-matched seed files and extract caller declarations in dependent
+  files (including private/non-exported callers) with `caller of "<symbol>"`
+  provenance and higher packing priority than generic dependent exports.
+- Pack task-applicable project memory sections from `.ai/MEMORY.md` into compiled
+  context artifacts (`context`, `--compile-context`, `task`, and `mcp`) when
+  populated memory entries match objective terms or reference selected file
+  paths, while skipping unpopulated `TODO` template sections.
+
 ## 3.18.0 — 2026-11-17
 
 - Add `forgeai-init mcp` (and `--mcp`) to run a built-in Model Context Protocol

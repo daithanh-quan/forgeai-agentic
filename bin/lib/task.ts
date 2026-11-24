@@ -14,6 +14,7 @@ import { compileContext, renderAgentAssignment, renderCompiledContextMarkdown } 
 import { routeToAdapter } from './router.js';
 import { createTaskReport, writeTaskReport } from './task-report.js';
 import { analyzeFilesQuality } from './code-quality.js';
+import { acquireSessionLock, LOCKS_RELATIVE_DIR, registerCrashSafeLockRelease } from './sessions.js';
 import type { Adapter, AdapterConfig, AgentResponse, CompiledContextArtifact, DependencyGraph } from './types.js';
 
 const CONTEXT_DIR = '.ai/state/context';
@@ -169,9 +170,13 @@ function pathMatchesScope(file: string, scope: string): boolean {
   return file === scope || file.startsWith(`${scope}/`);
 }
 
+function isSessionLockStatePath(file: string): boolean {
+  return file === LOCKS_RELATIVE_DIR || file.startsWith(`${LOCKS_RELATIVE_DIR}/`);
+}
+
 export function findOutOfScopePaths(changedPaths: Iterable<string>, writeScope: string[], internalPaths: Set<string>): string[] {
   return [...new Set(changedPaths)]
-    .filter((file) => !internalPaths.has(file) && !writeScope.some((scope) => pathMatchesScope(file, scope)))
+    .filter((file) => !internalPaths.has(file) && !isSessionLockStatePath(file) && !writeScope.some((scope) => pathMatchesScope(file, scope)))
     .sort();
 }
 
@@ -217,6 +222,7 @@ export function captureTaskSafetySnapshot(dependencyGraph: DependencyGraph, addi
   const aiPaths: string[] = [];
   collectFiles(path.join(root, '.ai'), root, aiPaths);
   for (const file of aiPaths) {
+    if (isSessionLockStatePath(file)) continue;
     const hash = sha256File(path.join(root, file));
     if (hash) aiFiles.set(file, hash);
   }
@@ -237,12 +243,13 @@ export function captureTaskSafetySnapshot(dependencyGraph: DependencyGraph, addi
 export function changedPathsSince(snapshot: TaskSafetySnapshot, dependencyGraph: DependencyGraph): string[] | null {
   const git = gitChangedPaths();
   if (!git.ok) return null;
-  const changed = new Set([...git.paths].filter((file) => !snapshot.gitPaths.has(file)));
+  const changed = new Set([...git.paths].filter((file) => !snapshot.gitPaths.has(file) && !isSessionLockStatePath(file)));
 
   const currentAi = new Map<string, string>();
   const aiPaths: string[] = [];
   collectFiles(path.join(root, '.ai'), root, aiPaths);
   for (const file of aiPaths) {
+    if (isSessionLockStatePath(file)) continue;
     const hash = sha256File(path.join(root, file));
     if (hash) currentAi.set(file, hash);
   }
@@ -540,17 +547,49 @@ export async function runTask(): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  writeArtifact(artifact, taskId);
-  if (!jsonMode) {
-    process.stdout.write(`${formatStatus('ok', `compiled context written to ${relativePath(artifactPath)}`)}\n`);
-    process.stdout.write(`${formatStatus('ok', `inspection Markdown written to ${relativePath(markdownPath)}`)}\n`);
+  const lockAcquisition = acquireSessionLock(
+    {
+      sessionId: taskId,
+      owner: selectedAdapter.name,
+      taskId,
+      objective: report.objective,
+      writeScope,
+      readScope: artifact.selection.files.map((f) => f.path),
+      pid: process.pid
+    },
+    root
+  );
+  if (!lockAcquisition.ok) {
+    process.stderr.write(`Error: write scope lock conflict — ${lockAcquisition.detail}\n`);
+    process.exitCode = 1;
+    saveReport(
+      'failed',
+      [],
+      [],
+      [],
+      `write scope lock conflict: ${lockAcquisition.detail}`,
+      'Wait for the conflicting session to finish, or run forgeai-init --check-sessions --recover-stale if the lock is stale.'
+    );
+    return;
   }
+  const releaseSession = registerCrashSafeLockRelease(taskId, selectedAdapter.name, root);
+  let agentResponse: AgentResponse | null | undefined;
+  let adapterFailed = false;
+  try {
+    writeArtifact(artifact, taskId);
+    if (!jsonMode) {
+      process.stdout.write(`${formatStatus('ok', `compiled context written to ${relativePath(artifactPath)}`)}\n`);
+      process.stdout.write(`${formatStatus('ok', `inspection Markdown written to ${relativePath(markdownPath)}`)}\n`);
+    }
 
-  const previousExitCode = process.exitCode;
-  process.exitCode = undefined;
-  const agentResponse = await routeToAdapter(artifact, artifactPath, selectedAdapter.name, selectedAdapter.model, root, false, jsonMode);
-  const adapterFailed = process.exitCode !== undefined && process.exitCode !== 0;
-  process.exitCode = previousExitCode;
+    const previousExitCode = process.exitCode;
+    process.exitCode = undefined;
+    agentResponse = await routeToAdapter(artifact, artifactPath, selectedAdapter.name, selectedAdapter.model, root, false, jsonMode);
+    adapterFailed = process.exitCode !== undefined && process.exitCode !== 0;
+    process.exitCode = previousExitCode;
+  } finally {
+    releaseSession();
+  }
 
   const changedPaths = changedPathsSince(snapshot, depGraph);
   if (changedPaths === null) {

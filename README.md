@@ -334,6 +334,8 @@ rate on your own tasks before automating execution.
 | `--watch` | Start the Ink terminal monitor |
 | `--check` | Validate the installed harness |
 | `--check-all` | Run all local ForgeAI gates |
+| `--check-sessions [--recover-stale]` | Validate active sessions and concurrent locks for overlapping write scopes or stale leases |
+| `--lock-session` / `--heartbeat-session` / `--unlock-session` | Atomically acquire, extend, and release worktree-aware write-scope locks |
 | `--check-upgrade` | Compare installed harness and CLI versions offline |
 | `--decompose` | Produce a scored task decomposition |
 | `--system-one-route --signals <file>` | Compose typed signals into a reasoning tier |

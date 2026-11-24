@@ -52,6 +52,36 @@ export type AgentSession = {
   notes: string;
 };
 
+export type SessionLockRecord = {
+  schema_version: 1;
+  kind: 'forgeai_session_lock';
+  session_id: string;
+  owner: string;
+  task_id: string | null;
+  objective: string | null;
+  branch: string | null;
+  worktree: string;
+  pid: number | null;
+  write_scope: string[];
+  read_scope: string[];
+  acquired_at: string;
+  heartbeat_at: string;
+  expires_at: string;
+  ttl_seconds: number;
+};
+
+export type SessionLockConflict = {
+  requested_scope: string;
+  conflicting_scope: string;
+  holder_id: string;
+  holder_source: 'lock' | 'sessions_table';
+  owner: string;
+  branch: string | null;
+  worktree: string;
+  expires_at: string | null;
+  detail: string;
+};
+
 export type TaskJournal = {
   file: string;
   taskId: string;
@@ -153,7 +183,7 @@ export type CompiledContextExcerpt = {
 };
 
 export type CompiledRuleSection = {
-  path: '.ai/RULES.md';
+  path: '.ai/RULES.md' | '.ai/MEMORY.md';
   heading: string;
   reason: string;
   source_start_line: number;

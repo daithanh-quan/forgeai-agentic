@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { AdapterConfig } from './types.js';
 import { root, templateDir } from './context.js';
 import { formatStatus, commandExists, countTodos, readJsonIfPresent, listFilesRecursive, getErrorMessage } from './utils.js';
-import { parseSessionTable, isUnfinishedSession } from './sessions.js';
+import { parseSessionTable, isUnfinishedSession, inspectSessionLocks } from './sessions.js';
 import { runCheckCodeGraph } from './codegraph.js';
 import { runCheckLifecycle } from './lifecycle.js';
 import { runCheckProfile } from './profiles.js';
@@ -84,7 +84,11 @@ export function runCheck(): void {
     missingRequired += 1;
   } else {
     const unfinishedSessions = parseSessionTable(fs.readFileSync(sessionsPath, 'utf8')).filter(isUnfinishedSession);
+    const locks = inspectSessionLocks(root, { includeLinkedWorktrees: false });
     console.log(formatStatus('ok', `.ai/state/sessions.md (${unfinishedSessions.length} active)`));
+    if (locks.active.length > 0 || locks.stale.length > 0) {
+      console.log(formatStatus('locks', `.ai/state/locks/ (${locks.active.length} active, ${locks.stale.length} stale)`));
+    }
     console.log(formatStatus('check', 'run forgeai-init --check-sessions before parallel agent work'));
   }
 

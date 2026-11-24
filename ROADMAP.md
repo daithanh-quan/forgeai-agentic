@@ -128,9 +128,10 @@ declaration names added to seed scoring in 3.3.x.
 
 ### Phase 10 - Context Compiler
 
-Status: TypeScript/JavaScript MVP implemented in 3.2.0. Applicable rule packing
-and read-only diagnostics are included; memory selection, symbol-level caller
-analysis, and additional language extractors remain open.
+Status: TypeScript/JavaScript MVP implemented in 3.2.0; Python, Go, and Rust
+extractors shipped in 3.11.0–3.13.0; applicable rule packing, read-only
+diagnostics, task-applicable project memory selection (`.ai/MEMORY.md`), and
+symbol-level caller analysis across dependent files shipped by 3.19.0.
 
 Turn selected files into the actual bounded payload given to a model.
 
@@ -329,17 +330,17 @@ Deferred follow-ups:
 - **Phase 16.5 (shipped in 3.12.0)** — Zero-to-value `try` subcommand: read-only context selection preview with no initialization required. Detects languages, runs objective-matched selection, and prints an included-file table with a three-step install CTA. No file writes, no network calls after local package availability, no `.ai/` dependency.
 - **Phase 16.6 (shipped in 3.12.0)** — Quantified Context Proof. `try` output shows exclusion ratio (`~42 KB of ~380 KB indexed source  (89% excluded)`); state-aware CTA with 6 states (`uninitialized`, `graph-unreadable`, `needs-reinit`, `needs-graph`, `needs-refresh`, `ready`); `--repair-codegraph` for atomic template-restore of a malformed `graph.json`; `--compile-context --output` prints source scope before token estimate; `--check-codegraph` null-node guards.
 
-### Phase 17 - Concurrent session locking
+### Phase 17 - Concurrent session locking ✓ Shipped in 3.19.0
 
 Extend the existing write-scope overlap detection with active coordination.
 
 Deliverables:
 
-- Atomic lock acquisition for files or normalized scope prefixes.
-- Ownership, expiry, heartbeat, and stale-lock recovery.
-- Worktree-aware conflict messages.
-- Crash-safe release without treating a lock file as source code state.
-- Keep `--check-sessions` as the read-only validation and recovery surface.
+- Atomic lock acquisition for files or normalized scope prefixes (`--lock-session`, `.ai/state/locks/<session>.json`). ✓
+- Ownership, expiry, heartbeat (`--heartbeat-session`), and stale-lock recovery (expired TTL and dead-PID detection). ✓
+- Worktree-aware conflict messages across linked git worktrees. ✓
+- Crash-safe release (`--unlock-session` and automatic `task` lock lifecycle) without treating a lock file as source code state. ✓
+- Keep `--check-sessions` as the read-only validation and recovery (`--recover-stale`) surface. ✓
 
 ---
 
