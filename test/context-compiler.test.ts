@@ -229,3 +229,73 @@ test('compile-context rejects a malformed --task', () => {
     fs.rmSync(target, { recursive: true, force: true });
   }
 });
+
+test('compile-context extracts private and exported symbol-level callers in dependent files and packs matching .ai/MEMORY.md entries', () => {
+  const target = fs.mkdtempSync(path.join(os.tmpdir(), 'forgeai-compile-callers-memory-'));
+  try {
+    initializeFixture(target);
+    // Add a dependent file that imports formatDiagnostics from diagnostics.ts
+    // with a private caller function and an unrelated exported function.
+    fs.writeFileSync(
+      path.join(target, 'src', 'controller.ts'),
+      [
+        "import { formatDiagnostics } from './diagnostics.js';",
+        'function internalCallerHelper() {',
+        '  return formatDiagnostics();',
+        '}',
+        'export function unrelatedControllerExport() {',
+        '  return "noop";',
+        '}'
+      ].join('\n') + '\n'
+    );
+    // Populate .ai/MEMORY.md with one matching decision (referencing src/diagnostics.ts)
+    // and one unrelated decision, plus an unfilled TODO section.
+    fs.writeFileSync(
+      path.join(target, '.ai', 'MEMORY.md'),
+      [
+        '<!-- forgeai-memory: max-age-days=180 -->',
+        '# Project Memory',
+        '',
+        '## Architecture decisions',
+        '',
+        '### 2026-11-20 — Diagnostics output contract',
+        '- **Decision:** Keep `src/diagnostics.ts` deterministic and side-effect free.',
+        '- **Why:** Downstream callers parse diagnostic strings directly.',
+        '- **Impact:** All callers of `formatDiagnostics` rely on stable string formatting.',
+        '',
+        '### 2026-11-21 — Billing webhook retry policy',
+        '- **Decision:** Retry billing webhooks up to 3 times.',
+        '- **Why:** Payment gateway timeouts.',
+        '- **Impact:** Billing workers only.',
+        '',
+        '## Business rules',
+        '- TODO: Unfilled template placeholder must be ignored.'
+      ].join('\n') + '\n'
+    );
+    runTs(cli, ['--refresh-codegraph'], { cwd: target });
+
+    const result = runCompile(target, ['--objective', 'update formatDiagnostics output', '--budget', '6000']);
+    assert.equal(result.failed, false);
+    const artifact = JSON.parse(result.output) as CompiledContextArtifact;
+
+    // 1. Private caller function in dependent file src/controller.ts is extracted with caller provenance
+    const privateCaller = artifact.excerpts.find(
+      (e) => e.path === 'src/controller.ts' && e.name === 'internalCallerHelper'
+    );
+    assert.ok(privateCaller, 'private caller in dependent file must be extracted');
+    assert.match(privateCaller.reason, /caller of "formatDiagnostics"/);
+
+    // 2. Private caller is packed ahead of unrelated export in dependent file
+    const callerIdx = artifact.excerpts.findIndex((e) => e.name === 'internalCallerHelper');
+    const unrelatedIdx = artifact.excerpts.findIndex((e) => e.name === 'unrelatedControllerExport');
+    assert.ok(callerIdx !== -1 && (unrelatedIdx === -1 || callerIdx < unrelatedIdx));
+
+    // 3. Applicable memory decision from .ai/MEMORY.md is packed; unrelated decision and TODO section are excluded
+    const memoryRules = artifact.rules.filter((r) => r.path === '.ai/MEMORY.md');
+    assert.equal(memoryRules.length, 1);
+    assert.match(memoryRules[0].heading, /Diagnostics output contract/);
+    assert.match(memoryRules[0].reason, /src\/diagnostics\.ts/);
+  } finally {
+    fs.rmSync(target, { recursive: true, force: true });
+  }
+});

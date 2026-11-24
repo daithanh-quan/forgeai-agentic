@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { CompiledDiagnostics, CompiledRuleSection } from './types.js';
+import { symbolMatchesObjective } from './symbol-matching.js';
 import { runCommand } from './utils.js';
 import { templateDir } from './context.js';
 
@@ -99,6 +100,94 @@ export function selectApplicableRules(repositoryRoot: string, objectiveTerms: st
     seen.add(rule.content);
     return true;
   });
+}
+
+function parseMemoryBlocks(content: string): MarkdownSection[] {
+  const lines = content.split(/\r?\n/);
+  const blocks: MarkdownSection[] = [];
+  for (const section of parseRuleSections(content)) {
+    if (section.heading.toLowerCase() === 'how to use this file') continue;
+    if (section.heading.toLowerCase() !== 'architecture decisions') {
+      blocks.push(section);
+      continue;
+    }
+    const subStarts: Array<{ index: number; heading: string }> = [];
+    for (let i = section.startLine; i < section.endLine; i += 1) {
+      const sub = lines[i]?.match(/^###\s+(.+?)\s*$/);
+      if (sub) subStarts.push({ index: i, heading: sub[1] });
+    }
+    if (subStarts.length === 0) {
+      blocks.push(section);
+      continue;
+    }
+    for (let idx = 0; idx < subStarts.length; idx += 1) {
+      const start = subStarts[idx];
+      const endLine = subStarts[idx + 1]?.index ?? section.endLine;
+      blocks.push({
+        heading: `Architecture decision: ${start.heading}`,
+        startLine: start.index + 1,
+        endLine,
+        content: lines.slice(start.index, endLine).join('\n').trim()
+      });
+    }
+  }
+  return blocks;
+}
+
+function isUnpopulatedMemoryBlock(block: MarkdownSection): boolean {
+  return /\bTODO\b/.test(block.content) || /\bYYYY-MM-DD\b/.test(block.heading) || /\bYYYY-MM-DD\b/.test(block.content);
+}
+
+function findReferencedSelectedPath(content: string, selectedFiles: string[]): string | null {
+  if (selectedFiles.length === 0) return null;
+  const lowerContent = content.toLowerCase();
+  for (const filePath of selectedFiles) {
+    const normalized = filePath.toLowerCase();
+    if (lowerContent.includes(normalized)) return filePath;
+  }
+  for (const match of content.matchAll(/`([^`]+)`/g)) {
+    const token = match[1].trim().replace(/^\.\//, '').replace(/\/+$/, '');
+    if (token.length < 3 || token.includes('*')) continue;
+    const hit = selectedFiles.find((file) => file === token || file.startsWith(`${token}/`));
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function memoryMatchReason(block: MarkdownSection, objectiveTerms: string[], selectedFiles: string[]): string | null {
+  const pathHit = findReferencedSelectedPath(block.content, selectedFiles);
+  if (pathHit) return `project memory references selected path "${pathHit}"`;
+  if (objectiveTerms.length === 0) return null;
+  if (symbolMatchesObjective([block.heading], objectiveTerms)) return 'project memory heading matched objective';
+  const lowerBody = block.content.toLowerCase();
+  const matchedTerm = objectiveTerms.find((term) => term.length >= 4 && lowerBody.includes(term));
+  return matchedTerm ? `project memory matched objective term "${matchedTerm}"` : null;
+}
+
+export function selectApplicableMemory(
+  repositoryRoot: string,
+  objectiveTerms: string[],
+  selectedFiles: string[] = []
+): CompiledRuleSection[] {
+  const relativePath = '.ai/MEMORY.md' as const;
+  const absolutePath = path.join(repositoryRoot, relativePath);
+  if (!fs.existsSync(absolutePath)) return [];
+  const blocks = parseMemoryBlocks(fs.readFileSync(absolutePath, 'utf8'));
+  const selected: CompiledRuleSection[] = [];
+  for (const block of blocks) {
+    if (isUnpopulatedMemoryBlock(block)) continue;
+    const reason = memoryMatchReason(block, objectiveTerms, selectedFiles);
+    if (!reason) continue;
+    selected.push({
+      path: relativePath,
+      heading: `Memory — ${block.heading}`,
+      reason,
+      source_start_line: block.startLine,
+      source_end_line: block.endLine,
+      content: block.content
+    });
+  }
+  return selected;
 }
 
 function parseStatus(raw: string): {

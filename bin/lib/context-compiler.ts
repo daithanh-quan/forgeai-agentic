@@ -12,7 +12,8 @@ import {
 import { type SourceDeclaration, type SourceAnalysis } from './source-analysis.js';
 import { parserForFile } from './language-registry.js';
 import { symbolMatchesObjective } from './symbol-matching.js';
-import { collectDiagnostics, selectApplicableRules } from './context-inputs.js';
+import { stripCommentsAndStrings } from './code-quality.js';
+import { collectDiagnostics, selectApplicableMemory, selectApplicableRules } from './context-inputs.js';
 import {
   checkDependencyGraphHealth,
   readDependencyGraph
@@ -124,10 +125,62 @@ function wholeFileExcerpt(repositoryRoot: string, selected: SelectedContextNode)
   };
 }
 
+function findCalledTargetSymbol(
+  declarationSource: string,
+  declarationName: string,
+  targetSymbols: ReadonlySet<string>
+): string | null {
+  if (targetSymbols.size === 0) return null;
+  const sanitized = stripCommentsAndStrings(declarationSource);
+  for (const symbol of targetSymbols) {
+    if (symbol === declarationName || symbol.length < 3 || BODY_SYNTAX_TERMS.has(symbol.toLowerCase())) continue;
+    const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp(`\\b${escaped}\\b`).test(sanitized)) return symbol;
+  }
+  return null;
+}
+
+function addMatchingSeedDeclarations(
+  repositoryRoot: string,
+  selected: SelectedContextNode,
+  terms: string[],
+  bodyTerms: string[],
+  symbols: Set<string>
+): void {
+  try {
+    const content = readVerifiedSource(repositoryRoot, selected.node);
+    const analysis = analyzeRegisteredSource(content, selected.node.path);
+    for (const decl of analysis.declarations) {
+      if (decl.name.length < 3) continue;
+      const matched = symbolMatchesObjective(decl.search_names, terms)
+        || matchesTerms([content.slice(decl.start, decl.end)], bodyTerms);
+      if (matched) symbols.add(decl.name);
+    }
+  } catch { /* hash verification handled in candidatesForFile */ }
+}
+
+function collectSeedTargetSymbols(
+  repositoryRoot: string,
+  selectedNodes: SelectedContextNode[],
+  terms: string[]
+): Set<string> {
+  const symbols = new Set<string>();
+  const bodyTerms = terms.filter((term) => !BODY_SYNTAX_TERMS.has(term));
+  for (const selected of selectedNodes) {
+    if (selected.depth !== 0) continue;
+    for (const exp of selected.node.exports) {
+      if (exp.length >= 3 && !BODY_SYNTAX_TERMS.has(exp.toLowerCase())) symbols.add(exp);
+    }
+    addMatchingSeedDeclarations(repositoryRoot, selected, terms, bodyTerms, symbols);
+  }
+  return symbols;
+}
+
 function candidatesForFile(
   repositoryRoot: string,
   selected: SelectedContextNode,
-  terms: string[]
+  terms: string[],
+  seedTargetSymbols: ReadonlySet<string> = new Set()
 ): ExcerptCandidate[] {
   const absolutePath = path.join(repositoryRoot, selected.node.path);
   const content = fs.readFileSync(absolutePath, 'utf8');
@@ -138,6 +191,7 @@ function candidatesForFile(
   const candidates: ExcerptCandidate[] = [];
   const declarationSpans = analysis.declarations.map((declaration) => [declaration.start, declaration.end] as const);
   const bodyTerms = terms.filter((term) => !BODY_SYNTAX_TERMS.has(term));
+  const isDependentFile = selected.depth > 0 && /^dependent of /.test(selected.reason);
 
   for (const sourceImport of analysis.imports) {
     if (declarationSpans.some(([start, end]) => start <= sourceImport.start && sourceImport.end <= end)) continue;
@@ -160,19 +214,24 @@ function candidatesForFile(
   }
 
   for (const declaration of analysis.declarations) {
+    const declarationSlice = content.slice(declaration.start, declaration.end);
     const objectiveMatch = symbolMatchesObjective(declaration.search_names, terms);
     // Search bodies only within objective-selected files. This can recover a
     // fallback branch even when its enclosing function has a different name.
     const bodyMatch = selected.depth === 0
-      && matchesTerms([content.slice(declaration.start, declaration.end)], bodyTerms);
+      && matchesTerms([declarationSlice], bodyTerms);
+    const calledSymbol = isDependentFile
+      ? findCalledTargetSymbol(declarationSlice, declaration.name, seedTargetSymbols)
+      : null;
     const isSelectedTest = declaration.kind === 'test' && /^test validating /.test(selected.reason);
-    if (!objectiveMatch && !bodyMatch && !declaration.exported && !isSelectedTest) continue;
+    if (!objectiveMatch && !bodyMatch && !calledSymbol && !declaration.exported && !isSelectedTest) continue;
     const reason = objectiveMatch
       ? `objective matched ${declaration.kind} "${declaration.name}"`
       : bodyMatch ? `objective term found in ${declaration.kind} "${declaration.name}" source`
-        : `${declaration.kind} retained from ${selected.reason}`;
+        : calledSymbol ? `caller of "${calledSymbol}" (${selected.reason})`
+          : `${declaration.kind} retained from ${selected.reason}`;
     const priority = declaration.kind === 'test' ? 2
-      : objectiveMatch ? 0 : bodyMatch ? 1 : selected.depth === 0 ? 2 : 4;
+      : objectiveMatch ? 0 : bodyMatch ? 1 : selected.depth === 0 ? 2 : calledSymbol ? 3 : 4;
     candidates.push({
       priority,
       full: excerptFromDeclaration(selected, declaration, content, 'full', reason),
@@ -258,12 +317,19 @@ export function compileContext(
   const selection = selectContextForObjective(objective, curatedGraph, dependencyGraph, { maxNodes, maxDepth, rules: exclusionRules, includeGlobs });
   const contracts = Array.from(new Set(selection.curated.flatMap((node) => node.public_contracts ?? []))).sort();
   const entrypoints = Array.from(new Set(selection.curated.flatMap((node) => node.entrypoints ?? []))).sort();
-  const rules = selectApplicableRules(repositoryRoot, selection.terms);
+  const selectedPaths = selection.selected.map((s) => s.node.path);
+  const rules = [
+    ...selectApplicableRules(repositoryRoot, selection.terms),
+    ...selectApplicableMemory(repositoryRoot, selection.terms, selectedPaths)
+  ];
   const diagnostics = collectDiagnostics(repositoryRoot);
   const selectionRank = new Map(selection.selected.map((selected, index) => [selected.node.path, index]));
+  const seedTargetSymbols = mode === 'compact'
+    ? collectSeedTargetSymbols(repositoryRoot, selection.selected, selection.terms)
+    : new Set<string>();
   const candidates = mode === 'compact'
     ? deduplicateCandidates(
-        selection.selected.flatMap((selected) => candidatesForFile(repositoryRoot, selected, selection.terms))
+        selection.selected.flatMap((selected) => candidatesForFile(repositoryRoot, selected, selection.terms, seedTargetSymbols))
       ).sort((a, b) =>
         a.priority - b.priority
         || selectionRank.get(a.full.path)! - selectionRank.get(b.full.path)!

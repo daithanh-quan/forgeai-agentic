@@ -59,8 +59,13 @@ Example:
 | agt-p8-worktree | codex | write worktree-strategy.md | feat/p8-worktree | active | 2026-07-06 | .ai/WORKFLOW.md | .ai/workflows/worktree-strategy.md | independent |
 ```
 
-**4. Run `--check-sessions` again** to confirm no overlap before launching
-the delegated model.
+**4. Acquire an atomic session lock and run `--check-sessions`** to enforce
+non-overlapping write scopes across worktrees before launching the delegated model:
+
+```bash
+forgeai-init --lock-session --session agt-p8-worktree --owner codex --write-scope .ai/workflows/worktree-strategy.md
+forgeai-init --check-sessions
+```
 
 ## Running parallel agents
 
@@ -108,7 +113,10 @@ git worktree remove ../.worktrees/<slug>
 git branch -d feat/<slug>
 ```
 
-Update `.ai/state/sessions.md` — mark the session row `done` or remove it.
+Update `.ai/state/sessions.md` — mark the session row `done` or remove it — and
+release any active lock with `forgeai-init --unlock-session --session <id>`.
+If a session crashed or expired, recover stale locks with
+`forgeai-init --check-sessions --recover-stale`.
 If the session was the last active one, run `--check-sessions` once more to
 confirm the file is clean.
 

@@ -20,7 +20,10 @@ export function usage(): string {
   forgeai-init --check-updates
   forgeai-init --check-upgrade
   forgeai-init --check-git
-  forgeai-init --check-sessions
+  forgeai-init --check-sessions [--recover-stale] [--json]
+  forgeai-init --lock-session --session <id> --write-scope <path[,path...]> [--read-scope <path[,path...]>] [--owner <name>] [--task <id>] [--branch <name>] [--worktree <path>] [--ttl <seconds>] [--pid <pid>] [--force] [--json]
+  forgeai-init --heartbeat-session --session <id> [--owner <name>] [--ttl <seconds>] [--pid <pid>] [--force] [--json]
+  forgeai-init --unlock-session --session <id> [--owner <name>] [--force] [--json]
   forgeai-init --check-lifecycle
   forgeai-init --check-codegraph [--strict]
   forgeai-init --refresh-codegraph
@@ -88,8 +91,20 @@ Options:
                 cli-too-old (harness newer, exits 1). No network access —
                 suitable for CI use.
   --check-git   Validate git branch, worktree, remote, hooks, and PR/MR tooling.
-  --check-sessions
-                Validate active agent sessions for overlapping write scopes.
+  --check-sessions [--recover-stale] [--json]
+                Validate active agent sessions and concurrent locks for
+                overlapping write scopes, expired TTLs, or dead PIDs. Read-only
+                by default; add --recover-stale to remove stale locks.
+  --lock-session
+                Atomically acquire a write-scope lock for files or normalized
+                scope prefixes under .ai/state/locks/<session>.json. Rejects
+                overlapping active scopes across worktrees with conflict details
+                and automatically reclaims stale overlapping locks.
+  --heartbeat-session
+                Extend an active session lock's expiry timestamp (--session <id>,
+                optional --owner, --ttl, --pid, --force).
+  --unlock-session
+                Release a session lock (--session <id>, optional --owner, --force).
   --check-lifecycle
                 Validate lifecycle state files and task journals.
   --check-codegraph
@@ -282,6 +297,9 @@ export function isPreservedOnUpgrade(dest: string): boolean {
   if (/^\.ai\/state\/context-escapes\/.+\.json$/.test(relative)) {
     return true;
   }
+  if (/^\.ai\/state\/locks\/.+\.json$/.test(relative)) {
+    return true;
+  }
   return false;
 }
 
@@ -336,7 +354,7 @@ export function copyRecursive(src: string, dest: string): void {
   console.log(`created ${relativePath}`);
 }
 
-const CONTEXT_GITIGNORE_ENTRIES = ['.ai/state/context/', '.ai/state/context-routes.md', '.ai/state/runs/', '.ai/state/evaluations/', '.ai/state/context-escapes/', '.forgeai.pipe'];
+const CONTEXT_GITIGNORE_ENTRIES = ['.ai/state/context/', '.ai/state/context-routes.md', '.ai/state/runs/', '.ai/state/evaluations/', '.ai/state/context-escapes/', '.ai/state/locks/', '.forgeai.pipe'];
 
 export function maintainContextGitignore(repositoryRoot: string, isDryRun: boolean): void {
   const gitignorePath = path.join(repositoryRoot, '.gitignore');

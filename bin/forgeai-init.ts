@@ -5,6 +5,9 @@ import {
   listProfiles,
   checkGit,
   checkSessions,
+  lockSession,
+  heartbeatSession,
+  unlockSession,
   checkLifecycle,
   checkCodeGraph,
   refreshCodeGraph,
@@ -53,7 +56,7 @@ import { getPackageVersion } from './lib/utils.js';
 import { getAvailableProfiles, runCheckProfile } from './lib/profiles.js';
 import { runAddModel, runListModels, runRemoveModel } from './lib/model-routing.js';
 import { runUpdatePreflight, runCheckUpgrade } from './lib/update-check.js';
-import { runCheckSessions } from './lib/sessions.js';
+import { runCheckSessions, runLockSession, runHeartbeatSession, runUnlockSession } from './lib/sessions.js';
 import { runCheckLifecycle } from './lib/lifecycle.js';
 import { runCheckCodeGraph } from './lib/codegraph.js';
 import { runRefreshCodeGraph } from './lib/dependency-graph.js';
@@ -90,7 +93,7 @@ runUpdatePreflight();
 // order of the chain below (every command that appears before `evaluate`).
 if (overrideFlag) {
   const commandsBeforeEvaluate = [
-    help, version, listProfiles, checkGit, checkSessions, checkLifecycle, checkCodeGraph,
+    help, version, listProfiles, checkGit, checkSessions, lockSession, heartbeatSession, unlockSession, checkLifecycle, checkCodeGraph,
     refreshCodeGraph, checkProfile, checkReview, checkQuality, checkSecurity, checkMemory, checkAll,
     check, checkUpdates, addModel, listModels, removeModel, decompose, systemOneRoute, contextPack,
     compileContext, checkApproval, checkEvaluation, statusSummary, diffSummary,
@@ -110,6 +113,9 @@ else if (mcpSubcommand) runMcp();
 else if (listProfiles) console.log(['base', ...getAvailableProfiles()].join('\n'));
 else if (checkGit) runObservedCheck('git', runCheckGit);
 else if (checkSessions) runObservedCheck('sessions', runCheckSessions);
+else if (lockSession) runLockSession();
+else if (heartbeatSession) runHeartbeatSession();
+else if (unlockSession) runUnlockSession();
 else if (checkLifecycle) runObservedCheck('lifecycle', runCheckLifecycle);
 else if (checkCodeGraph) runObservedCheck('codegraph', () => runCheckCodeGraph({ strict }));
 else if (refreshCodeGraph) runRefreshCodeGraph();

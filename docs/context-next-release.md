@@ -1,6 +1,6 @@
 # Next release: useful context before initialization
 
-Version: 3.18.0. See the [packaged CLI trial](context-3.16.0-trial.md) for
+Version: 3.19.0. See the [packaged CLI trial](context-3.16.0-trial.md) for
 observed retrieval limitations and the next improvement to evaluate.
 
 ## Retrieval follow-up (2026-10-13, unreleased)

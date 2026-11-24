@@ -40,13 +40,13 @@ export function validateArgFlag(name: string, argv: string[]): string | null {
 // Eagerly validate value-requiring flags at module load: rejects bare flags, empty/whitespace values,
 // values starting with "--", and duplicate occurrences. Value check runs before the duplicate count
 // so a bare trailing flag reports the most actionable error ("requires a value", not "specified more than once").
-for (const name of ['--profile', '--emit', '--adapter', '--model', '--task', '--mode', '--experiment', '--min-samples', '--outcome', '--reason', '--by', '--include-excluded', '--write-scope', '--payload', '--output', '--signals'] as const) {
+for (const name of ['--profile', '--emit', '--adapter', '--model', '--task', '--mode', '--experiment', '--min-samples', '--outcome', '--reason', '--by', '--include-excluded', '--write-scope', '--read-scope', '--payload', '--output', '--signals', '--session', '--owner', '--branch', '--worktree', '--ttl', '--pid'] as const) {
   const err = validateArgFlag(name, rawArgs);
   if (err) { process.stderr.write(`${err}\n`); process.exit(1); }
 }
 
 // Boolean flags carry no value and must appear at most once, never as --flag=...
-for (const name of ['--clear-outcome', '--yes', '--json', '--no-check'] as const) {
+for (const name of ['--clear-outcome', '--yes', '--json', '--no-check', '--lock-session', '--heartbeat-session', '--unlock-session', '--recover-stale'] as const) {
   const bare = rawArgs.filter((a) => a === name).length;
   const withValue = rawArgs.some((a) => a.startsWith(`${name}=`));
   if (withValue || bare > 1) {
@@ -71,6 +71,10 @@ export const dryRun = args.has('--dry-run');
 export const check = args.has('--check');
 export const checkGit = args.has('--check-git');
 export const checkSessions = args.has('--check-sessions');
+export const lockSession = args.has('--lock-session');
+export const heartbeatSession = args.has('--heartbeat-session');
+export const unlockSession = args.has('--unlock-session');
+export const recoverStale = args.has('--recover-stale');
 export const checkLifecycle = args.has('--check-lifecycle');
 export const checkCodeGraph = args.has('--check-codegraph');
 export const refreshCodeGraph = args.has('--refresh-codegraph');
@@ -107,6 +111,9 @@ export const skipUpdateCheck =
   || args.has('--compile-context')
   || args.has('--expand-context')
   || args.has('--system-one-route')
+  || args.has('--lock-session')
+  || args.has('--heartbeat-session')
+  || args.has('--unlock-session')
   || args.has('--watch')
   || args.has('--emit');
 export const contextSubcommand = rawArgs[0] === 'context';

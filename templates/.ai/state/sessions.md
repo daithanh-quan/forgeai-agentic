@@ -22,3 +22,8 @@ for short-lived coordination only; durable decisions belong in `.ai/MEMORY.md`.
   but keep the write scope narrow.
 - The orchestrator runs `forgeai-init --check-sessions` before launching
   parallel delegated work or before resuming after a long pause.
+- For active runtime enforcement across parallel terminals or git worktrees,
+  acquire an atomic lock with `forgeai-init --lock-session --session <id> --write-scope <paths>`,
+  extend long runs with `--heartbeat-session --session <id>`, and release with
+  `--unlock-session --session <id>` (or recover expired/crashed locks via
+  `forgeai-init --check-sessions --recover-stale`).

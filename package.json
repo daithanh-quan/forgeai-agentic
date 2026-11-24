@@ -1,6 +1,6 @@
 {
   "name": "forgeai-agentic-init",
-  "version": "3.18.0",
+  "version": "3.19.0",
   "description": "Deterministic code context compiler, MCP server, and AI guardrails for agentic coding workflows.",
   "type": "module",
   "bin": {

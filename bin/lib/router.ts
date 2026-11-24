@@ -107,7 +107,7 @@ export function checkArtifactStructure(raw: unknown): string | null {
   for (const rule of a.rules as unknown[]) {
     if (typeof rule !== 'object' || rule === null) return 'rules items must be objects';
     const r = rule as Record<string, unknown>;
-    if (r.path !== '.ai/RULES.md') return "rules[].path must be '.ai/RULES.md'";
+    if (r.path !== '.ai/RULES.md' && r.path !== '.ai/MEMORY.md') return "rules[].path must be '.ai/RULES.md' or '.ai/MEMORY.md'";
     if (typeof r.heading !== 'string') return 'rules[].heading must be a string';
     if (typeof r.reason !== 'string') return 'rules[].reason must be a string';
     if (!isPositiveInteger(r.source_start_line)) return 'rules[].source_start_line must be a positive integer';
