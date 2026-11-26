@@ -91,6 +91,7 @@ Available MCP tools:
 - `forgeai_try`: Preview matching source files and exclusion ratios before reading files.
 - `forgeai_check_quality`: Check modified or specified files for cyclomatic complexity (`< 10`), LCOV CRAP score (`< 10`), and structural duplication (`< 0.8`).
 - `forgeai_diagnostics`: Return compact git status and diff summaries.
+- `forgeai_code`: Execute a JavaScript Code Mode script inside an isolated VM sandbox to chain and filter multiple ForgeAI tools (`try`, `context`, `expandContext`, `checkQuality`, `diagnostics`, `graph`) in a single turn.
 
 ## Why ForgeAI
 

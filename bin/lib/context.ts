@@ -16,23 +16,25 @@ export const args = new Set(rawArgs);
 
 // Exported so unit tests can call it with arbitrary arg arrays without spawning a child process.
 // Returns null if valid, or an error string if invalid.
+function checkFlagValueToken(name: string, val: string | undefined, isBare: boolean): string | null {
+  if (val === undefined || (isBare && val.startsWith('--'))) return `${name} requires a value`;
+  if (val.trim() === '') return isBare ? `${name} requires a non-whitespace value` : `${name} requires a value`;
+  if (!isBare && val.startsWith('--')) return `${name} value must not start with "--"`;
+  return null;
+}
+
 export function validateArgFlag(name: string, argv: string[]): string | null {
   let occurrences = 0;
-  for (let _i = 0; _i < argv.length; _i++) {
-    const arg = argv[_i];
-    if (arg === name) {
-      const next = argv[_i + 1];
-      if (next === undefined || next.startsWith('--')) return `${name} requires a value`;
-      if (next.trim() === '') return `${name} requires a non-whitespace value`;
-      occurrences++;
-      if (occurrences > 1) return `${name} cannot be specified more than once`;
-    } else if (arg.startsWith(`${name}=`)) {
-      const val = arg.slice(name.length + 1);
-      if (val === '' || val.trim() === '') return `${name} requires a value`;
-      if (val.startsWith('--')) return `${name} value must not start with "--"`;
-      occurrences++;
-      if (occurrences > 1) return `${name} cannot be specified more than once`;
-    }
+  const prefix = `${name}=`;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    const isBare = arg === name;
+    if (!isBare && !arg.startsWith(prefix)) continue;
+    const rawVal = isBare ? argv[i + 1] : arg.slice(prefix.length);
+    const err = checkFlagValueToken(name, rawVal, isBare);
+    if (err) return err;
+    occurrences += 1;
+    if (occurrences > 1) return `${name} cannot be specified more than once`;
   }
   return null;
 }
@@ -46,7 +48,7 @@ for (const name of ['--profile', '--emit', '--adapter', '--model', '--task', '--
 }
 
 // Boolean flags carry no value and must appear at most once, never as --flag=...
-for (const name of ['--clear-outcome', '--yes', '--json', '--no-check', '--lock-session', '--heartbeat-session', '--unlock-session', '--recover-stale'] as const) {
+for (const name of ['--clear-outcome', '--yes', '--json', '--no-check', '--code-mode', '--lock-session', '--heartbeat-session', '--unlock-session', '--recover-stale'] as const) {
   const bare = rawArgs.filter((a) => a === name).length;
   const withValue = rawArgs.some((a) => a.startsWith(`${name}=`));
   if (withValue || bare > 1) {
@@ -127,6 +129,7 @@ export const emitPayload = getArgValue('--emit');
 export const validateArtifact = args.has('--validate-artifact');
 export const route = args.has('--route');
 export const stream = args.has('--stream');
+export const codeMode = args.has('--code-mode');
 export const expandContext = args.has('--expand-context');
 export const listRuns = args.has('--list-runs');
 export const evaluate = args.has('--evaluate');

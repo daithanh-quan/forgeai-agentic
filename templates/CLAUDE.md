@@ -19,6 +19,10 @@ npx forgeai-agentic-init --check-upgrade
 
 If `--check-upgrade` reports an outdated harness, ask the human whether to skip for now or upgrade (`npx forgeai-agentic-init@latest --upgrade`).
 
+### MCP Code Mode (`forgeai_code`)
+
+When connected to the ForgeAI MCP server (`forgeai-init mcp`), prefer the `forgeai_code` tool for multi-step investigation. It runs a JavaScript snippet inside an isolated sandbox where you can chain `forgeai.try()`, `forgeai.context()`, `forgeai.symbols()`, `forgeai.callers()`, `forgeai.expandContext()`, and `forgeai.checkQuality()` in a single turn and `return` only the filtered excerpts or metrics you need.
+
 ## Full Harness Read Order
 
 For architectural, multi-step, or delegated tasks, read these files in order:

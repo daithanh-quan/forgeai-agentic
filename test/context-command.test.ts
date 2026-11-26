@@ -173,7 +173,7 @@ test('MCP server handles initialize, tools/list, and tools/call for context, try
     };
     assert.deepEqual(
       listRes.result.tools.map((t) => t.name),
-      ['forgeai_context', 'forgeai_try', 'forgeai_check_quality', 'forgeai_diagnostics']
+      ['forgeai_context', 'forgeai_try', 'forgeai_check_quality', 'forgeai_diagnostics', 'forgeai_code']
     );
 
     const ctxRes = handleMcpRequest(

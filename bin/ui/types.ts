@@ -48,4 +48,8 @@ export type ForgeEvent = {
   output_tokens?: number | null;
   latency_ms?: number;
   retry_count?: number;
+  round?: number;
+  operations?: string[];
+  changed_files?: string[];
+  ok?: boolean;
 };
