@@ -1,6 +1,6 @@
 import readline from 'node:readline';
 import { root } from './context.js';
-import { analyzeFilesQuality, discoverTargetQualityFiles } from './code-quality.js';
+import { clampBoundedInt, executeCodeMode, FORGEAI_CODE_MODE_DTS, runQualityForOptions } from './code-mode.js';
 import { compileContextForObjective, formatContextCommandOutput } from './context-command.js';
 import { normalizeCuratedGraph, tryReadCuratedCodeGraph } from './context-pack.js';
 import { loadOrGenerateDependencyGraph } from './dependency-graph.js';
@@ -68,20 +68,36 @@ const MCP_TOOLS = [
       type: 'object',
       properties: {}
     }
+  },
+  {
+    name: 'forgeai_code',
+    description:
+      `Execute a JavaScript Code Mode script in an isolated sandbox to chain and filter multiple ForgeAI tools (try, context, expandContext, checkQuality, diagnostics, graph) in a single turn without bloating context. Use 'return' or a final expression to emit the distilled result.\n\n${FORGEAI_CODE_MODE_DTS}`,
+    inputSchema: {
+      type: 'object',
+      properties: {
+        code: {
+          type: 'string',
+          description: 'JavaScript code using the global forgeai object to query, filter, and combine ForgeAI tool outputs'
+        },
+        timeout_ms: {
+          type: 'integer',
+          minimum: 100,
+          maximum: 30000,
+          description: 'Sandbox execution timeout in milliseconds (default 5000)'
+        }
+      },
+      required: ['code']
+    }
   }
 ] as const;
-
-function clampInt(value: unknown, fallback: number, min: number, max: number): number {
-  if (typeof value !== 'number' || !Number.isInteger(value)) return fallback;
-  return Math.max(min, Math.min(max, value));
-}
 
 function executeContextTool(args: Record<string, unknown>, repositoryRoot: string): string {
   const objective = typeof args.objective === 'string' ? args.objective.trim() : '';
   if (!objective) throw new Error('objective is required and must be a non-empty string');
-  const budget = clampInt(args.budget, 6000, 256, 200_000);
-  const maxDepth = clampInt(args.max_depth, 2, 0, 5);
-  const maxNodes = clampInt(args.max_nodes, 12, 1, 50);
+  const budget = clampBoundedInt(args.budget, 6000, 256, 200_000);
+  const maxDepth = clampBoundedInt(args.max_depth, 2, 0, 5);
+  const maxNodes = clampBoundedInt(args.max_nodes, 12, 1, 50);
   const artifact = compileContextForObjective(objective, repositoryRoot, { budget, maxDepth, maxNodes });
   return formatContextCommandOutput(artifact, args.format === 'json');
 }
@@ -99,19 +115,33 @@ function executeTryTool(args: Record<string, unknown>, repositoryRoot: string): 
 }
 
 function executeQualityTool(args: Record<string, unknown>, repositoryRoot: string): string {
-  const explicitFiles = Array.isArray(args.files)
-    ? args.files.filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0)
-    : null;
-  const files = explicitFiles ?? discoverTargetQualityFiles(repositoryRoot, Boolean(args.strict));
-  const report = analyzeFilesQuality(repositoryRoot, files);
-  return JSON.stringify(report, null, 2);
+  return JSON.stringify(runQualityForOptions(args, repositoryRoot), null, 2);
+}
+
+function executeCodeTool(args: Record<string, unknown>, repositoryRoot: string): string {
+  const code = typeof args.code === 'string' ? args.code : '';
+  const timeoutMs = clampBoundedInt(args.timeout_ms, 5000, 100, 30_000);
+  const outcome = executeCodeMode(code, { repositoryRoot, timeoutMs });
+  if (!outcome.ok) {
+    throw new Error(outcome.error ?? 'Code Mode execution failed');
+  }
+  return JSON.stringify(
+    {
+      result: outcome.result,
+      logs: outcome.logs,
+      operations: outcome.operations
+    },
+    null,
+    2
+  );
 }
 
 const TOOL_HANDLERS: Record<string, (args: Record<string, unknown>, repositoryRoot: string) => string> = {
   forgeai_context: executeContextTool,
   forgeai_try: executeTryTool,
   forgeai_check_quality: executeQualityTool,
-  forgeai_diagnostics: () => `${buildStatusSummary()}\n${buildDiffSummary()}`
+  forgeai_diagnostics: () => `${buildStatusSummary()}\n${buildDiffSummary()}`,
+  forgeai_code: executeCodeTool
 };
 
 function normalizeToolArguments(raw: unknown): Record<string, unknown> {

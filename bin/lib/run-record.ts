@@ -25,41 +25,89 @@ export function writeRunRecord(record: RunRecord, repositoryRoot: string): void 
 const VALID_PROVIDERS_REC = new Set(['anthropic', 'openai', 'gemini']);
 const VALID_OUTCOMES_REC = new Set(['ok', 'quota', 'auth', 'error']);
 
-// Returns true when `raw` is a structurally valid run record for reading.
-// Intentionally NOT a `raw is RunRecord` predicate: a pre-12B record may omit
-// `retry_count`, which does not satisfy the RunRecord type until normalized in
-// listRunRecords. Returning boolean keeps the predicate honest.
+function isNonNegativeInt(value: unknown): boolean {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
+function isNullableNonNegativeInt(value: unknown): boolean {
+  return value === null || isNonNegativeInt(value);
+}
+
+function isIsoTimestamp(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString() === value;
+}
+
+function hasValidIdentityFields(r: Record<string, unknown>): boolean {
+  if (r['kind'] !== 'forgeai_run_record' || r['schema_version'] !== 1) return false;
+  const strFields = ['run_id', 'adapter', 'artifact', 'objective'] as const;
+  if (strFields.some((k) => typeof r[k] !== 'string')) return false;
+  const model = r['model'];
+  if (typeof model !== 'string' || model.trim().length === 0) return false;
+  return VALID_PROVIDERS_REC.has(String(r['provider'])) && VALID_OUTCOMES_REC.has(String(r['outcome']));
+}
+
+function isValidHttpStatusField(hs: unknown): boolean {
+  if (hs === null) return true;
+  return isNonNegativeInt(hs) && (hs as number) >= 100 && (hs as number) <= 599;
+}
+
+function hasValidMetricFields(r: Record<string, unknown>): boolean {
+  const lat = r['latency_ms'];
+  if (typeof lat !== 'number' || !Number.isFinite(lat) || lat < 0) return false;
+  const tokenFields = ['input_tokens', 'output_tokens', 'cached_tokens'] as const;
+  if (tokenFields.some((f) => !isNullableNonNegativeInt(r[f]))) return false;
+  if (!isValidHttpStatusField(r['http_status'])) return false;
+  return isNonNegativeInt(r['budget_tokens']) && isNonNegativeInt(r['estimated_tokens']);
+}
+
+function isValidOptionalTaskId(tid: unknown): boolean {
+  if (tid === undefined || tid === null) return true;
+  return typeof tid === 'string' && tid.length > 0;
+}
+
+function isValidOptionalMode(md: unknown): boolean {
+  return md === undefined || md === null || md === 'baseline' || md === 'compact';
+}
+
+function hasValidOptionalFields(r: Record<string, unknown>): boolean {
+  if (r['error'] !== null && typeof r['error'] !== 'string') return false;
+  const rc = r['retry_count'];
+  if (rc !== undefined && !isNonNegativeInt(rc)) return false;
+  return isValidOptionalTaskId(r['task_id']) && isValidOptionalMode(r['mode']);
+}
+
+function isValidCodeModeRunFields(r: Record<string, unknown>): boolean {
+  if (r['code_mode'] !== undefined && typeof r['code_mode'] !== 'boolean') return false;
+  const rounds = r['tool_rounds'];
+  if (rounds !== undefined && !isNonNegativeInt(rounds)) return false;
+  const ops = r['sandbox_operations'];
+  return ops === undefined || (Array.isArray(ops) && ops.every((item) => typeof item === 'string'));
+}
+
 function isValidRunRecordInput(raw: unknown): boolean {
   if (typeof raw !== 'object' || raw === null) return false;
   const r = raw as Record<string, unknown>;
-  if (r['kind'] !== 'forgeai_run_record') return false;
-  if (r['schema_version'] !== 1) return false;
-  if (typeof r['run_id'] !== 'string' || typeof r['timestamp'] !== 'string') return false;
-  if (typeof r['adapter'] !== 'string' || typeof r['artifact'] !== 'string' || typeof r['objective'] !== 'string') return false;
-  // model must be non-empty after trimming: an empty model would flow into an
-  // evaluation record's routing_signatures, which the evaluation validator rejects.
-  if (typeof r['model'] !== 'string' || r['model'].trim().length === 0) return false;
-  if (!VALID_PROVIDERS_REC.has(r['provider'] as string)) return false;
-  if (!VALID_OUTCOMES_REC.has(r['outcome'] as string)) return false;
-  if (typeof r['latency_ms'] !== 'number' || !Number.isFinite(r['latency_ms'] as number) || (r['latency_ms'] as number) < 0) return false;
-  for (const field of ['input_tokens', 'output_tokens', 'cached_tokens']) {
-    const v = r[field];
-    if (v !== null && !(Number.isInteger(v) && (v as number) >= 0)) return false;
+  if (!hasValidIdentityFields(r) || !isIsoTimestamp(r['timestamp'])) return false;
+  if (!hasValidMetricFields(r) || !hasValidOptionalFields(r)) return false;
+  return isValidCodeModeRunFields(r);
+}
+
+function parseRunRecordFile(filePath: string): RunRecord | null {
+  try {
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    if (!isValidRunRecordInput(raw)) return null;
+    const r = raw as Record<string, unknown>;
+    return {
+      ...(r as unknown as RunRecord),
+      retry_count: (r['retry_count'] as number | undefined) ?? 0,
+      task_id: (r['task_id'] as string | null | undefined) ?? null,
+      mode: (r['mode'] as RunRecord['mode'] | undefined) ?? 'compact',
+    };
+  } catch {
+    return null;
   }
-  const hs = r['http_status'];
-  if (hs !== null && !(Number.isInteger(hs) && (hs as number) >= 100 && (hs as number) <= 599)) return false;
-  if (!Number.isInteger(r['budget_tokens']) || (r['budget_tokens'] as number) < 0) return false;
-  if (!Number.isInteger(r['estimated_tokens']) || (r['estimated_tokens'] as number) < 0) return false;
-  if (r['error'] !== null && typeof r['error'] !== 'string') return false;
-  const parsedTs = new Date(r['timestamp'] as string);
-  if (Number.isNaN(parsedTs.getTime()) || parsedTs.toISOString() !== r['timestamp']) return false;
-  const rc = r['retry_count'];
-  if (rc !== undefined && !(Number.isInteger(rc) && (rc as number) >= 0)) return false;
-  const tid = r['task_id'];
-  if (tid !== undefined && tid !== null && (typeof tid !== 'string' || tid.length === 0)) return false;
-  const md = r['mode'];
-  if (md !== undefined && md !== null && md !== 'baseline' && md !== 'compact') return false;
-  return true;
 }
 
 export function listRunRecords(repositoryRoot: string): RunRecord[] {
@@ -74,26 +122,20 @@ export function listRunRecords(repositoryRoot: string): RunRecord[] {
     return [];
   }
 
-  const records: RunRecord[] = [];
-  for (const name of names) {
-    if (!name.endsWith('.json')) continue;
-    try {
-      const raw = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'));
-      if (isValidRunRecordInput(raw)) {
-        const r = raw as Record<string, unknown>;
-        records.push({
-          ...(r as unknown as RunRecord),
-          retry_count: (r['retry_count'] as number | undefined) ?? 0,
-          task_id: (r['task_id'] as string | null | undefined) ?? null,
-          mode: (r['mode'] as RunRecord['mode'] | undefined) ?? 'compact',
-        });
-      }
-    } catch {
-      // skip malformed
-    }
-  }
+  const records = names
+    .filter((name) => name.endsWith('.json'))
+    .map((name) => parseRunRecordFile(path.join(dir, name)))
+    .filter((rec): rec is RunRecord => rec !== null);
 
   return records.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+}
+
+function formatRunRecordLine(r: RunRecord): string {
+  const tokens = r.input_tokens !== null
+    ? `in=${r.input_tokens} out=${r.output_tokens} cached=${r.cached_tokens ?? 0}`
+    : 'tokens=unknown';
+  const status = r.outcome === 'ok' ? 'ok' : 'invalid';
+  return formatStatus(status, `${r.run_id}  ${r.provider}/${r.model}  ${r.outcome}  ${tokens}  ${r.latency_ms}ms`);
 }
 
 export function runListRuns(): void {
@@ -105,14 +147,6 @@ export function runListRuns(): void {
   console.log(`Run records (${records.length} total)`);
   console.log('');
   for (const r of records) {
-    const tokens = r.input_tokens !== null
-      ? `in=${r.input_tokens} out=${r.output_tokens} cached=${r.cached_tokens ?? 0}`
-      : 'tokens=unknown';
-    console.log(
-      formatStatus(
-        r.outcome === 'ok' ? 'ok' : 'invalid',
-        `${r.run_id}  ${r.provider}/${r.model}  ${r.outcome}  ${tokens}  ${r.latency_ms}ms`
-      )
-    );
+    console.log(formatRunRecordLine(r));
   }
 }

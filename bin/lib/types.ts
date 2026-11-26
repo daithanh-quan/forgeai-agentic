@@ -350,6 +350,26 @@ export type ApiAdapterEntry = {
   fallback_adapter?: string;
   max_retries?: number;
   retry_base_ms?: number;
+  code_mode?: boolean;
+  max_tool_rounds?: number;
+};
+
+export type CodeModeOptions = {
+  repositoryRoot?: string;
+  timeoutMs?: number;
+  maxOutputChars?: number;
+  primaryArtifact?: CompiledContextArtifact | null;
+  writeScope?: string[];
+  readScope?: string[];
+};
+
+export type CodeModeResult = {
+  ok: boolean;
+  result: unknown;
+  logs: string[];
+  changed_files: string[];
+  operations: string[];
+  error: string | null;
 };
 
 export type ApiAdapterConfig = {
@@ -370,6 +390,9 @@ export type ApiCallResult = {
   streamed: boolean;
   retry_count: number;
   error: string | null;
+  code_mode?: boolean;
+  tool_rounds?: number;
+  sandbox_operations?: string[];
 };
 
 export type RunRecord = {
@@ -394,6 +417,9 @@ export type RunRecord = {
   outcome: 'ok' | 'quota' | 'auth' | 'error';
   retry_count: number;
   error: string | null;
+  code_mode?: boolean;
+  tool_rounds?: number;
+  sandbox_operations?: string[];
 };
 
 export type EvaluationOutcome = 'pass' | 'fail' | 'partial';

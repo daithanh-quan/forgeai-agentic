@@ -3,6 +3,7 @@ import { emitToPipe, getPipePath } from '../ui/pipe.js';
 export type RunEvent =
   | { type: 'run_start'; ts: number; adapter: string; provider: string; model: string; objective: string; budget_tokens: number }
   | { type: 'retry_attempt'; ts: number; adapter: string; attempt: number; error_kind: string; delay_ms: number }
+  | { type: 'code_mode_step'; ts: number; round: number; operations: string[]; changed_files: string[]; ok: boolean }
   | { type: 'run_complete'; ts: number; adapter: string; outcome: string; input_tokens: number | null; output_tokens: number | null; latency_ms: number; retry_count: number };
 
 export type CheckEvent =
